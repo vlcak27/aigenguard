@@ -31,6 +31,14 @@ inputs:
     description: "Directory for generated AgentBOM reports"
     default: "agentbom-report"
 
+  policy:
+    description: "Optional AgentBOM TOML policy file"
+    default: ""
+
+  enforce-policy:
+    description: "Fail when the supplied AgentBOM policy has violations"
+    default: "false"
+
 outputs:
   risk-score:
     description: "Repository risk score"
@@ -53,25 +61,36 @@ runs:
     - name: Run AgentBOM
       id: scan
       shell: bash
+      env:
+        AGENTBOM_INPUT_POLICY: ${{ inputs.policy }}
+        AGENTBOM_INPUT_ENFORCE_POLICY: ${{ inputs.enforce-policy }}
       run: |
-        FLAGS=""
+        FLAGS=()
 
         if [ "${{ inputs.sarif-upload }}" = "true" ]; then
-          FLAGS="$FLAGS --sarif"
+          FLAGS+=(--sarif)
         fi
 
         if [ "${{ inputs.html }}" = "true" ]; then
-          FLAGS="$FLAGS --html"
+          FLAGS+=(--html)
         fi
 
         if [ "${{ inputs.cyclonedx }}" = "true" ]; then
-          FLAGS="$FLAGS --cyclonedx"
+          FLAGS+=(--cyclonedx)
+        fi
+
+        if [ -n "$AGENTBOM_INPUT_POLICY" ]; then
+          FLAGS+=(--policy "$AGENTBOM_INPUT_POLICY")
+        fi
+
+        if [ "$AGENTBOM_INPUT_ENFORCE_POLICY" = "true" ]; then
+          FLAGS+=(--enforce-policy)
         fi
 
         agentbom scan "${{ inputs.path }}" \
           --output-dir "${{ inputs.output-dir }}" \
           --pretty \
-          $FLAGS
+          "${FLAGS[@]}"
 
         REPORT="${{ inputs.output-dir }}/agentbom.json"
 

@@ -105,6 +105,9 @@
     },
     "diff": {
       "$ref": "#/$defs/diff"
+    },
+    "policy_review": {
+      "$ref": "#/$defs/policy_review"
     }
   },
   "$defs": {
@@ -413,6 +416,73 @@
           "type": "string"
         },
         "policy_id": {
+          "type": "string"
+        }
+      }
+    },
+    "policy_review": {
+      "type": "object",
+      "required": [
+        "passed",
+        "mode",
+        "violations",
+        "warnings"
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "advisory",
+            "enforced"
+          ]
+        },
+        "policy_file": {
+          "type": "string"
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/policy_review_item"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/policy_review_item"
+          }
+        }
+      }
+    },
+    "policy_review_item": {
+      "type": "object",
+      "required": [
+        "rule",
+        "severity",
+        "message"
+      ],
+      "properties": {
+        "rule": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "suggested_remediation": {
           "type": "string"
         }
       }

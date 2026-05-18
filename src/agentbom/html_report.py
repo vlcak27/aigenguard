@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+import json
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,11 @@ SECTION_HELP = {
     "policy": (
         "Missing controls or custom policy violations that should be resolved "
         "or accepted explicitly."
+    ),
+    "policy-review": "Result of evaluating the supplied AgentBOM TOML policy.",
+    "policy-workbench": (
+        "Build an agentbom.toml from the providers, models, frameworks, capabilities, "
+        "MCP servers, secrets, and policy gaps detected in this report."
     ),
     "prompts": "Prompt and instruction files that may influence agent behavior.",
     "dependencies": "AI, MCP, and sandbox dependencies detected in supported package manifests.",
@@ -65,6 +71,7 @@ def render_html(bom: dict[str, Any]) -> str:
             '<main class="content">',
             _overview(bom, risk, score, severity),
             _diff_summary(bom.get("diff", {})),
+            _policy_review(bom.get("policy_review")),
             _review_priorities(bom),
             _providers_and_models(bom),
             _named_section("Frameworks", "frameworks", bom.get("frameworks", [])),
@@ -74,9 +81,11 @@ def render_html(bom: dict[str, Any]) -> str:
             _prompt_surfaces(bom.get("prompts", [])),
             _dependencies(bom.get("dependencies", [])),
             _named_section("Secret References", "secrets", bom.get("secret_references", [])),
+            _policy_workbench(bom),
             _capability_graph(graph),
             "</main>",
             "</div>",
+            _policy_workbench_script(bom),
             "</body>",
             "</html>",
             "",
@@ -96,10 +105,13 @@ def _sidebar(bom: dict[str, Any]) -> str:
         ("Prompt Files", "prompts"),
         ("Dependencies", "dependencies"),
         ("Secret References", "secrets"),
+        ("Policy Workbench", "policy-workbench"),
         ("Capability Graph", "graph"),
     ]
     if _dict(bom.get("diff")):
         sections.insert(1, ("Changes", "diff"))
+    if _dict(bom.get("policy_review")):
+        sections.insert(2 if _dict(bom.get("diff")) else 1, ("Policy Review", "policy-review"))
     links = "\n".join(
         f'<a href="#{section_id}">{escape(label)}</a>' for label, section_id in sections
     )
@@ -187,6 +199,74 @@ def _risk_guidance(severity: str) -> str:
     if severity == "medium":
         return "Medium means there are review signals, but they may be expected for this agent."
     return "Low means AgentBOM did not find strong repository-level risk signals."
+
+
+def _policy_review(policy_review_value: Any) -> str:
+    policy_review = _dict(policy_review_value)
+    if not policy_review:
+        return ""
+    status = _policy_review_status(policy_review)
+    mode = str(policy_review.get("mode", "advisory"))
+    policy_file = str(policy_review.get("policy_file", ""))
+    violations = _policy_review_items(policy_review.get("violations"))
+    warnings = _policy_review_items(policy_review.get("warnings"))
+    note = ""
+    if mode == "advisory":
+        note = (
+            '<p class="subtle">'
+            "Advisory mode does not fail CI. Use --enforce-policy to make violations fail."
+            "</p>"
+        )
+    return (
+        '<section id="policy-review" class="section">'
+        '<div class="section-heading">'
+        "<h1>Policy Review</h1>"
+        f'<span class="badge status-{_class_token(status)}">{escape(status)}</span>'
+        "</div>"
+        f'<p class="section-lede">{escape(SECTION_HELP["policy-review"])}</p>'
+        '<div class="meta-grid">'
+        f"<div><span>Status</span><strong>{escape(status)}</strong></div>"
+        f"<div><span>Mode</span><strong>{escape(mode)}</strong></div>"
+        f"<div><span>Policy file</span><strong>{escape(policy_file)}</strong></div>"
+        f"<div><span>Violations</span><strong>{len(violations)}</strong></div>"
+        "</div>"
+        f"{note}"
+        "<h2>Violations</h2>"
+        f"{_policy_review_table(violations)}"
+        "<h2>Warnings</h2>"
+        f"{_policy_review_table(warnings)}"
+        "</section>"
+    )
+
+
+def _policy_review_items(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _policy_review_table(items: list[dict[str, Any]]) -> str:
+    rows = [
+        [
+            _badge(str(item.get("severity", ""))),
+            escape(str(item.get("rule", ""))),
+            escape(str(item.get("message", ""))),
+            escape(str(item.get("source", ""))),
+            escape(str(item.get("suggested_remediation", ""))),
+        ]
+        for item in items
+    ]
+    return _table(["Severity", "Rule", "Message", "Source", "Remediation"], rows, "None.")
+
+
+def _policy_review_status(policy_review: dict[str, Any]) -> str:
+    violations = _policy_review_items(policy_review.get("violations"))
+    warnings = _policy_review_items(policy_review.get("warnings"))
+    if violations:
+        return "failed"
+    if warnings:
+        return "passed with warnings"
+    return "passed"
 
 
 def _review_priorities(bom: dict[str, Any]) -> str:
@@ -459,6 +539,263 @@ def _dependencies(items: Any) -> str:
     )
 
 
+def _policy_workbench(bom: dict[str, Any]) -> str:
+    data = _policy_builder_data(bom)
+    groups = [
+        ("Providers", "provider", data["providers"]),
+        ("Models", "model", data["models"]),
+        ("Frameworks", "framework", data["frameworks"]),
+        ("Reachable Capabilities", "capability", data["capabilities"]),
+        ("MCP Servers", "mcp", data["mcp_servers"]),
+        ("Secret References", "secret", data["secrets"]),
+        ("Policy Gaps", "policy_gap", data["policy_gaps"]),
+    ]
+    body = "".join(_workbench_group(title, kind, values) for title, kind, values in groups)
+    initial_policy = escape(_initial_policy_toml(data))
+    return (
+        '<section id="policy-workbench" class="section policy-workbench">'
+        "<h1>Policy Workbench</h1>"
+        f'<p class="section-lede">{escape(SECTION_HELP["policy-workbench"])}</p>'
+        '<div class="workbench-grid">'
+        f'<div class="workbench-controls">{body}</div>'
+        '<div class="policy-output">'
+        "<h2>Generated agentbom.toml</h2>"
+        '<textarea id="policy-toml" readonly spellcheck="false">'
+        f"{initial_policy}"
+        "</textarea>"
+        '<div class="button-row">'
+        '<button type="button" id="copy-policy">Copy policy</button>'
+        '<button type="button" id="download-policy">Download agentbom.toml</button>'
+        "</div>"
+        "<h2>Follow-up commands</h2>"
+        "<pre><code>agentbom scan . --policy agentbom.toml --pretty\n"
+        "agentbom scan . --policy agentbom.toml --enforce-policy</code></pre>"
+        "</div>"
+        "</div>"
+        "</section>"
+    )
+
+
+def _workbench_group(title: str, kind: str, values: list[str]) -> str:
+    if not values:
+        body = '<p class="empty compact">None detected.</p>'
+    else:
+        body = "".join(_workbench_item(kind, index, value) for index, value in enumerate(values))
+    return (
+        '<fieldset class="workbench-group">'
+        f"<legend>{escape(title)}</legend>"
+        f"{body}"
+        "</fieldset>"
+    )
+
+
+def _workbench_item(kind: str, index: int, value: str) -> str:
+    safe_value = escape(value, quote=True)
+    name = f"policy-{kind}-{index}"
+    controls = []
+    default_action = "warn" if kind in {"secret", "policy_gap"} else "ignore"
+    for action in _workbench_actions(kind):
+        checked = " checked" if action == default_action else ""
+        controls.append(
+            '<label>'
+            f'<input type="radio" name="{name}" data-kind="{escape(kind)}" '
+            f'data-action="{action}" data-value="{safe_value}"{checked}> '
+            f"{escape(action)}"
+            "</label>"
+        )
+    return (
+        '<div class="workbench-item">'
+        f'<span title="{safe_value}">{safe_value}</span>'
+        f'<div class="choice-row">{"".join(controls)}</div>'
+        "</div>"
+    )
+
+
+def _workbench_actions(kind: str) -> tuple[str, ...]:
+    if kind in {"provider", "model", "framework", "mcp"}:
+        return ("allow", "deny", "ignore")
+    if kind == "capability":
+        return ("deny", "ignore")
+    return ("warn", "ignore")
+
+
+def _policy_builder_data(bom: dict[str, Any]) -> dict[str, list[str]]:
+    return {
+        "providers": _names(bom.get("providers")),
+        "models": _names(bom.get("models")),
+        "frameworks": _names(bom.get("frameworks")),
+        "capabilities": _reachable_capability_names(bom.get("reachable_capabilities")),
+        "mcp_servers": _names(bom.get("mcp_servers")),
+        "secrets": _names(bom.get("secret_references")),
+        "policy_gaps": _policy_gap_names(bom.get("policy_findings")),
+    }
+
+
+def _names(items: Any) -> list[str]:
+    values = []
+    seen = set()
+    for item in _list(items):
+        value = str(_dict(item).get("name", "")).strip()
+        if value and value not in seen:
+            seen.add(value)
+            values.append(value)
+    return sorted(values)
+
+
+def _reachable_capability_names(items: Any) -> list[str]:
+    values = []
+    seen = set()
+    for item in _list(items):
+        value = str(_dict(item).get("capability", "")).strip()
+        if value and value not in seen:
+            seen.add(value)
+            values.append(value)
+    return sorted(values)
+
+
+def _policy_gap_names(items: Any) -> list[str]:
+    values = []
+    seen = set()
+    for item in _list(items):
+        finding = _dict(item)
+        severity = str(finding.get("severity", "low")).strip()
+        message = str(finding.get("message", "")).strip()
+        value = f"{severity}: {message}" if message else severity
+        if value and value not in seen:
+            seen.add(value)
+            values.append(value)
+    return sorted(values)
+
+
+def _initial_policy_toml(data: dict[str, list[str]]) -> str:
+    del data
+    return "\n".join(
+        [
+            "[risk]",
+            'warn_on = "high"',
+            "",
+            "[providers]",
+            "allow = []",
+            "deny = []",
+            "",
+            "[models]",
+            "allow = []",
+            "deny = []",
+            "",
+            "[frameworks]",
+            "allow = []",
+            "deny = []",
+            "",
+            "[capabilities]",
+            "deny = []",
+            "",
+            "[mcp]",
+            "allow_servers = []",
+            "deny_servers = []",
+            "warn_on_unknown_server = true",
+            "require_policy_for_risky_servers = true",
+            "",
+            "[secrets]",
+            "warn_on_detected = true",
+            "",
+            "[policy_gaps]",
+            'warn_on = "medium"',
+            "",
+        ]
+    )
+
+
+def _policy_workbench_script(bom: dict[str, Any]) -> str:
+    data = _json_for_script(_policy_builder_data(bom))
+    return (
+        "<script>"
+        f"const agentbomPolicyData = {data};"
+        r"""
+(function () {
+  const area = document.getElementById("policy-toml");
+  if (!area) return;
+  const tomlString = function (value) {
+    return '"' + String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+  };
+  const tomlArray = function (values) {
+    return "[" + values.map(tomlString).join(", ") + "]";
+  };
+  const selected = function (kind, action) {
+    return Array.from(document.querySelectorAll(
+      'input[data-kind="' + kind + '"][data-action="' + action + '"]:checked'
+    )).map(function (input) { return input.getAttribute("data-value") || ""; });
+  };
+  const warnSelected = function (kind) {
+    return selected(kind, "warn").length > 0;
+  };
+  const render = function () {
+    const lines = [
+      "[risk]",
+      'warn_on = "high"',
+      "",
+      "[providers]",
+      "allow = " + tomlArray(selected("provider", "allow")),
+      "deny = " + tomlArray(selected("provider", "deny")),
+      "",
+      "[models]",
+      "allow = " + tomlArray(selected("model", "allow")),
+      "deny = " + tomlArray(selected("model", "deny")),
+      "",
+      "[frameworks]",
+      "allow = " + tomlArray(selected("framework", "allow")),
+      "deny = " + tomlArray(selected("framework", "deny")),
+      "",
+      "[capabilities]",
+      "deny = " + tomlArray(selected("capability", "deny")),
+      "",
+      "[mcp]",
+      "allow_servers = " + tomlArray(selected("mcp", "allow")),
+      "deny_servers = " + tomlArray(selected("mcp", "deny")),
+      "warn_on_unknown_server = true",
+      "require_policy_for_risky_servers = true",
+      "",
+      "[secrets]",
+      "warn_on_detected = "
+        + ((agentbomPolicyData.secrets.length === 0 || warnSelected("secret")) ? "true" : "false"),
+      "",
+      "[policy_gaps]",
+      'warn_on = "'
+        + ((agentbomPolicyData.policy_gaps.length === 0 || warnSelected("policy_gap"))
+          ? "medium" : "critical") + '"',
+      ""
+    ];
+    area.value = lines.join("\n");
+  };
+  document.querySelectorAll("#policy-workbench input").forEach(function (input) {
+    input.addEventListener("change", render);
+  });
+  const copyButton = document.getElementById("copy-policy");
+  if (copyButton && navigator.clipboard) {
+    copyButton.addEventListener("click", function () {
+      navigator.clipboard.writeText(area.value);
+    });
+  }
+  const downloadButton = document.getElementById("download-policy");
+  if (downloadButton) {
+    downloadButton.addEventListener("click", function () {
+      const blob = new Blob([area.value], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "agentbom.toml";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
+  }
+  render();
+}());
+"""
+        "</script>"
+    )
+
+
 def _capability_graph(graph: dict[str, Any]) -> str:
     node_rows = [
         [
@@ -575,6 +912,15 @@ def _dict(value: Any) -> dict[str, Any]:
 
 def _int(value: Any, default: int) -> int:
     return value if isinstance(value, int) else default
+
+
+def _json_for_script(value: Any) -> str:
+    return (
+        json.dumps(value, sort_keys=True)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
 
 
 def _css() -> str:
@@ -830,6 +1176,8 @@ tbody tr:last-child td {
 .severity-medium, .confidence-medium { color: #ffffff; background: var(--medium); }
 .severity-high, .confidence-high { color: #ffffff; background: var(--high); }
 .severity-critical { color: #ffffff; background: var(--critical); }
+.status-passed, .status-passed-with-warnings { color: #052e22; background: var(--low); }
+.status-failed { color: #ffffff; background: var(--high); }
 .empty {
   margin: 0;
   padding: 14px 16px;
@@ -846,6 +1194,101 @@ ul {
 li + li {
   margin-top: 4px;
 }
+.workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, .9fr);
+  gap: 18px;
+  align-items: start;
+}
+.workbench-controls {
+  display: grid;
+  gap: 12px;
+}
+.workbench-group {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.workbench-group legend {
+  padding: 0 6px;
+  color: #243140;
+  font-weight: 700;
+}
+.workbench-item {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.workbench-item:first-of-type {
+  border-top: 0;
+}
+.workbench-item > span {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .88rem;
+}
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.choice-row label {
+  color: var(--muted);
+  font-size: .88rem;
+}
+.policy-output {
+  position: sticky;
+  top: 20px;
+}
+.policy-output textarea {
+  width: 100%;
+  min-height: 430px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .88rem;
+  line-height: 1.45;
+}
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 16px;
+}
+button {
+  padding: 9px 12px;
+  border: 1px solid #405064;
+  border-radius: 8px;
+  background: #243140;
+  color: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover {
+  background: #17202a;
+}
+pre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .88rem;
+}
+.compact {
+  padding: 8px 10px;
+}
 @media (max-width: 860px) {
   .layout { grid-template-columns: 1fr; }
   .sidebar {
@@ -857,6 +1300,8 @@ li + li {
   .content { padding: 22px 16px 42px; }
   .overview-grid, .meta-grid { grid-template-columns: 1fr; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workbench-grid { grid-template-columns: 1fr; }
+  .policy-output { position: static; }
 }
 @media print {
   body { background: #fff; color: #111827; }

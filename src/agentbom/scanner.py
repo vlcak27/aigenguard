@@ -9,7 +9,12 @@ from typing import Any
 from . import SCHEMA_VERSION
 from .detectors import detect_in_file
 from .graph import build_capability_graph
-from .policy import has_human_approval_text, validate_custom_policy, validate_policies
+from .policy import (
+    evaluate_policy_file,
+    has_human_approval_text,
+    validate_custom_policy,
+    validate_policies,
+)
 from .reachability import detect_reachable_capability_hits, infer_reachable_capabilities
 from .risk import score_repository_risk, score_risks
 
@@ -51,7 +56,12 @@ TEXT_NAMES = {
 }
 
 
-def scan_path(path: str | Path, policy_path: str | Path | None = None) -> dict[str, object]:
+def scan_path(
+    path: str | Path,
+    policy_path: str | Path | None = None,
+    *,
+    enforce_policy: bool = False,
+) -> dict[str, object]:
     root = Path(path)
     if not root.exists():
         raise FileNotFoundError(f"path does not exist: {root}")
@@ -114,7 +124,8 @@ def scan_path(path: str | Path, policy_path: str | Path | None = None) -> dict[s
     bom["policy_findings"] = validate_policies(
         bom["prompts"], bom["capabilities"], bom["mcp_servers"], has_policy  # type: ignore[arg-type]
     )
-    if policy_path is not None:
+    policy_file = Path(policy_path) if policy_path is not None else None
+    if policy_file is not None and policy_file.suffix.lower() != ".toml":
         for finding in validate_custom_policy(policy_path, bom, has_human_approval):
             _append_unique(bom["policy_findings"], finding)
     bom["repository_risk"] = score_repository_risk(
@@ -123,6 +134,13 @@ def scan_path(path: str | Path, policy_path: str | Path | None = None) -> dict[s
         bom["secret_references"],
         bom["policy_findings"],
     )  # type: ignore[arg-type]
+    if policy_file is not None and policy_file.suffix.lower() == ".toml":
+        bom["policy_review"] = evaluate_policy_file(
+            policy_file,
+            bom,
+            mode="enforced" if enforce_policy else "advisory",
+            has_repository_policy=has_policy,
+        )
     return bom
 
 

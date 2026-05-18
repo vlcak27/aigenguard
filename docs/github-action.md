@@ -6,6 +6,11 @@ capabilities, and generated report files. It can also upload SARIF to GitHub
 code scanning or fail the workflow when repository risk meets a chosen
 threshold.
 
+Policy review is separate from the repository risk threshold. If you provide an
+`agentbom.toml`, AgentBOM evaluates it in advisory mode by default and includes
+a short policy result in the job summary. Set `enforce-policy: true` only after
+the policy has passed in advisory runs.
+
 For demos, initial adoption, and repositories with intentional examples, start
 with informational mode. This writes JSON/Markdown/HTML reports without failing
 CI or creating code scanning alerts. The action defaults are stricter, so set
@@ -38,6 +43,7 @@ jobs:
           fail-on: none
           sarif-upload: false
           html: true
+          policy: agentbom.toml
           output-dir: agentbom-report
 
       - name: Upload AgentBOM reports
@@ -91,7 +97,47 @@ Enforcement mode:
 
 - Set `fail-on: high` or `fail-on: critical` after expected capabilities are
   documented.
+- Or set `policy: agentbom.toml` with `enforce-policy: true` after the policy
+  passes in advisory mode.
 - Keep report artifacts enabled so reviewers can inspect the reason for a
   failure.
 - Make the workflow a required branch protection check only after the threshold
   matches the repository policy.
+
+## Policy Review
+
+Start by generating an HTML report locally or in an informational workflow.
+Open `agentbom.html`, use the Policy Workbench to create `agentbom.toml`, and
+commit the reviewed policy.
+
+Advisory workflow:
+
+```yaml
+- name: Run AgentBOM
+  uses: vlcak27/agentbom@v0.7.0
+  with:
+    path: .
+    fail-on: none
+    sarif-upload: false
+    html: true
+    policy: agentbom.toml
+    output-dir: agentbom-report
+```
+
+Enforced policy workflow:
+
+```yaml
+- name: Run AgentBOM
+  uses: vlcak27/agentbom@v0.7.0
+  with:
+    path: .
+    fail-on: none
+    sarif-upload: false
+    html: true
+    policy: agentbom.toml
+    enforce-policy: true
+    output-dir: agentbom-report
+```
+
+AgentBOM remains static and offline in both modes. It does not execute scanned
+code, start MCP servers, call networks, or print secret values.

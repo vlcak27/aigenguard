@@ -10,8 +10,11 @@ It records static evidence, source paths, confidence, and rationale.
 2. Review priorities: the shortest queue of findings to triage first.
 3. Reachable capabilities: AI actors connected to sensitive actions.
 4. Policy findings: controls that appear missing or violated.
-5. Component sections: providers, models, frameworks, MCP security analysis,
+5. Policy review: the result of an optional `agentbom.toml` policy evaluation.
+6. Component sections: providers, models, frameworks, MCP security analysis,
    prompts, dependencies, and secret references.
+7. Policy Workbench: an HTML-only builder for creating `agentbom.toml` from
+   the current scan findings.
 
 ## Terms
 
@@ -30,6 +33,8 @@ It records static evidence, source paths, confidence, and rationale.
 - Reachable capability: an inferred relationship from an AI actor to a
   capability.
 - Policy finding: a missing control or custom policy violation.
+- Policy review: advisory or enforced evaluation of `agentbom.toml`. Advisory
+  review never fails the scan by itself.
 
 ## Model evidence
 
@@ -65,15 +70,11 @@ AgentBOM adds reachable `mcp_tool_invocation` entries. Those entries identify
 the MCP server, risk categories, and rationale so reviewers can decide whether
 the tool exposure is expected, sandboxed, or policy-approved.
 
-Custom policy can deny MCP server names or MCP risk categories:
+AgentBOM TOML policy can deny MCP server names:
 
-```yaml
-deny_mcp_servers:
-  - filesystem
-
-deny_mcp_risk_categories:
-  - shell_process_execution
-  - secrets_env_access
+```toml
+[mcp]
+deny_servers = ["filesystem"]
 ```
 
 ## What to do with findings
@@ -85,3 +86,26 @@ explicit about why it exists.
 
 Secret reference findings require credential hygiene review only. AgentBOM
 records names such as `OPENAI_API_KEY`; it must not store or print secret values.
+
+## Policy Workbench
+
+The HTML report always includes a Policy Workbench. It lists detected providers,
+model identifiers, frameworks, reachable capabilities, MCP servers, secret
+reference names, and policy gaps from the current scan. Choose allow, deny,
+warn, or ignore for each item, then copy or download the generated
+`agentbom.toml`.
+
+The builder runs offline with inline JavaScript only. It does not make network
+calls and does not include secret values.
+
+Run the generated policy in advisory mode first:
+
+```bash
+agentbom scan . --policy agentbom.toml --pretty
+```
+
+Only use enforcement once expected findings are reviewed:
+
+```bash
+agentbom scan . --policy agentbom.toml --enforce-policy
+```

@@ -61,6 +61,7 @@ def render_markdown(bom: dict[str, Any]) -> str:
     lines.extend(_reader_guide_section())
     lines.extend(_repository_risk_section(bom.get("repository_risk", {})))
     lines.extend(_diff_section(bom.get("diff", {})))
+    lines.extend(_policy_review_section(bom.get("policy_review")))
     lines.extend(_review_priorities_section(bom))
     lines.extend(_reachable_capability_section(bom.get("reachable_capabilities", [])))
     lines.extend(_policy_finding_section(bom.get("policy_findings", [])))
@@ -368,6 +369,39 @@ def _diff_section(diff: object) -> list[str]:
     return lines
 
 
+def _policy_review_section(policy_review: object) -> list[str]:
+    if not isinstance(policy_review, dict):
+        return []
+    status = _policy_review_status(policy_review)
+    mode = policy_review.get("mode", "advisory")
+    lines = [
+        "## Policy review",
+        "",
+        f"Status: {status}",
+        f"Mode: {mode}",
+    ]
+    policy_file = policy_review.get("policy_file")
+    if policy_file:
+        lines.append(f"Policy file: {policy_file}")
+    lines.append("")
+
+    violations = _finding_list(policy_review.get("violations"))
+    warnings = _finding_list(policy_review.get("warnings"))
+    if violations:
+        lines.extend(["### Violations", ""])
+        for item in violations:
+            lines.append(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
+        lines.append("")
+    if warnings:
+        lines.extend(["### Warnings", ""])
+        for item in warnings:
+            lines.append(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
+        lines.append("")
+    if not violations and not warnings:
+        lines.extend(["No policy violations or warnings detected.", ""])
+    return lines
+
+
 def _risk_section(risks: list[dict[str, str]]) -> list[str]:
     lines = ["## Risks", ""]
     lines.extend([SECTION_DESCRIPTIONS["Risks"], ""])
@@ -382,3 +416,17 @@ def _risk_section(risks: list[dict[str, str]]) -> list[str]:
 
 def _list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
+
+
+def _finding_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _policy_review_status(policy_review: dict[str, Any]) -> str:
+    if _finding_list(policy_review.get("violations")):
+        return "failed"
+    if _finding_list(policy_review.get("warnings")):
+        return "passed with warnings"
+    return "passed"

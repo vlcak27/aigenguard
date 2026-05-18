@@ -51,6 +51,25 @@ open agentbom-report/agentbom.html
 
 AgentBOM does not execute scanned code.
 
+## Policy Review
+
+AgentBOM can evaluate a local `agentbom.toml` policy in advisory mode:
+
+```bash
+agentbom scan . --policy agentbom.toml --html --pretty
+```
+
+Policy violations do not fail the scan unless enforcement is explicit:
+
+```bash
+agentbom scan . --policy agentbom.toml --enforce-policy
+```
+
+Every HTML report includes a Policy Workbench that helps build an
+`agentbom.toml` from the actual detected providers, models, frameworks,
+reachable capabilities, MCP servers, secret references, and policy gaps.
+See [policy docs](docs/policy.md) for the format and rollout workflow.
+
 ## Install by Platform
 
 macOS:
