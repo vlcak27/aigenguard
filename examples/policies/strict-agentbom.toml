@@ -1,0 +1,39 @@
+# Stricter AgentBOM policy.
+# Test this without --enforce-policy first:
+# agentbom scan . --policy examples/policies/strict-agentbom.toml --pretty
+
+[risk]
+warn_on = "high"
+
+[providers]
+allow = []
+deny = [
+  "openrouter",
+]
+
+[models]
+allow = []
+deny = []
+
+[frameworks]
+allow = []
+deny = []
+
+[capabilities]
+deny = [
+  "shell_execution",
+  "code_execution",
+  "network_access",
+]
+
+[mcp]
+allow_servers = []
+deny_servers = []
+warn_on_unknown_server = true
+require_policy_for_risky_servers = true
+
+[secrets]
+warn_on_detected = true
+
+[policy_gaps]
+warn_on = "medium"

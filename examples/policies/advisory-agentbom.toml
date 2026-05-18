@@ -1,0 +1,34 @@
+# Advisory AgentBOM policy for first reviews.
+# Run without --enforce-policy until the generated report matches expectations.
+
+[risk]
+warn_on = "high"
+
+[providers]
+# Empty allow lists mean "do not restrict by allow list".
+allow = []
+deny = []
+
+[models]
+allow = []
+deny = []
+
+[frameworks]
+allow = []
+deny = []
+
+[capabilities]
+# Start by reviewing sensitive reachable capabilities in the report.
+deny = []
+
+[mcp]
+allow_servers = []
+deny_servers = []
+warn_on_unknown_server = true
+require_policy_for_risky_servers = false
+
+[secrets]
+warn_on_detected = true
+
+[policy_gaps]
+warn_on = "medium"

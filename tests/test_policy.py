@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from agentbom.policy import parse_policy_yaml
+import pytest
+
+from agentbom.policy import PolicyError, load_toml_policy, parse_policy_yaml
 from agentbom.scanner import scan_path
 
 
@@ -150,3 +152,181 @@ def test_policy_yaml_supports_deny_alias():
         "deny_capabilities": ["shell"],
         "require": {"sandboxing": True, "human_approval": True},
     }
+
+
+def test_toml_policy_denies_provider_model_framework_and_capability(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "\n".join(
+            [
+                "import subprocess",
+                "from crewai import Agent",
+                "OPENROUTER_API_KEY = 'do-not-store'",
+                "model = 'gpt-4o'",
+                "subprocess.run(['echo', 'hello'])",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[providers]",
+                'deny = ["openrouter"]',
+                "[models]",
+                'deny = ["gpt-4o"]',
+                "[frameworks]",
+                'deny = ["crewai"]',
+                "[capabilities]",
+                'deny = ["code_execution"]',
+                "[mcp]",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project, policy_path=policy)
+    review = data["policy_review"]
+    messages = {item["message"] for item in review["violations"]}
+
+    assert review["mode"] == "advisory"
+    assert "Provider denied by policy: openrouter." in messages
+    assert "Model denied by policy: gpt-4o." in messages
+    assert "Framework denied by policy: crewai." in messages
+    assert "Denied reachable capability detected: code_execution." in messages
+
+
+def test_toml_policy_allow_list_flags_values_outside_allow_list(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "\n".join(
+            [
+                "from openai import OpenAI",
+                "OPENROUTER_API_KEY = 'do-not-store'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[providers]",
+                'allow = ["openai"]',
+                "[mcp]",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project, policy_path=policy)
+    messages = {item["message"] for item in data["policy_review"]["violations"]}
+
+    assert "Provider not allowed by policy: openrouter." in messages
+
+
+def test_toml_policy_secret_warning_does_not_include_secret_value(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "OPENAI_API_KEY = 'do-not-store'\n",
+        encoding="utf-8",
+    )
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[secrets]",
+                "warn_on_detected = true",
+                "[mcp]",
+                "require_policy_for_risky_servers = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project, policy_path=policy)
+    review_text = str(data["policy_review"])
+
+    assert "Secret reference detected and secrets.warn_on_detected is enabled." in review_text
+    assert "do-not-store" not in review_text
+
+
+def test_toml_policy_mcp_unknown_and_risky_server_rules(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "mcp.json").write_text(
+        """
+        {
+          "mcpServers": {
+            "custom-local": {"command": "custom-local"},
+            "shell-runner": {"command": "bash"}
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[mcp]",
+                "warn_on_unknown_server = true",
+                "require_policy_for_risky_servers = true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project, policy_path=policy)
+    warning_messages = {item["message"] for item in data["policy_review"]["warnings"]}
+    violation_messages = {item["message"] for item in data["policy_review"]["violations"]}
+
+    assert "Unknown MCP server detected: custom-local." in warning_messages
+    assert "Risky MCP server lacks policy evidence: shell-runner." in violation_messages
+
+
+def test_toml_policy_gap_and_repository_risk_thresholds(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "AGENTS.md").write_text("system prompt\n", encoding="utf-8")
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[risk]",
+                'warn_on = "low"',
+                "[policy_gaps]",
+                'warn_on = "low"',
+                "[mcp]",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project, policy_path=policy)
+    violation_messages = {item["message"] for item in data["policy_review"]["violations"]}
+    warning_messages = {item["message"] for item in data["policy_review"]["warnings"]}
+
+    assert "Repository risk is low, policy warns on low or above." in violation_messages
+    assert "Policy gap detected at or above threshold." in warning_messages
+
+
+def test_toml_policy_invalid_severity_is_clear(tmp_path):
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text("[risk]\nwarn_on = \"urgent\"\n", encoding="utf-8")
+
+    with pytest.raises(PolicyError, match="invalid severity for risk.warn_on"):
+        load_toml_policy(policy)

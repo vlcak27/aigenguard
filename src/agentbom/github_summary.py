@@ -51,10 +51,10 @@ def render_github_step_summary(bom: dict[str, Any], output_paths: list[Path]) ->
         f"- Frameworks: {_joined_names(bom.get('frameworks', []))}",
         f"- MCP servers: {_mcp_summary(bom.get('mcp_servers', []))}",
         "",
-        "## Reachable capabilities",
-        "",
     ]
 
+    lines.extend(_policy_review_summary(bom.get("policy_review")))
+    lines.extend(["## Reachable capabilities", ""])
     lines.extend(_reachable_capability_table(bom.get("reachable_capabilities", [])))
     lines.extend(["", "## Reports", ""])
     if output_paths:
@@ -64,6 +64,35 @@ def render_github_step_summary(bom: dict[str, Any], output_paths: list[Path]) ->
         lines.append("None generated.")
     lines.append("")
     return "\n".join(lines)
+
+
+def _policy_review_summary(policy_review: object) -> list[str]:
+    if not isinstance(policy_review, dict):
+        return []
+    status = _policy_review_status(policy_review)
+    violations = policy_review.get("violations", [])
+    warnings = policy_review.get("warnings", [])
+    violation_count = len(violations) if isinstance(violations, list) else 0
+    warning_count = len(warnings) if isinstance(warnings, list) else 0
+    return [
+        "## Policy review",
+        "",
+        f"Policy review: {_markdown_text(status)}",
+        f"Mode: {_markdown_text(policy_review.get('mode', 'advisory'))}",
+        f"Violations: {violation_count}",
+        f"Warnings: {warning_count}",
+        "",
+    ]
+
+
+def _policy_review_status(policy_review: dict[str, Any]) -> str:
+    violations = policy_review.get("violations", [])
+    warnings = policy_review.get("warnings", [])
+    if isinstance(violations, list) and violations:
+        return "failed"
+    if isinstance(warnings, list) and warnings:
+        return "passed with warnings"
+    return "passed"
 
 
 def _joined_names(items: object) -> str:

@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  agentbom scan examples/simple_agent --pretty\n"
             "  agentbom scan . --output-dir agentbom-report --html --mermaid --sarif\n"
-            "  agentbom scan . --policy agentbom-policy.yaml --sarif --pretty"
+            "  agentbom scan . --policy agentbom.toml --sarif --pretty"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -57,7 +57,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=".",
         help="directory for generated reports (default: current directory)",
     )
-    scan_parser.add_argument("--policy", help="custom AgentBOM YAML policy file")
+    scan_parser.add_argument("--policy", help="AgentBOM TOML policy file")
+    scan_parser.add_argument(
+        "--enforce-policy",
+        action="store_true",
+        help="exit nonzero when --policy produces policy violations",
+    )
     diff_group = scan_parser.add_argument_group("diff and policy gates")
     diff_group.add_argument("--baseline", help="baseline agentbom.json report for diff output")
     diff_group.add_argument(
@@ -94,7 +99,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.fail_on_new and not args.baseline:
             parser.error("--fail-on-new requires --baseline PATH")
         try:
-            bom = scan_path(args.path, policy_path=args.policy)
+            bom = scan_path(
+                args.path,
+                policy_path=args.policy,
+                enforce_policy=args.enforce_policy,
+            )
             if args.baseline:
                 attach_diff(bom, load_baseline_report(args.baseline))
             json_path, md_path = write_reports(bom, Path(args.output_dir), pretty=args.pretty)
@@ -135,6 +144,9 @@ def main(argv: list[str] | None = None) -> int:
             severity = risk.get("severity", "unknown")
             score = risk.get("score", "unknown")
             print(f"Risk: {severity} ({score}/100)")
+        policy_review = bom.get("policy_review")
+        if isinstance(policy_review, dict):
+            _print_policy_review(policy_review)
         diff = bom.get("diff", {})
         if isinstance(diff, dict) and args.fail_on_new:
             if has_new_findings_at_or_above(diff, args.fail_on_new):
@@ -143,10 +155,52 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 1
+        if isinstance(policy_review, dict) and args.enforce_policy:
+            if policy_review.get("violations"):
+                return 1
         return 0
 
     parser.error("unknown command")
     return 2
+
+
+def _print_policy_review(policy_review: dict[str, object]) -> None:
+    status = _policy_review_status(policy_review)
+    print("")
+    print(f"Policy review: {status}")
+    print(f"Mode: {policy_review.get('mode', 'advisory')}")
+    policy_file = policy_review.get("policy_file")
+    if policy_file:
+        print(f"Policy file: {policy_file}")
+    violations = _policy_items(policy_review.get("violations"))
+    warnings = _policy_items(policy_review.get("warnings"))
+    if violations:
+        print("")
+        print("Violations:")
+        for item in violations:
+            print(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
+    if warnings:
+        print("")
+        print("Warnings:")
+        for item in warnings:
+            print(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
+    if policy_review.get("mode") == "advisory" and violations:
+        print("")
+        print("Policy violations do not fail the scan unless --enforce-policy is used.")
+
+
+def _policy_items(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _policy_review_status(policy_review: dict[str, object]) -> str:
+    if policy_review.get("violations"):
+        return "failed"
+    if policy_review.get("warnings"):
+        return "passed with warnings"
+    return "passed"
 
 
 if __name__ == "__main__":

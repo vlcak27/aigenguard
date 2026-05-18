@@ -96,7 +96,9 @@ def test_cli_generates_json_and_markdown(tmp_path):
     )
 
     assert "capability_graph" in data
+    assert "policy_review" not in data
     assert "Capability Graph" not in markdown
+    assert "Policy review" not in markdown
 
     assert {
         "name": "openai",
@@ -310,7 +312,7 @@ def test_cli_generates_html_when_requested(tmp_path):
     html = (output_dir / "agentbom.html").read_text(encoding="utf-8")
 
     assert "<style>" in html
-    assert "<script" not in html.lower()
+    assert "<script src" not in html.lower()
     assert "<link" not in html.lower()
     assert "AgentBOM Security Report" in html
     assert "Overview" in html
@@ -321,6 +323,10 @@ def test_cli_generates_html_when_requested(tmp_path):
     assert "Reachable Capabilities" in html
     assert "Policy Findings" in html
     assert "Prompt Files" in html
+    assert "Policy Workbench" in html
+    assert "Copy policy" in html
+    assert "Download agentbom.toml" in html
+    assert "agentbom scan . --policy agentbom.toml --pretty" in html
     assert "Capability Graph" in html
     assert "score-ring" in html
     assert "severity-" in html
@@ -376,6 +382,7 @@ def test_html_report_escapes_bom_values():
     assert "review &lt;prompt&gt; handling" in html
     assert "review &lt;filesystem&gt; access" in html
     assert "<unsafe>" not in html
+    assert "\\u003copenai\\u003e" in html
 
 
 def test_cli_generates_sarif_when_requested(tmp_path):
@@ -642,3 +649,310 @@ def test_cli_fail_on_new_allows_lower_severity_introductions(tmp_path):
     )
 
     assert result == 0
+
+
+def test_cli_policy_is_advisory_by_default(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "\n".join(["from openai import OpenAI", "model = 'gpt-4o'"]),
+        encoding="utf-8",
+    )
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text("[models]\ndeny = [\"gpt-4o\"]\n", encoding="utf-8")
+    output_dir = tmp_path / "out"
+
+    result = main(["scan", str(project), "--output-dir", str(output_dir), "--policy", str(policy)])
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "Policy review: failed" in captured.out
+    assert "Mode: advisory" in captured.out
+    assert "Model denied by policy: gpt-4o." in captured.out
+    assert "Policy violations do not fail the scan unless --enforce-policy is used." in captured.out
+    data = json.loads((output_dir / "agentbom.json").read_text(encoding="utf-8"))
+    assert data["policy_review"]["mode"] == "advisory"
+
+
+def test_cli_enforce_policy_exits_nonzero_for_violations(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("model = 'gpt-4o'\n", encoding="utf-8")
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text("[models]\ndeny = [\"gpt-4o\"]\n", encoding="utf-8")
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--policy",
+            str(policy),
+            "--enforce-policy",
+        ]
+    )
+
+    assert result == 1
+    assert "Mode: enforced" in capsys.readouterr().out
+
+
+def test_cli_policy_pass_exits_zero(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("from openai import OpenAI\n", encoding="utf-8")
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[risk]",
+                'warn_on = "critical"',
+                "[mcp]",
+                "warn_on_unknown_server = false",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--policy",
+            str(policy),
+            "--enforce-policy",
+        ]
+    )
+
+    assert result == 0
+    assert "Policy review: passed" in capsys.readouterr().out
+
+
+def test_cli_invalid_policy_toml_exits_nonzero_with_clear_error(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text("[risk\n", encoding="utf-8")
+
+    result = main(["scan", str(project), "--output-dir", str(tmp_path / "out"), "--policy", str(policy)])
+
+    assert result == 1
+    assert "invalid policy TOML" in capsys.readouterr().err
+
+
+def test_cli_invalid_policy_severity_exits_nonzero_with_clear_error(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text("[risk]\nwarn_on = \"urgent\"\n", encoding="utf-8")
+
+    result = main(["scan", str(project), "--output-dir", str(tmp_path / "out"), "--policy", str(policy)])
+
+    assert result == 1
+    assert "invalid severity for risk.warn_on" in capsys.readouterr().err
+
+
+def test_cli_missing_policy_file_exits_nonzero_with_clear_error(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    policy = tmp_path / "missing.toml"
+
+    result = main(["scan", str(project), "--output-dir", str(tmp_path / "out"), "--policy", str(policy)])
+
+    assert result == 1
+    assert "policy file does not exist" in capsys.readouterr().err
+
+
+def test_policy_reports_are_integrated_when_policy_is_used(tmp_path, monkeypatch):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "\n".join(
+            [
+                "import subprocess",
+                "from langchain.chat_models import ChatOpenAI",
+                "model = 'gpt-4o'",
+                "OPENAI_API_KEY = 'do-not-store'",
+                "subprocess.run(['echo', 'hello'])",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[capabilities]",
+                'deny = ["code_execution"]',
+                "[mcp]",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    summary_path = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(output_dir),
+            "--policy",
+            str(policy),
+            "--html",
+            "--pretty",
+        ]
+    )
+
+    assert result == 0
+    data = json.loads((output_dir / "agentbom.json").read_text(encoding="utf-8"))
+    markdown = (output_dir / "agentbom.md").read_text(encoding="utf-8")
+    html = (output_dir / "agentbom.html").read_text(encoding="utf-8")
+    summary = summary_path.read_text(encoding="utf-8")
+
+    assert data["policy_review"]["violations"]
+    assert "## Policy review" in markdown
+    assert "Denied reachable capability detected: code_execution." in markdown
+    assert "Policy Review" in html
+    assert "Denied reachable capability detected: code_execution." in html
+    assert "Policy review: failed" in summary
+    assert "Mode: advisory" in summary
+    assert "Violations: 1" in summary
+    assert "Warnings: 1" in summary
+    assert "do-not-store" not in json.dumps(data)
+    assert "do-not-store" not in markdown
+    assert "do-not-store" not in html
+
+
+def test_policy_warnings_only_pass_with_warnings_and_enforcement_exits_zero(
+    tmp_path, monkeypatch, capsys
+):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "OPENAI_API_KEY = 'do-not-store'\n",
+        encoding="utf-8",
+    )
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[mcp]",
+                "warn_on_unknown_server = false",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    summary_path = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(output_dir),
+            "--policy",
+            str(policy),
+            "--enforce-policy",
+            "--html",
+            "--pretty",
+        ]
+    )
+
+    assert result == 0
+    captured = capsys.readouterr()
+    data = json.loads((output_dir / "agentbom.json").read_text(encoding="utf-8"))
+    markdown = (output_dir / "agentbom.md").read_text(encoding="utf-8")
+    html = (output_dir / "agentbom.html").read_text(encoding="utf-8")
+    summary = summary_path.read_text(encoding="utf-8")
+
+    assert data["policy_review"]["passed"] is True
+    assert data["policy_review"]["violations"] == []
+    assert data["policy_review"]["warnings"]
+    assert "Policy review: passed with warnings" in captured.out
+    assert "Status: passed with warnings" in markdown
+    assert "passed with warnings" in html
+    assert "Policy review: passed with warnings" in summary
+    assert "do-not-store" not in json.dumps(data)
+    assert "do-not-store" not in markdown
+    assert "do-not-store" not in html
+
+
+def test_policy_builder_includes_detected_values_and_no_external_scripts():
+    html = render_html(
+        {
+            "schema_version": "0.1.0",
+            "repository": "repo",
+            "generated_by": "agentbom",
+            "providers": [{"name": "openrouter", "path": "agent.py", "confidence": "high"}],
+            "models": [
+                {
+                    "type": "model",
+                    "name": "gpt-4o",
+                    "source_file": "agent.py",
+                    "confidence": "high",
+                    "evidence": "gpt-4o",
+                }
+            ],
+            "frameworks": [{"name": "crewai", "path": "agent.py", "confidence": "high"}],
+            "mcp_servers": [
+                {"name": "custom-browser", "path": "mcp.json", "confidence": "medium"}
+            ],
+            "capabilities": [],
+            "dependencies": [],
+            "reachable_capabilities": [
+                {
+                    "capability": "shell_execution",
+                    "reachable_from": "gpt-4o",
+                    "source_file": "agent.py",
+                    "risk": "high",
+                    "confidence": "high",
+                }
+            ],
+            "capability_graph": {"nodes": [], "edges": []},
+            "policy_findings": [
+                {
+                    "severity": "medium",
+                    "message": "prompt file detected without security policy",
+                    "source_file": "AGENTS.md",
+                }
+            ],
+            "repository_risk": {"score": 50, "severity": "high", "rationale": []},
+            "secret_references": [
+                {"name": "OPENAI_API_KEY", "path": "agent.py", "confidence": "high"}
+            ],
+            "risks": [],
+        }
+    )
+
+    assert "<script src" not in html.lower()
+    assert "<link" not in html.lower()
+    assert "openrouter" in html
+    assert "gpt-4o" in html
+    assert "crewai" in html
+    assert "shell_execution" in html
+    assert "custom-browser" in html
+    assert "OPENAI_API_KEY" in html
+    assert "prompt file detected without security policy" in html
+    assert 'data-kind="provider" data-action="warn"' not in html
+    assert 'data-kind="model" data-action="warn"' not in html
+    assert 'data-kind="framework" data-action="warn"' not in html
+    assert 'data-kind="mcp" data-action="warn"' not in html
+    assert 'data-kind="capability" data-action="allow"' not in html
+    assert 'data-kind="secret" data-action="warn"' in html
+    assert 'data-kind="policy_gap" data-action="warn"' in html

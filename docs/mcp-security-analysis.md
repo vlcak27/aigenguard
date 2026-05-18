@@ -78,9 +78,12 @@ environment.
 
 ## Policy Controls
 
-Custom policy files can deny specific MCP server names or MCP risk categories.
-They can also require controls such as human approval when supported by the
-policy parser.
+The recommended policy format is `agentbom.toml`; use it to allow or deny MCP
+server names in the Policy Workbench or by editing `[mcp]` directly.
+
+Legacy YAML policy files are still accepted for compatibility with older MCP
+demos. They can deny specific MCP server names or MCP risk categories and can
+require controls such as human approval when supported by the legacy parser.
 
 ```yaml
 deny_mcp_servers:
@@ -95,7 +98,7 @@ require:
   human_approval: true
 ```
 
-Run the policy demo:
+Run the legacy policy demo:
 
 ```bash
 agentbom scan examples/mcp-risky-agent \
@@ -118,8 +121,7 @@ Use this checklist when reviewing MCP findings:
   approval, or least-privilege credentials.
 - Review reachable `mcp_tool_invocation` findings next to framework and prompt
   findings.
-- Decide whether policy rules should deny specific server names or risk
-  categories.
+- Decide whether `agentbom.toml` should allow or deny specific server names.
 
 ## Reviewing Findings
 
