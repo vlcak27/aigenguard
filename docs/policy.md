@@ -9,29 +9,62 @@ AgentBOM remains a static offline scanner. It does not execute scanned code,
 import scanned modules, run MCP servers, call networks, add telemetry, or print
 secret values.
 
-## Basic Workflow
+## Setup Paths
 
-1. Run a scan with HTML output:
+### 1. Starter policy
 
-   ```bash
-   agentbom scan . --html --pretty
-   ```
+Create a safe advisory starter policy:
 
-2. Open `agentbom.html`.
-3. Use the Policy Workbench to review detected providers, models, frameworks,
-   reachable capabilities, MCP servers, secret references, and policy gaps.
-4. Copy or download the generated `agentbom.toml`.
-5. Re-run in advisory mode:
+```bash
+agentbom init
+```
 
-   ```bash
-   agentbom scan . --policy agentbom.toml --pretty
-   ```
+Then scan with policy review:
 
-6. Enforce only after the policy is stable:
+```bash
+agentbom scan . --policy agentbom.toml --html --open
+```
 
-   ```bash
-   agentbom scan . --policy agentbom.toml --enforce-policy
-   ```
+### 2. Suggested policy from findings
+
+Generate a starter policy from the current repository findings:
+
+```bash
+agentbom scan . --suggest-policy agentbom.toml
+```
+
+The suggested policy is meant to start review. It avoids strict provider,
+model, and framework allow lists by default.
+
+### 3. Interactive HTML Policy Workbench
+
+Generate and open the offline HTML report:
+
+```bash
+agentbom scan . --html --open
+```
+
+Use the Policy Workbench to review detected providers, models, frameworks,
+reachable capabilities, MCP servers, secret references, and policy gaps. Copy
+or download the generated `agentbom.toml`.
+
+## Advisory-First Workflow
+
+Start with advisory mode:
+
+```bash
+agentbom scan . --policy agentbom.toml --pretty
+```
+
+Review violations and warnings in CLI, JSON, Markdown, HTML, or GitHub Actions
+summary output. Update `agentbom.toml` until advisory results match
+expectations.
+
+Only later add enforcement:
+
+```bash
+agentbom scan . --policy agentbom.toml --enforce-policy
+```
 
 ## Format
 
