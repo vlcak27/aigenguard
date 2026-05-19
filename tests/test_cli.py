@@ -50,10 +50,14 @@ def test_cli_top_level_help_mentions_init(capsys):
     assert exc.value.code == 0
     help_text = capsys.readouterr().out
     assert "init" in help_text
+    assert "activate" in help_text
+    assert "status" in help_text
+    assert "deactivate" in help_text
     assert "agentbom init" in help_text
     assert "Recommended workflow" in help_text
     assert "agentbom scan . --pretty" in help_text
     assert "agentbom scan . --policy agentbom.toml --html --open" in help_text
+    assert "agentbom activate" in help_text
 
 
 def test_cli_fail_on_new_error_mentions_required_baseline(capsys):
@@ -619,6 +623,10 @@ def test_cli_generates_html_when_requested(tmp_path):
     assert "Download agentbom.toml" in html
     assert "agentbom scan . --policy agentbom.toml --html --open" in html
     assert "agentbom scan . --policy agentbom.toml --pretty" in html
+    assert "Local guard" in html
+    assert "agentbom install-hook --policy agentbom.toml --mode advisory" in html
+    assert "agentbom install-hook --policy agentbom.toml --mode confirm" in html
+    assert "agentbom install-hook --policy agentbom.toml --mode enforce" in html
     assert "Capability Graph" in html
     assert "score-ring" in html
     assert "severity-" in html
@@ -1254,6 +1262,9 @@ def test_policy_builder_includes_detected_values_and_no_external_scripts():
     assert "custom-browser" in html
     assert "OPENAI_API_KEY" in html
     assert "prompt file detected without security policy" in html
+    assert "agentbom install-hook --policy agentbom.toml --mode advisory" in html
+    assert "agentbom install-hook --policy agentbom.toml --mode confirm" in html
+    assert "agentbom install-hook --policy agentbom.toml --mode enforce" in html
     assert 'data-kind="provider" data-action="warn"' not in html
     assert 'data-kind="model" data-action="warn"' not in html
     assert 'data-kind="framework" data-action="warn"' not in html

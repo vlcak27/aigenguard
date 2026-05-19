@@ -44,6 +44,60 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 Only change execution policy if that matches your workstation policy.
 
+## Activate Says This Is Not a Git Repository
+
+`agentbom activate` must run inside a Git repository because the guard is
+installed under `.git/hooks/pre-commit`.
+
+```bash
+cd path/to/your-agent-repo
+agentbom activate
+```
+
+## Existing Hook Prevents Activation
+
+Activation fails rather than changing an unrelated pre-commit hook implicitly.
+Append the AgentBOM managed block when you want both hooks:
+
+```bash
+agentbom activate --append
+```
+
+or use the lower-level hook command:
+
+```bash
+agentbom install-hook --append --policy agentbom.toml --mode confirm
+```
+
+## Status Says Hook Not Installed
+
+Check the current repository:
+
+```bash
+agentbom status
+```
+
+If `Local guard: not installed`, run:
+
+```bash
+agentbom activate
+```
+
+## Local Guard Cannot Prompt
+
+`confirm` mode needs an interactive terminal. Git hooks may not have normal
+stdin, so AgentBOM reads confirmation from `/dev/tty` on POSIX systems.
+
+If no interactive terminal is available, confirm mode fails closed:
+
+```text
+agentbom confirm mode requires an interactive terminal.
+Commit blocked. Use advisory mode, enforce mode, or bypass intentionally.
+```
+
+Use `advisory` for non-interactive local workflows, or `enforce` when commits
+should block without prompting.
+
 ## --open does not open the browser
 
 The report is still written. Open the printed HTML path manually, for example:
@@ -88,8 +142,16 @@ The local hook calls `agentbom` from `PATH` by default. Install AgentBOM in the
 environment used by Git, or reinstall the hook with an explicit command:
 
 ```bash
-agentbom install-hook --policy agentbom.toml --agentbom-command ".venv/bin/agentbom"
+agentbom activate --agentbom-command .venv/bin/agentbom
 ```
+
+The lower-level hook command accepts the same executable path:
+
+```bash
+agentbom install-hook --policy agentbom.toml --agentbom-command .venv/bin/agentbom
+```
+
+The hook remains local to the current repository under `.git/hooks/pre-commit`.
 
 ## Bypass local hook
 
@@ -101,6 +163,12 @@ git commit --no-verify
 ```
 
 CI enforcement is better for team-wide guarantees.
+
+Remove the AgentBOM managed hook block:
+
+```bash
+agentbom deactivate
+```
 
 ## GitHub Action policy path not found
 

@@ -9,6 +9,43 @@ AgentBOM remains a static offline scanner. It does not execute scanned code,
 import scanned modules, run MCP servers, call networks, add telemetry, or print
 secret values.
 
+## Activate AgentBOM in a Repository
+
+From a Git repository root or subdirectory:
+
+```bash
+agentbom activate
+```
+
+Activation creates or reuses `agentbom.toml` and installs a repo-local
+pre-commit hook under `.git/hooks/pre-commit`. It does not modify global Git
+config. The default guard mode is `confirm`.
+
+Check local setup with:
+
+```bash
+agentbom status
+```
+
+Modes:
+
+- `advisory` warns but always allows commits.
+- `confirm` asks before committing when policy violations exist.
+- `enforce` blocks commits when policy violations exist.
+
+Deactivate the local guard with:
+
+```bash
+agentbom deactivate
+```
+
+Bypass a local hook only when intentional:
+
+```bash
+AGENTBOM_SKIP_HOOK=1 git commit
+git commit --no-verify
+```
+
 ## Setup Paths
 
 ### 1. Starter policy
@@ -64,6 +101,56 @@ Only later add enforcement:
 
 ```bash
 agentbom scan . --policy agentbom.toml --enforce-policy
+```
+
+## Local Guard
+
+AgentBOM can install a repo-local pre-commit guard under
+`.git/hooks/pre-commit`:
+
+```bash
+agentbom install-hook --policy agentbom.toml --mode confirm
+```
+
+Modes:
+
+- `advisory` warns but always allows commits.
+- `confirm` asks before committing when policy violations exist.
+- `enforce` blocks commits when policy violations exist.
+
+Compatibility:
+
+```bash
+agentbom install-hook --policy agentbom.toml --enforce-policy
+```
+
+This installs the same behavior as `--mode enforce`. Do not pass
+`--mode` and `--enforce-policy` together.
+
+The hook calls the guard command:
+
+```bash
+agentbom guard . --policy agentbom.toml --mode advisory
+agentbom guard . --policy agentbom.toml --mode confirm
+agentbom guard . --policy agentbom.toml --mode enforce
+```
+
+`agentbom guard` runs the scan with temporary report output outside the
+repository and prints concise commit-time status. Passing policy prints
+`agentbom ok` in green when stdout is a TTY and `NO_COLOR` is not set; otherwise
+it prints plain text.
+
+Bypass a local hook intentionally with either command:
+
+```bash
+AGENTBOM_SKIP_HOOK=1 git commit
+git commit --no-verify
+```
+
+Remove the repo-local hook block with:
+
+```bash
+agentbom deactivate
 ```
 
 ## Format

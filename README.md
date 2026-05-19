@@ -5,129 +5,107 @@
 ![Python](https://img.shields.io/pypi/pyversions/ai-agentbom)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-AgentBOM is a static security scanner for AI-agent repositories. It detects AI
-providers, model identifiers, agent frameworks, prompts, MCP servers, secret
+## What AgentBOM Is
+
+AgentBOM is a static, offline scanner for AI-agent repositories. It maps AI
+providers, model identifiers, frameworks, prompts, MCP servers, secret
 references, and risky capabilities that appear reachable from an agent.
 
-It is different from SAST and SBOM tools because it focuses on AI-agent attack
-surface: which models, prompts, frameworks, MCP servers, and capabilities appear
-connected in the repository. Use SAST for language-specific vulnerability
-patterns and SBOM tools for package inventory. Use AgentBOM to review agent
-context and statically inferred reachability.
+Use AgentBOM to review AI-agent attack surface. Use SAST for language-specific
+vulnerability patterns and SBOM tools for package inventory.
 
 ![AgentBOM HTML report preview](docs/assets/html-report-preview.svg)
 
 ## Quickstart
 
-Install AgentBOM:
-
 ```bash
 pip install ai-agentbom
-```
-
-Run AgentBOM from the root of the repository you want to review:
-
-```bash
 cd path/to/your-agent-repo
-agentbom scan . --pretty
-```
 
-Create a starter policy and open the HTML review workflow:
-
-```bash
-agentbom init
-agentbom scan . --policy agentbom.toml --html --open
-```
-
-Generate review artifacts:
-
-```bash
-agentbom scan . \
-  --output-dir agentbom-report \
-  --html \
-  --mermaid \
-  --sarif \
-  --pretty
+agentbom activate
+git commit
 ```
 
 AgentBOM does not execute scanned code.
 
-## Policy Review
+## Recommended Workflow
 
-`agentbom init` creates a safe starter `agentbom.toml`. You can also generate
-a suggested policy from current scan findings:
-
-```bash
-agentbom scan . --suggest-policy agentbom.toml
-```
-
-AgentBOM evaluates policy in advisory mode by default:
+`agentbom activate` creates or reuses `agentbom.toml` and installs a repo-local
+pre-commit guard. The default mode is `confirm`: passing commits print
+`agentbom ok`, and AgentBOM asks before committing when policy violations are
+found. Activation only affects this local clone.
 
 ```bash
 agentbom scan . --policy agentbom.toml --html --open
+agentbom status
 ```
 
-Policy violations do not fail the scan unless enforcement is explicit:
+## Policy Review
+
+Policy review is advisory by default:
+
+```bash
+agentbom scan . --policy agentbom.toml --pretty
+```
+
+Make policy violations fail a scan only when you opt in:
 
 ```bash
 agentbom scan . --policy agentbom.toml --enforce-policy
 ```
 
-Every HTML report includes a Policy Workbench that helps build an
-`agentbom.toml` from the actual detected providers, models, frameworks,
-reachable capabilities, MCP servers, secret references, and policy gaps.
-Use it to refine the policy, then run advisory mode before enforcement.
-See [policy docs](docs/policy.md) for setup paths and the rollout workflow.
+The HTML report includes a Policy Workbench for generating and refining
+`agentbom.toml` from detected providers, models, frameworks, reachable
+capabilities, MCP servers, secret references, and policy gaps.
 
-## Install by Platform
+See [policy docs](docs/policy.md) for policy format, rollout, local guard
+modes, and bypass behavior.
 
-macOS:
+## Local Guard
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install ai-agentbom
-```
-
-Windows 11 / PowerShell:
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install ai-agentbom
-```
-
-Linux:
+Install a repo-local pre-commit guard:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install ai-agentbom
+agentbom activate
 ```
+
+Modes:
+
+- `advisory` allows commits and warns on policy violations.
+- `confirm` asks before committing when violations exist.
+- `enforce` blocks commits when violations exist.
+
+The hook is local to the current repository under `.git/hooks/pre-commit`.
+Disable it with:
+
+```bash
+agentbom deactivate
+```
+
+Troubleshooting prompt or PATH issues: [troubleshooting](docs/troubleshooting.md).
 
 ## What It Finds
 
 | Area | Examples |
 | --- | --- |
-| Providers | OpenAI, Anthropic, Gemini, Ollama, DeepSeek, OpenRouter |
-| Models | Modern static model identifiers across OpenAI GPT/o-series, Anthropic Claude 3.x/4.x, Gemini, DeepSeek, Llama/Code Llama, Mistral/Codestral/Mixtral, Qwen, Grok/xAI, Cohere Command, and Perplexity Sonar. Examples: `gpt-5.5`, `gpt-5.1`, `gpt-4o-mini`, `o3-mini`, `claude-opus-4.7`, `opus4.7`, `claude-sonnet-4.6`, `claude-3.7-sonnet`, `gemini-3.1-pro`, `gemini-3.1-flash`, `deepseek-r1`, `llama-3.3-70b-instruct`, `qwen2.5-coder`, `grok-4`, `command-r-plus`, `sonar-pro`, plus OpenRouter/LiteLLM/provider-prefixed strings such as `openrouter/anthropic/claude-opus-4.7` and `litellm/openai/gpt-5.5`. |
-| Frameworks | LangChain, LangGraph, LlamaIndex, CrewAI, AutoGen/AG2, Semantic Kernel, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, Mastra, Google ADK, Vercel AI SDK, LiteLLM, Instructor, Haystack, DSPy, LangServe |
+| Providers and models | OpenAI, Anthropic, Gemini, Ollama, OpenRouter, GPT/o-series, Claude, Gemini, Llama, Mistral, Qwen, Grok, Cohere, Perplexity |
+| Frameworks | LangChain, LangGraph, LlamaIndex, CrewAI, AutoGen/AG2, Semantic Kernel, Pydantic AI, OpenAI Agents SDK, Mastra, Vercel AI SDK, LiteLLM |
 | Prompts | `AGENTS.md`, `CLAUDE.md`, `prompts/*.md`, prompt YAML |
-| MCP | `mcp.json`, `.mcp.json`, `claude_desktop_config.json`, nested Cursor/Claude MCP config paths |
-| MCP server risk | filesystem, shell/process, browser/network, database, cloud, secrets/env, unknown/custom servers |
+| MCP | `mcp.json`, `.mcp.json`, `claude_desktop_config.json`, Cursor/Claude MCP config paths |
 | Capabilities | shell, code execution, network, database, cloud, MCP tool invocation |
 | Secret references | credential names such as `OPENAI_API_KEY`, never values |
-| Dependencies | deterministic AI-relevant dependency extraction from Python, JavaScript, Rust, and Go manifests |
 | Policy gaps | prompt files, MCP config, shell/cloud access without policy documentation |
-
-Model examples are representative of current detector coverage, not an exhaustive catalog.
 
 Findings include source paths, confidence, reviewer-facing rationale, and
 mitigation signals where static evidence is available.
+
 ## Reports
 
-Start with repository risk, review priorities, reachable capabilities, MCP
-security analysis, policy findings, and Changes since baseline.
+Generate review artifacts:
+
+```bash
+agentbom scan . --output-dir agentbom-report --html --mermaid --sarif --pretty
+```
 
 Diff-aware scans compare the current report with a baseline JSON report:
 
@@ -135,9 +113,7 @@ Diff-aware scans compare the current report with a baseline JSON report:
 agentbom scan . --baseline agentbom-baseline.json --fail-on-new high --sarif --html --pretty
 ```
 
-`--fail-on-new` accepts `low`, `medium`, `high`, or `critical`. It evaluates
-new providers, capabilities, MCP servers, secret references, and policy findings
-introduced since the baseline.
+`--fail-on-new` accepts `low`, `medium`, `high`, or `critical`.
 
 See the [report guide](docs/report-guide.md) for field definitions and reviewer
 workflow.
@@ -145,9 +121,6 @@ workflow.
 ## GitHub Action
 
 Use the action in pull requests to publish reports and a workflow job summary.
-When `GITHUB_STEP_SUMMARY` is available, AgentBOM summarizes repository risk,
-detected AI surface, reachable capabilities, and generated report files directly
-in the GitHub Actions run.
 
 ```yaml
 name: AgentBOM
@@ -193,8 +166,6 @@ permissions:
 More details: [GitHub Action docs](docs/github-action.md).
 
 ## Security Model
-
-AgentBOM is designed for safe repository review:
 
 - static analysis only
 - does not execute scanned code
