@@ -2,6 +2,31 @@
 
 All notable changes to AgentBOM are documented here.
 
+## v0.8.0
+
+### Added
+
+- Guard-first activation presets: `agentbom activate --preset audit`,
+  `--preset safe`, and `--preset strict`.
+- `safe` is now the default activation preset for newly created
+  `agentbom.toml` files.
+- Preset policy templates include explicit secret leak policy configuration
+  without adding secret value detection.
+
+### Improved
+
+- `agentbom activate` now prints the selected preset, guard mode, protected
+  policy categories, and next commands for the local pre-commit workflow.
+- `agentbom activate --strict` remains compatible as an alias for
+  `agentbom activate --preset strict`.
+
+### Security Model
+
+- Scanner and guard behavior remain offline-first and deterministic.
+- AgentBOM still records secret names only and never prints or stores secret
+  values.
+- No runtime dependency changes.
+
 ## v0.7.0
 
 ### Added

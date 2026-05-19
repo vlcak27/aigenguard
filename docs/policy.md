@@ -19,7 +19,31 @@ agentbom activate
 
 Activation creates or reuses `agentbom.toml` and installs a repo-local
 pre-commit hook under `.git/hooks/pre-commit`. It does not modify global Git
-config. The default guard mode is `confirm`.
+config. The default guard mode is `confirm`. A new policy uses the `safe`
+preset by default; an existing `agentbom.toml` is not overwritten unless
+`--force` is passed.
+
+Choose a policy preset when creating or overwriting `agentbom.toml`:
+
+```bash
+agentbom activate --preset audit
+agentbom activate --preset safe
+agentbom activate --preset strict
+```
+
+Presets:
+
+- `audit`: warns only and has no blocking policy defaults.
+- `safe`: default local guard preset, including secret leak policy settings.
+- `strict`: stricter reachable capability and MCP policy.
+
+Compatibility:
+
+```bash
+agentbom activate --strict
+```
+
+This is the same as `agentbom activate --preset strict`.
 
 Check local setup with:
 
@@ -182,6 +206,7 @@ require_policy_for_risky_servers = true
 
 [secrets]
 warn_on_detected = true
+block_leaks = true
 
 [policy_gaps]
 warn_on = "medium"
@@ -190,6 +215,10 @@ warn_on = "medium"
 Empty allow lists do not restrict that category. Non-empty allow lists flag
 detected values outside the list. Deny lists flag exact normalized names from
 the scan output.
+
+`secrets.block_leaks` is policy configuration for leak blocking. AgentBOM v0.8
+presets include it, but this PR does not add secret value detection; AgentBOM
+continues to record and print secret names only, never secret values.
 
 Severity thresholds accept `low`, `medium`, `high`, and `critical`.
 

@@ -45,7 +45,7 @@ DEFAULT_TOML_POLICY: dict[str, Any] = {
         "warn_on_unknown_server": True,
         "require_policy_for_risky_servers": True,
     },
-    "secrets": {"warn_on_detected": True},
+    "secrets": {"warn_on_detected": True, "block_leaks": False},
     "policy_gaps": {"warn_on": None},
 }
 
@@ -131,6 +131,9 @@ def normalize_toml_policy(raw: dict[str, Any]) -> dict[str, Any]:
     )
     policy["secrets"]["warn_on_detected"] = _bool_value(
         policy["secrets"].get("warn_on_detected"), "secrets.warn_on_detected"
+    )
+    policy["secrets"]["block_leaks"] = _bool_value(
+        policy["secrets"].get("block_leaks"), "secrets.block_leaks"
     )
     return policy
 

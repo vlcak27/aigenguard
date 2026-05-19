@@ -37,11 +37,74 @@ def test_activate_creates_policy_and_installs_confirm_hook(tmp_path, monkeypatch
     assert result == 0
     assert (repo / "agentbom.toml").exists()
     assert hook.exists()
+    policy_text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    assert '"shell_execution"' in policy_text
+    assert '"code_execution"' in policy_text
+    assert "block_leaks = true" in policy_text
     assert '--mode "confirm"' in hook.read_text(encoding="utf-8")
-    assert "AgentBOM activated for this repository." in captured.out
+    assert "AgentBOM activated" in captured.out
+    assert "Policy: agentbom.toml" in captured.out
+    assert "Preset: safe" in captured.out
+    assert "Guard mode: confirm" in captured.out
+    assert "Protected:" in captured.out
+    assert "- AI/API secret leak policy" in captured.out
+    assert "- shell/code execution policy" in captured.out
+    assert "- MCP server policy" in captured.out
+    assert "- risky reachable capability policy" in captured.out
+    assert "git commit" in captured.out
     assert "agentbom status" in captured.out
-    assert "agentbom deactivate" in captured.out
+    assert "agentbom scan . --policy agentbom.toml --html --open" in captured.out
     assert not (repo / ".git" / "config").exists()
+
+
+def test_activate_audit_preset_creates_warn_only_policy(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    monkeypatch.chdir(repo)
+
+    result = main(["activate", "--preset", "audit"])
+
+    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "Preset: audit" in captured.out
+    assert "block_leaks = false" in text
+    assert "require_policy_for_risky_servers = false" in text
+    assert 'deny = [\n  "shell_execution"' not in text
+    assert 'warn_on = "high"' not in text
+
+
+def test_activate_safe_preset_creates_safe_policy(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    monkeypatch.chdir(repo)
+
+    result = main(["activate", "--preset", "safe"])
+
+    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "Preset: safe" in captured.out
+    assert "warn_on_detected = true" in text
+    assert "block_leaks = true" in text
+    assert '"shell_execution"' in text
+    assert '"code_execution"' in text
+    assert "require_policy_for_risky_servers = false" in text
+
+
+def test_activate_strict_preset_creates_strict_policy(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    monkeypatch.chdir(repo)
+
+    result = main(["activate", "--preset", "strict"])
+
+    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "Preset: strict" in captured.out
+    assert "warn_on_detected = true" in text
+    assert "block_leaks = true" in text
+    assert '"mcp_tool_invocation"' in text
+    assert '"network_access"' in text
+    assert "require_policy_for_risky_servers = true" in text
 
 
 def test_activate_reuses_existing_policy(tmp_path, monkeypatch):
@@ -54,6 +117,21 @@ def test_activate_reuses_existing_policy(tmp_path, monkeypatch):
 
     assert result == 0
     assert policy.read_text(encoding="utf-8") == "# existing policy\n"
+
+
+def test_activate_force_overwrites_existing_policy(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    policy = repo / "agentbom.toml"
+    policy.write_text("# existing policy\n", encoding="utf-8")
+    monkeypatch.chdir(repo)
+
+    result = main(["activate", "--preset", "strict", "--force"])
+
+    text = policy.read_text(encoding="utf-8")
+    assert result == 0
+    assert "# existing policy" not in text
+    assert '"mcp_tool_invocation"' in text
+    assert "block_leaks = true" in text
 
 
 @pytest.mark.parametrize("mode", ["advisory", "enforce"])
@@ -78,7 +156,32 @@ def test_activate_strict_creates_strict_policy_when_missing(tmp_path, monkeypatc
     assert result == 0
     assert '"shell_execution"' in text
     assert '"code_execution"' in text
+    assert '"mcp_tool_invocation"' in text
     assert "require_policy_for_risky_servers = true" in text
+
+
+def test_activate_strict_rejects_conflicting_preset(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    monkeypatch.chdir(repo)
+
+    result = main(["activate", "--strict", "--preset", "audit"])
+
+    assert result == 1
+    assert "--strict cannot be combined" in capsys.readouterr().err
+    assert not (repo / "agentbom.toml").exists()
+
+
+def test_activate_output_does_not_print_secret_values(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    (repo / "agent.py").write_text("OPENAI_API_KEY = 'do-not-store'\n", encoding="utf-8")
+    monkeypatch.chdir(repo)
+
+    result = main(["activate"])
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "secret leak policy" in captured.out
+    assert "do-not-store" not in captured.out
 
 
 def test_activate_custom_policy_and_agentbom_command(tmp_path, monkeypatch):

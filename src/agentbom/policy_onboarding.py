@@ -6,11 +6,14 @@ from pathlib import Path
 from typing import Any
 
 
-ADVISORY_POLICY_TOML = """# Advisory AgentBOM policy for first reviews.
-# Run without --enforce-policy until the generated report matches expectations.
+POLICY_PRESETS = ("audit", "safe", "strict")
+
+
+AUDIT_POLICY_TOML = """# Audit AgentBOM policy for first reviews.
+# Warn only; no blocking policy defaults.
 
 [risk]
-warn_on = "high"
+# warn_on omitted: repository risk is reported but not raised as a policy violation.
 
 [providers]
 # Empty allow lists mean "do not restrict by allow list".
@@ -37,6 +40,48 @@ require_policy_for_risky_servers = false
 
 [secrets]
 warn_on_detected = true
+block_leaks = false
+
+[policy_gaps]
+warn_on = "medium"
+"""
+
+
+SAFE_POLICY_TOML = """# Safe AgentBOM policy for local pre-commit guard use.
+# Review advisory results before using --enforce-policy.
+
+[risk]
+warn_on = "high"
+
+[providers]
+# Empty allow lists mean "do not restrict by allow list".
+allow = []
+deny = []
+
+[models]
+allow = []
+deny = []
+
+[frameworks]
+allow = []
+deny = []
+
+[capabilities]
+# Block the most direct execution paths by default.
+deny = [
+  "shell_execution",
+  "code_execution",
+]
+
+[mcp]
+allow_servers = []
+deny_servers = []
+warn_on_unknown_server = true
+require_policy_for_risky_servers = false
+
+[secrets]
+warn_on_detected = true
+block_leaks = true
 
 [policy_gaps]
 warn_on = "medium"
@@ -68,6 +113,7 @@ deny = []
 deny = [
   "shell_execution",
   "code_execution",
+  "mcp_tool_invocation",
   "network_access",
 ]
 
@@ -79,15 +125,26 @@ require_policy_for_risky_servers = true
 
 [secrets]
 warn_on_detected = true
+block_leaks = true
 
 [policy_gaps]
 warn_on = "medium"
 """
 
 
-def starter_policy_toml(*, strict: bool = False) -> str:
+def starter_policy_toml(*, strict: bool = False, preset: str | None = None) -> str:
     """Return the built-in starter policy template."""
-    return STRICT_POLICY_TOML if strict else ADVISORY_POLICY_TOML
+    if strict:
+        preset = "strict"
+    preset = preset or "safe"
+    if preset == "audit":
+        return AUDIT_POLICY_TOML
+    if preset == "safe":
+        return SAFE_POLICY_TOML
+    if preset == "strict":
+        return STRICT_POLICY_TOML
+    expected = ", ".join(POLICY_PRESETS)
+    raise ValueError(f"unknown policy preset: {preset}; choose one of {expected}")
 
 
 def suggested_policy_toml(bom: dict[str, Any]) -> str:

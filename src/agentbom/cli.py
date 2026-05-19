@@ -25,6 +25,7 @@ from .local_guard import (
 )
 from .mermaid import write_mermaid_report
 from .policy_onboarding import (
+    POLICY_PRESETS,
     next_steps,
     starter_policy_toml,
     suggested_policy_toml,
@@ -44,10 +45,10 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Recommended workflow:\n"
-            "  agentbom scan . --pretty\n"
-            "  agentbom init\n"
+            "  agentbom activate\n"
+            "  git commit\n"
+            "  agentbom status\n"
             "  agentbom scan . --policy agentbom.toml --html --open\n"
-            "  agentbom activate"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -179,9 +180,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="AgentBOM TOML policy file relative to the repository root (default: agentbom.toml)",
     )
     activate_parser.add_argument(
+        "--preset",
+        choices=POLICY_PRESETS,
+        default=None,
+        help="policy preset when creating agentbom.toml (default: safe)",
+    )
+    activate_parser.add_argument(
         "--strict",
         action="store_true",
-        help="create a stricter starter policy when the policy file does not exist",
+        help="compatibility alias for --preset strict",
     )
     activate_parser.add_argument(
         "--append",
@@ -484,6 +491,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _activate(args: argparse.Namespace) -> int:
     try:
+        preset = _activation_preset(args)
+    except ValueError as exc:
+        print(f"agentbom: {exc}", file=sys.stderr)
+        return 1
+    try:
         repo_root, _git_dir = find_git_root()
         if has_unmanaged_hook(cwd=repo_root) and not args.append and not args.force:
             print(
@@ -503,10 +515,10 @@ def _activate(args: argparse.Namespace) -> int:
         if args.force or not policy_file.exists():
             write_policy_file(
                 policy_file,
-                starter_policy_toml(strict=args.strict),
+                starter_policy_toml(preset=preset),
                 force=args.force,
             )
-        hook_path = install_hook(
+        install_hook(
             args.policy,
             args.mode,
             agentbom_command=args.agentbom_command,
@@ -522,26 +534,31 @@ def _activate(args: argparse.Namespace) -> int:
         print(f"agentbom: {exc}", file=sys.stderr)
         return 1
 
-    print("AgentBOM activated for this repository.")
+    print("AgentBOM activated")
     print("")
-    print("Policy:")
-    print(f"  {args.policy}")
+    print(f"Policy: {args.policy}")
+    print(f"Preset: {preset}")
+    print(f"Guard mode: {args.mode}")
     print("")
-    print("Local guard:")
-    print(f"  {_display_path(hook_path, repo_root)}")
-    print("")
-    print("Mode:")
-    print(f"  {args.mode}")
-    print("")
-    print("On commit:")
-    print("  agentbom ok")
-    print("  or AgentBOM will ask before committing if policy violations are found.")
+    print("Protected:")
+    print("- AI/API secret leak policy")
+    print("- shell/code execution policy")
+    print("- MCP server policy")
+    print("- risky reachable capability policy")
     print("")
     print("Next:")
-    print(f"  agentbom scan . --policy {args.policy} --html --open")
+    print("  git commit")
     print("  agentbom status")
-    print("  agentbom deactivate")
+    print(f"  agentbom scan . --policy {args.policy} --html --open")
     return 0
+
+
+def _activation_preset(args: argparse.Namespace) -> str:
+    if args.strict and args.preset and args.preset != "strict":
+        raise ValueError("--strict cannot be combined with --preset other than strict")
+    if args.strict:
+        return "strict"
+    return args.preset or "safe"
 
 
 def _print_status() -> int:
