@@ -13,6 +13,16 @@ from .cyclonedx import write_cyclonedx_report
 from .diff import attach_diff, has_new_findings_at_or_above, load_baseline_report, valid_severities
 from .github_summary import write_github_step_summary
 from .html_report import write_html_report
+from .local_guard import (
+    GUARD_MODES,
+    ExistingHookError,
+    find_git_root,
+    has_unmanaged_hook,
+    install_hook,
+    local_guard_status,
+    run_guard,
+    uninstall_hook,
+)
 from .mermaid import write_mermaid_report
 from .policy_onboarding import (
     next_steps,
@@ -37,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  agentbom scan . --pretty\n"
             "  agentbom init\n"
             "  agentbom scan . --policy agentbom.toml --html --open\n"
-            "  agentbom scan . --suggest-policy agentbom.toml"
+            "  agentbom activate"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -148,6 +158,135 @@ def build_parser() -> argparse.ArgumentParser:
         help="write agentbom.mmd capability graph",
     )
     output_group.add_argument("--sarif", action="store_true", help="write agentbom.sarif")
+
+    activate_parser = subparsers.add_parser(
+        "activate",
+        help="activate the repo-local AgentBOM guard",
+        description=(
+            "Create or reuse agentbom.toml and install a repo-local pre-commit "
+            "guard. Default mode is confirm."
+        ),
+    )
+    activate_parser.add_argument(
+        "--mode",
+        choices=GUARD_MODES,
+        default="confirm",
+        help="local guard mode (default: confirm)",
+    )
+    activate_parser.add_argument(
+        "--policy",
+        default="agentbom.toml",
+        help="AgentBOM TOML policy file relative to the repository root (default: agentbom.toml)",
+    )
+    activate_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="create a stricter starter policy when the policy file does not exist",
+    )
+    activate_parser.add_argument(
+        "--append",
+        action="store_true",
+        help="append the managed AgentBOM block to an existing non-AgentBOM hook",
+    )
+    activate_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite existing policy or hook content where supported",
+    )
+    activate_parser.add_argument(
+        "--agentbom-command",
+        default="agentbom",
+        help="agentbom executable path for the hook to call (default: agentbom)",
+    )
+
+    subparsers.add_parser(
+        "status",
+        help="show repo-local AgentBOM guard status",
+        description="Show whether the current repository has an AgentBOM local guard installed.",
+    )
+
+    subparsers.add_parser(
+        "deactivate",
+        help="deactivate the repo-local AgentBOM guard",
+        description=(
+            "Remove the AgentBOM managed block from .git/hooks/pre-commit. "
+            "The policy file is kept."
+        ),
+    )
+
+    guard_parser = subparsers.add_parser(
+        "guard",
+        help="run the local policy guard used by pre-commit hooks",
+        description=(
+            "Run an AgentBOM policy guard without writing reports into the repository. "
+            "Modes: advisory warns and allows, confirm asks before committing, "
+            "enforce blocks policy violations."
+        ),
+    )
+    guard_parser.add_argument("path", help="repository directory to scan")
+    guard_parser.add_argument(
+        "--policy",
+        required=True,
+        help="AgentBOM TOML policy file",
+    )
+    guard_parser.add_argument(
+        "--mode",
+        choices=GUARD_MODES,
+        default="advisory",
+        help=(
+            "local guard mode: advisory warns and allows, confirm asks, "
+            "enforce blocks (default: advisory)"
+        ),
+    )
+
+    install_parser = subparsers.add_parser(
+        "install-hook",
+        help="install a repo-local pre-commit policy guard",
+        description=(
+            "Install an AgentBOM managed block in .git/hooks/pre-commit. "
+            "Modes: advisory warns and allows, confirm asks before committing, "
+            "enforce blocks policy violations."
+        ),
+    )
+    install_parser.add_argument(
+        "--policy",
+        default="agentbom.toml",
+        help="AgentBOM TOML policy file relative to the repository root (default: agentbom.toml)",
+    )
+    install_parser.add_argument(
+        "--mode",
+        choices=GUARD_MODES,
+        help=(
+            "local guard mode: advisory warns and allows, confirm asks, "
+            "enforce blocks (default: advisory)"
+        ),
+    )
+    install_parser.add_argument(
+        "--enforce-policy",
+        action="store_true",
+        help="compatibility alias for --mode enforce",
+    )
+    install_parser.add_argument(
+        "--append",
+        action="store_true",
+        help="append the managed AgentBOM block to an existing non-AgentBOM hook",
+    )
+    install_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite an existing non-AgentBOM pre-commit hook",
+    )
+    install_parser.add_argument(
+        "--agentbom-command",
+        default="agentbom",
+        help="agentbom executable path for the hook to call (default: agentbom)",
+    )
+
+    subparsers.add_parser(
+        "uninstall-hook",
+        help="remove the AgentBOM managed pre-commit hook block",
+        description="Remove the AgentBOM managed block from .git/hooks/pre-commit.",
+    )
     return parser
 
 
@@ -298,8 +437,191 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
         return 0
 
+    if args.command == "activate":
+        return _activate(args)
+
+    if args.command == "status":
+        return _print_status()
+
+    if args.command == "deactivate":
+        return _deactivate()
+
+    if args.command == "guard":
+        return run_guard(args.path, args.policy, args.mode)
+
+    if args.command == "install-hook":
+        if args.mode and args.enforce_policy:
+            parser.error("install-hook: --mode and --enforce-policy cannot be used together")
+        mode = "enforce" if args.enforce_policy else (args.mode or "advisory")
+        try:
+            hook_path = install_hook(
+                args.policy,
+                mode,
+                agentbom_command=args.agentbom_command,
+                append=True,
+                force=args.force,
+            )
+        except ExistingHookError as exc:
+            print(f"agentbom: {exc}", file=sys.stderr)
+            print(
+                "Use --append to keep existing hook content or --force to overwrite it.",
+                file=sys.stderr,
+            )
+            return 1
+        except (FileNotFoundError, PermissionError, ValueError) as exc:
+            print(f"agentbom: {exc}", file=sys.stderr)
+            return 1
+        print(f"Installed AgentBOM pre-commit hook at {hook_path}")
+        print(f"Guard mode: {mode}")
+        return 0
+
+    if args.command == "uninstall-hook":
+        return _uninstall_hook()
+
     parser.error("unknown command")
     return 2
+
+
+def _activate(args: argparse.Namespace) -> int:
+    try:
+        repo_root, _git_dir = find_git_root()
+        if has_unmanaged_hook(cwd=repo_root) and not args.append and not args.force:
+            print(
+                "agentbom: existing non-AgentBOM pre-commit hook found: "
+                ".git/hooks/pre-commit",
+                file=sys.stderr,
+            )
+            print("Use one of:", file=sys.stderr)
+            print(
+                f"  agentbom install-hook --append --policy {args.policy} --mode {args.mode}",
+                file=sys.stderr,
+            )
+            print("  agentbom activate --append", file=sys.stderr)
+            return 1
+
+        policy_file = _repo_policy_path(repo_root, args.policy)
+        if args.force or not policy_file.exists():
+            write_policy_file(
+                policy_file,
+                starter_policy_toml(strict=args.strict),
+                force=args.force,
+            )
+        hook_path = install_hook(
+            args.policy,
+            args.mode,
+            agentbom_command=args.agentbom_command,
+            append=args.append,
+            force=args.force,
+            cwd=repo_root,
+        )
+    except ExistingHookError as exc:
+        print(f"agentbom: {exc}", file=sys.stderr)
+        print("Use agentbom activate --append to keep existing hook content.", file=sys.stderr)
+        return 1
+    except (FileExistsError, FileNotFoundError, PermissionError, ValueError, OSError) as exc:
+        print(f"agentbom: {exc}", file=sys.stderr)
+        return 1
+
+    print("AgentBOM activated for this repository.")
+    print("")
+    print("Policy:")
+    print(f"  {args.policy}")
+    print("")
+    print("Local guard:")
+    print(f"  {_display_path(hook_path, repo_root)}")
+    print("")
+    print("Mode:")
+    print(f"  {args.mode}")
+    print("")
+    print("On commit:")
+    print("  agentbom ok")
+    print("  or AgentBOM will ask before committing if policy violations are found.")
+    print("")
+    print("Next:")
+    print(f"  agentbom scan . --policy {args.policy} --html --open")
+    print("  agentbom status")
+    print("  agentbom deactivate")
+    return 0
+
+
+def _print_status() -> int:
+    status = local_guard_status()
+    print("AgentBOM status")
+    print("")
+    if not status.repository_detected:
+        print("Repository: not detected")
+        print("Policy: missing")
+        print("Local guard: not installed")
+        print("")
+        print("Next:")
+        print("  cd path/to/your-agent-repo")
+        print("  agentbom activate")
+        return 0
+
+    print("Repository: detected")
+    if status.policy_exists and status.policy:
+        print(f"Policy: {status.policy}")
+    elif status.policy:
+        print(f"Policy: missing ({status.policy})")
+    else:
+        print("Policy: missing")
+    if status.hook_installed:
+        print("Local guard: active")
+        if status.mode:
+            print(f"Mode: {status.mode}")
+        if status.hook_path is not None and status.repo_root is not None:
+            print(f"Hook: {_display_path(status.hook_path, status.repo_root)}")
+    else:
+        print("Local guard: not installed")
+        print("")
+        print("Next:")
+        print("  agentbom activate")
+    return 0
+
+
+def _deactivate() -> int:
+    try:
+        repo_root, _git_dir = find_git_root()
+        status = local_guard_status(cwd=repo_root)
+        hook_path = uninstall_hook(cwd=repo_root)
+    except (FileNotFoundError, PermissionError, ValueError) as exc:
+        print(f"agentbom: {exc}", file=sys.stderr)
+        return 1
+    if hook_path is None:
+        print("AgentBOM local guard is not installed.")
+    else:
+        print("AgentBOM deactivated for this repository.")
+        print("")
+        print("Policy kept:")
+        print(f"  {status.policy or 'agentbom.toml'}")
+    return 0
+
+
+def _uninstall_hook() -> int:
+    try:
+        hook_path = uninstall_hook()
+    except (FileNotFoundError, PermissionError, ValueError) as exc:
+        print(f"agentbom: {exc}", file=sys.stderr)
+        return 1
+    if hook_path is None:
+        print("No AgentBOM managed pre-commit hook block found.")
+    else:
+        print(f"Removed AgentBOM pre-commit hook block from {hook_path}")
+    return 0
+
+
+def _repo_policy_path(repo_root: Path, policy: str) -> Path:
+    policy_path = Path(policy)
+    if policy_path.is_absolute():
+        return policy_path
+    return repo_root / policy_path
+
+
+def _display_path(path: Path, repo_root: Path) -> str:
+    try:
+        return path.relative_to(repo_root).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def _print_next_steps(policy_path: str | Path) -> None:

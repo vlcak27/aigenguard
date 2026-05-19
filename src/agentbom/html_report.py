@@ -29,8 +29,8 @@ SECTION_HELP = {
     ),
     "policy-review": "Result of evaluating the supplied AgentBOM TOML policy.",
     "policy-workbench": (
-        "Generate a starter agentbom.toml from current findings, then run advisory "
-        "mode before enforcement."
+        "Generate a starter agentbom.toml from current findings, then choose a local "
+        "guard mode."
     ),
     "prompts": "Prompt and instruction files that may influence agent behavior.",
     "dependencies": "AI, MCP, and sandbox dependencies detected in supported package manifests.",
@@ -620,6 +620,14 @@ def _policy_workbench(bom: dict[str, Any]) -> str:
         "<pre><code>agentbom scan . --policy agentbom.toml --html --open\n"
         "agentbom scan . --policy agentbom.toml --pretty\n"
         "agentbom scan . --policy agentbom.toml --enforce-policy</code></pre>"
+        "<h2>Local guard</h2>"
+        '<p class="subtle">'
+        "advisory warns but allows commits; confirm asks before committing when "
+        "violations exist; enforce blocks commits when violations exist."
+        "</p>"
+        "<pre><code>agentbom install-hook --policy agentbom.toml --mode advisory\n"
+        "agentbom install-hook --policy agentbom.toml --mode confirm\n"
+        "agentbom install-hook --policy agentbom.toml --mode enforce</code></pre>"
         "</div>"
         "</div>"
         "</section>"
