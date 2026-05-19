@@ -236,3 +236,4 @@ Useful docs:
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 - [SECURITY.md](SECURITY.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+- [Troubleshooting](docs/troubleshooting.md)

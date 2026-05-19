@@ -32,12 +32,15 @@ def test_cli_help_mentions_core_workflows(capsys):
     assert "--enforce-policy" in help_text
     assert "--suggest-policy" in help_text
     assert "--open" in help_text
+    assert "opens the generated HTML report" in help_text
     assert "--baseline" in help_text
     assert "--fail-on-new" in help_text
     assert "JSON and Markdown reports are always written" in help_text
     assert "optional reports" in help_text
     assert "diff and policy gates" in help_text
     assert "Common workflows" in help_text
+    assert "Policy review is advisory by default" in help_text
+    assert "Add --enforce-policy only after review" in help_text
 
 
 def test_cli_top_level_help_mentions_init(capsys):
@@ -48,6 +51,9 @@ def test_cli_top_level_help_mentions_init(capsys):
     help_text = capsys.readouterr().out
     assert "init" in help_text
     assert "agentbom init" in help_text
+    assert "Recommended workflow" in help_text
+    assert "agentbom scan . --pretty" in help_text
+    assert "agentbom scan . --policy agentbom.toml --html --open" in help_text
 
 
 def test_cli_fail_on_new_error_mentions_required_baseline(capsys):
@@ -164,6 +170,68 @@ def test_cli_generates_json_and_markdown(tmp_path):
     )
 
     assert "do-not-store" not in json.dumps(data)
+
+
+def test_cli_scan_prints_report_path_and_no_policy_next_steps(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    output_dir = tmp_path / "out"
+
+    result = main(["scan", str(project), "--output-dir", str(output_dir)])
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert f"Reports written to: {output_dir.as_posix()}/" in captured.out
+    assert "Next:" in captured.out
+    assert "Open HTML report:" in captured.out
+    assert "Start policy review:" in captured.out
+    assert "agentbom init" in captured.out
+    assert "--enforce-policy" not in captured.out
+
+
+def test_cli_scan_html_prints_html_report_path(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    output_dir = tmp_path / "out"
+
+    result = main(["scan", str(project), "--output-dir", str(output_dir), "--html"])
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "HTML report:" in captured.out
+    assert f"{output_dir.as_posix()}/agentbom.html" in captured.out
+    assert "Open it:" in captured.out
+    assert "--html --open" in captured.out
+
+
+def test_cli_scan_open_success_avoids_redundant_open_instruction(
+    tmp_path, monkeypatch, capsys
+):
+    project = tmp_path / "agent"
+    project.mkdir()
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr("agentbom.cli.webbrowser.open", lambda url: True)
+
+    result = main(["scan", str(project), "--output-dir", str(output_dir), "--html", "--open"])
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "Opened HTML report:" in captured.out
+    assert "Open it:" not in captured.out
+
+
+def test_cli_next_step_output_does_not_print_secret_values(tmp_path, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "OPENAI_API_KEY = 'do-not-store'\n",
+        encoding="utf-8",
+    )
+
+    result = main(["scan", str(project), "--output-dir", str(tmp_path / "out")])
+
+    assert result == 0
+    assert "do-not-store" not in capsys.readouterr().out
 
 
 def test_cli_init_writes_starter_policy(tmp_path, monkeypatch, capsys):
@@ -894,6 +962,10 @@ def test_cli_policy_is_advisory_by_default(tmp_path, capsys):
     assert "Mode: advisory" in captured.out
     assert "Model denied by policy: gpt-4o." in captured.out
     assert "Policy violations do not fail the scan unless --enforce-policy is used." in captured.out
+    assert "Review policy findings in the report." in captured.out
+    assert "Update" in captured.out
+    assert "Enforce after review:" in captured.out
+    assert "--enforce-policy" in captured.out
     data = json.loads((output_dir / "agentbom.json").read_text(encoding="utf-8"))
     assert data["policy_review"]["mode"] == "advisory"
 
@@ -918,7 +990,9 @@ def test_cli_enforce_policy_exits_nonzero_for_violations(tmp_path, capsys):
     )
 
     assert result == 1
-    assert "Mode: enforced" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "Mode: enforced" in captured.out
+    assert "Policy enforcement failed. Fix policy violations before committing/merging." in captured.out
 
 
 def test_cli_policy_pass_exits_zero(tmp_path, capsys):
@@ -954,7 +1028,9 @@ def test_cli_policy_pass_exits_zero(tmp_path, capsys):
     )
 
     assert result == 0
-    assert "Policy review: passed" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "Policy review: passed" in captured.out
+    assert "Policy enforcement passed." in captured.out
 
 
 def test_cli_invalid_policy_toml_exits_nonzero_with_clear_error(tmp_path, capsys):
