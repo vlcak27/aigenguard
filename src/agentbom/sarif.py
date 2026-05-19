@@ -140,6 +140,35 @@ def render_sarif(bom: dict[str, Any]) -> dict[str, Any]:
             source_file=finding["source_file"],
         )
 
+    for finding in bom.get("secret_leak_findings", []):
+        if not isinstance(finding, dict):
+            continue
+        severity = str(finding.get("severity", "critical"))
+        provider = str(finding.get("provider", "secret"))
+        title = str(finding.get("title", "Possible secret value"))
+        rule_id = f"secret_leak.{_slug(provider)}.{_slug(str(finding.get('category', 'secret')))}"
+        _register_rule(
+            rules,
+            rule_id,
+            name=title,
+            severity=severity,
+            summary=title,
+            help_text=(
+                "AgentBOM detected a likely AI/API credential value with deterministic "
+                "offline pattern matching. The value is redacted from all outputs."
+            ),
+            remediation=str(finding.get("suggested_action", "Remove the key and rotate it.")),
+        )
+        _add_result(
+            grouped_results,
+            rule_id,
+            severity,
+            title,
+            source_file=str(finding.get("path", "")),
+            line=finding.get("line"),
+            properties={"agentbom.secret_provider": provider},
+        )
+
     diff = bom.get("diff", {})
     if isinstance(diff, dict):
         for finding in diff.get("introduced", []):
@@ -234,6 +263,7 @@ def _add_result(
     severity: str,
     message: str,
     source_file: str | None = None,
+    line: object = None,
     properties: dict[str, str] | None = None,
 ) -> None:
     result = results.setdefault(
@@ -253,7 +283,7 @@ def _add_result(
     if properties:
         result["properties"].update(properties)
     locations = result.setdefault("locations", [])
-    _append_unique(locations, _location(source_file))
+    _append_unique(locations, _location(source_file, line))
 
 
 def _with_rule_index(result: dict[str, Any], rule_indexes: dict[str, int]) -> dict[str, Any]:
@@ -262,14 +292,15 @@ def _with_rule_index(result: dict[str, Any], rule_indexes: dict[str, int]) -> di
     return copied
 
 
-def _location(source_file: str | None) -> dict[str, Any]:
+def _location(source_file: str | None, line: object = None) -> dict[str, Any]:
+    start_line = line if isinstance(line, int) and line > 0 else 1
     return {
         "physicalLocation": {
             "artifactLocation": {
                 "uri": source_file or "repository",
                 "uriBaseId": "%SRCROOT%",
             },
-            "region": {"startLine": 1},
+            "region": {"startLine": start_line},
         }
     }
 

@@ -35,6 +35,10 @@ SECTION_HELP = {
     "prompts": "Prompt and instruction files that may influence agent behavior.",
     "dependencies": "AI, MCP, and sandbox dependencies detected in supported package manifests.",
     "secrets": "Credential names referenced by the repository. Values are never stored or printed.",
+    "secret-leaks": (
+        "Likely AI/API credential values found by deterministic static checks. "
+        "Values are always redacted."
+    ),
     "graph": (
         "The same capability relationships represented as nodes and edges for "
         "architectural review."
@@ -84,6 +88,7 @@ def render_html(bom: dict[str, Any]) -> str:
             _prompt_surfaces(bom.get("prompts", [])),
             _dependencies(bom.get("dependencies", [])),
             _named_section("Secret References", "secrets", bom.get("secret_references", [])),
+            _secret_leaks(bom.get("secret_leak_findings", [])),
             _policy_workbench(bom),
             _capability_graph(graph),
             "</main>",
@@ -109,6 +114,7 @@ def _sidebar(bom: dict[str, Any]) -> str:
         ("Prompt Files", "prompts"),
         ("Dependencies", "dependencies"),
         ("Secret References", "secrets"),
+        ("Secret Leak Findings", "secret-leaks"),
         ("Policy Workbench", "policy-workbench"),
         ("Capability Graph", "graph"),
     ]
@@ -354,6 +360,8 @@ def _priority_items(bom: dict[str, Any]) -> list[str]:
             )
     if _list(bom.get("secret_references")):
         priorities.append("Confirm referenced credentials are stored outside the repository.")
+    if _list(bom.get("secret_leak_findings")):
+        priorities.append("Remove leaked credential values from the repository and rotate them.")
     return priorities[:5]
 
 
@@ -580,6 +588,32 @@ def _dependencies(items: Any) -> str:
         "<h1>Dependencies</h1>"
         f'<p class="section-lede">{escape(SECTION_HELP["dependencies"])}</p>'
         f"{_table(['Name', 'Category', 'Path', 'Confidence'], rows, 'None detected.')}"
+        "</section>"
+    )
+
+
+def _secret_leaks(items: Any) -> str:
+    rows = []
+    for item in _list(items):
+        finding = _dict(item)
+        rows.append(
+            [
+                _badge(str(finding.get("severity", ""))),
+                escape(str(finding.get("provider", ""))),
+                escape(str(finding.get("category", ""))),
+                escape(str(finding.get("path", ""))),
+                escape(str(finding.get("line", ""))),
+                _badge(str(finding.get("confidence", "")), "confidence"),
+                escape(str(finding.get("title", ""))),
+                escape(str(finding.get("redacted_evidence", ""))),
+                escape(str(finding.get("suggested_action", ""))),
+            ]
+        )
+    return (
+        '<section id="secret-leaks" class="section">'
+        "<h1>Secret Leak Findings</h1>"
+        f'<p class="section-lede">{escape(SECTION_HELP["secret-leaks"])}</p>'
+        f"{_table(_secret_leak_headers(), rows, 'None detected.')}"
         "</section>"
     )
 
@@ -881,6 +915,20 @@ def _reachable_headers() -> list[str]:
         "MCP Server",
         "Mitigations",
         "Rationale",
+    ]
+
+
+def _secret_leak_headers() -> list[str]:
+    return [
+        "Severity",
+        "Provider",
+        "Category",
+        "Path",
+        "Line",
+        "Confidence",
+        "Finding",
+        "Evidence",
+        "Action",
     ]
 
 

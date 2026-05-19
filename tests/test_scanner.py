@@ -512,6 +512,167 @@ def test_secret_reference_detection_does_not_store_secret_values(tmp_path):
     assert secret_value not in json.dumps(data, sort_keys=True)
 
 
+def test_secret_leak_detection_reports_redacted_provider_values(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    openai_value = "sk-proj-OPENAISECRET000000000000000000001"
+    anthropic_value = "sk-ant-api03-ANTHROPICSECRET0000000000000000001"
+    github_value = "ghp_GITHUBSECRET000000000000000000000001"
+    google_value = "AIza" + "A" * 33 + "12"
+    huggingface_value = "hf_HUGGINGFACESECRET000000000000000001"
+    cohere_value = "COHERESECRET0000000000000000000000000001"
+    (project / ".env").write_text(
+        "\n".join(
+            [
+                f"OPENAI_API_KEY={openai_value}",
+                f"ANTHROPIC_API_KEY={anthropic_value}",
+                f"GITHUB_TOKEN={github_value}",
+                f"GEMINI_API_KEY={google_value}",
+                f"HUGGINGFACE_TOKEN={huggingface_value}",
+                f"COHERE_API_KEY={cohere_value}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+
+    findings = data["secret_leak_findings"]
+    assert [
+        (item["provider"], item["severity"], item["confidence"], item["line"])
+        for item in findings
+    ] == [
+        ("openai", "critical", "high", 1),
+        ("anthropic", "critical", "high", 2),
+        ("github", "critical", "high", 3),
+        ("google_gemini", "high", "high", 4),
+        ("huggingface", "high", "high", 5),
+        ("cohere", "high", "high", 6),
+    ]
+    assert all("[REDACTED]" in item["redacted_evidence"] for item in findings)
+    serialized = json.dumps(data, sort_keys=True)
+    assert openai_value not in serialized
+    assert anthropic_value not in serialized
+    assert github_value not in serialized
+    assert google_value not in serialized
+    assert huggingface_value not in serialized
+    assert cohere_value not in serialized
+
+
+def test_secret_leak_detection_reports_redacted_generic_assignment(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    secret_value = "generic-secret-value-123456789"
+    (project / "settings.toml").write_text(
+        f'api_key = "{secret_value}"\ntoken = "short"\n',
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+
+    assert data["secret_leak_findings"] == [
+        {
+            "provider": "generic",
+            "category": "api_key",
+            "severity": "high",
+            "confidence": "medium",
+            "path": "settings.toml",
+            "line": 1,
+            "title": "Possible API_KEY value",
+            "redacted_evidence": "API_KEY = [REDACTED]",
+            "suggested_action": "Value redacted. Remove the key and rotate it.",
+        }
+    ]
+    assert secret_value not in json.dumps(data, sort_keys=True)
+
+
+def test_secret_leak_detection_ignores_placeholders_and_env_references(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "\n".join(
+            [
+                "OPENAI_API_KEY = 'your-api-key'",
+                "ANTHROPIC_API_KEY = 'sk-...'",
+                "GITHUB_TOKEN = '<API_KEY>'",
+                "GEMINI_API_KEY = '${API_KEY}'",
+                "api_key = process.env.OPENAI_API_KEY",
+                "token = os.environ['OPENAI_API_KEY']",
+                "secret = 'changeme'",
+                "token = 'dummy'",
+                "api_key = 'replace-me'",
+                "secret = 'example'",
+                "token = 'test'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+
+    assert data["secret_leak_findings"] == []
+
+
+def test_secret_leak_policy_block_and_warning_modes(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / ".env").write_text(
+        "OPENAI_API_KEY=sk-proj-BLOCKSECRET000000000000000000001\n",
+        encoding="utf-8",
+    )
+    blocking_policy = tmp_path / "blocking.toml"
+    blocking_policy.write_text(
+        "[secrets]\nwarn_on_detected = true\nblock_leaks = true\n",
+        encoding="utf-8",
+    )
+    warning_policy = tmp_path / "warning.toml"
+    warning_policy.write_text(
+        "[secrets]\nwarn_on_detected = true\nblock_leaks = false\n",
+        encoding="utf-8",
+    )
+
+    blocked = scan_path(project, policy_path=blocking_policy)
+    warned = scan_path(project, policy_path=warning_policy)
+
+    assert blocked["policy_review"]["violations"]
+    assert blocked["policy_review"]["violations"][0]["rule"] == "secrets.block_leaks"
+    assert warned["policy_review"]["violations"] == []
+    assert any(
+        item["rule"] == "secrets.warn_on_detected"
+        and item["message"] == "Possible OpenAI API key value"
+        for item in warned["policy_review"]["warnings"]
+    )
+
+
+def test_secret_leak_findings_are_sorted_deterministically(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "b.py").write_text(
+        "API_KEY='generic-secret-value-123456789'\n",
+        encoding="utf-8",
+    )
+    (project / "a.py").write_text(
+        "\n".join(
+            [
+                "TOKEN='another-generic-value-123456789'",
+                "OPENAI_API_KEY='sk-proj-SORTSECRET0000000000000000000001'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+
+    assert [
+        (item["severity"], item["confidence"], item["path"], item["line"], item["provider"])
+        for item in data["secret_leak_findings"]
+    ] == [
+        ("critical", "high", "a.py", 2, "openai"),
+        ("high", "medium", "a.py", 1, "generic"),
+        ("high", "medium", "b.py", 1, "generic"),
+    ]
+
+
 def test_reachable_capabilities_connect_model_to_risky_capabilities(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()

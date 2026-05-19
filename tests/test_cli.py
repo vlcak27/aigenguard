@@ -1206,6 +1206,54 @@ def test_policy_warnings_only_pass_with_warnings_and_enforcement_exits_zero(
     assert "do-not-store" not in html
 
 
+def test_secret_leak_value_is_redacted_from_all_cli_reports(tmp_path, monkeypatch, capsys):
+    project = tmp_path / "agent"
+    project.mkdir()
+    secret_value = "sk-proj-CLIREDACTSECRET00000000000000000001"
+    (project / ".env").write_text(f"OPENAI_API_KEY={secret_value}\n", encoding="utf-8")
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text(
+        "[secrets]\nwarn_on_detected = true\nblock_leaks = true\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    summary_path = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(output_dir),
+            "--policy",
+            str(policy),
+            "--enforce-policy",
+            "--html",
+            "--sarif",
+            "--pretty",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    json_text = (output_dir / "agentbom.json").read_text(encoding="utf-8")
+    markdown = (output_dir / "agentbom.md").read_text(encoding="utf-8")
+    html = (output_dir / "agentbom.html").read_text(encoding="utf-8")
+    sarif = (output_dir / "agentbom.sarif").read_text(encoding="utf-8")
+    summary = summary_path.read_text(encoding="utf-8")
+
+    assert result == 1
+    assert "Possible OpenAI API key value" in captured.out
+    assert "Secret Leak Findings" in markdown
+    assert "Secret Leak Findings" in html
+    assert "secret_leak_findings" in json_text
+    for output in (captured.out, captured.err, json_text, markdown, html, sarif, summary):
+        assert secret_value not in output
+    assert "[REDACTED]" in json_text
+    assert "[REDACTED]" in markdown
+    assert "[REDACTED]" in html
+
+
 def test_policy_builder_includes_detected_values_and_no_external_scripts():
     html = render_html(
         {

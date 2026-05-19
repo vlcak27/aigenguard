@@ -7,7 +7,8 @@ zero unless `--enforce-policy` is used.
 
 AgentBOM remains a static offline scanner. It does not execute scanned code,
 import scanned modules, run MCP servers, call networks, add telemetry, or print
-secret values.
+secret values. Likely AI/API credential leak findings are reported with
+redacted metadata only.
 
 ## Activate AgentBOM in a Repository
 
@@ -216,9 +217,18 @@ Empty allow lists do not restrict that category. Non-empty allow lists flag
 detected values outside the list. Deny lists flag exact normalized names from
 the scan output.
 
-`secrets.block_leaks` is policy configuration for leak blocking. AgentBOM v0.8
-presets include it, but this PR does not add secret value detection; AgentBOM
-continues to record and print secret names only, never secret values.
+`secrets.warn_on_detected` warns on secret references by name and on redacted
+likely AI/API credential leak findings. `secrets.block_leaks` turns likely
+credential leak findings into policy violations. If `block_leaks = false`,
+leak findings do not block policy enforcement.
+
+Secret leak findings include provider/category, severity, confidence, source
+path, line number when available, redacted evidence, and suggested action. The
+matched value is not stored or printed in JSON, Markdown, HTML, SARIF, CLI, or
+GitHub summary output.
+
+AgentBOM's credential leak checks are AI-agent focused review signals. They are
+not a replacement for full secret scanners such as Gitleaks or TruffleHog.
 
 Severity thresholds accept `low`, `medium`, `high`, and `critical`.
 

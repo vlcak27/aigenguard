@@ -176,7 +176,7 @@ def evaluate_policy(
     )
     _evaluate_capabilities(policy, bom, violations)
     _evaluate_mcp(policy, bom, violations, warnings, has_repository_policy=has_repository_policy)
-    _evaluate_secrets(policy, bom, warnings)
+    _evaluate_secrets(policy, bom, violations, warnings)
     _evaluate_policy_gaps(policy, bom, warnings)
     violations = _dedupe_policy_items(violations)
     warnings = _dedupe_policy_items(warnings)
@@ -355,9 +355,25 @@ def _evaluate_mcp(
 
 
 def _evaluate_secrets(
-    policy: dict[str, Any], bom: dict[str, object], warnings: list[dict[str, str]]
+    policy: dict[str, Any],
+    bom: dict[str, object],
+    violations: list[dict[str, str]],
+    warnings: list[dict[str, str]],
 ) -> None:
-    if not policy["secrets"].get("warn_on_detected"):
+    block_leaks = policy["secrets"].get("block_leaks")
+    warn_on_detected = policy["secrets"].get("warn_on_detected")
+    for item in _list(bom.get("secret_leak_findings", [])):
+        if not isinstance(item, dict):
+            continue
+        review_item = _secret_leak_policy_item(
+            item,
+            rule="secrets.block_leaks" if block_leaks else "secrets.warn_on_detected",
+        )
+        if block_leaks:
+            violations.append(review_item)
+        elif warn_on_detected:
+            warnings.append(review_item)
+    if not warn_on_detected:
         return
     for item in _list(bom.get("secret_references", [])):
         if not isinstance(item, dict):
@@ -374,6 +390,24 @@ def _evaluate_secrets(
                 "suggested_remediation": "Confirm credentials are stored outside the repository.",
             }
         )
+
+
+def _secret_leak_policy_item(item: dict[str, Any], *, rule: str) -> dict[str, str]:
+    title = str(item.get("title", "Possible secret value"))
+    source = _finding_source(item)
+    line = item.get("line")
+    review_item = {
+        "rule": rule,
+        "severity": _known_policy_severity(str(item.get("severity", "critical"))),
+        "message": title,
+        "source": source,
+        "suggested_remediation": str(
+            item.get("suggested_action", "Remove the key and rotate it.")
+        ),
+    }
+    if isinstance(line, int):
+        review_item["line"] = str(line)
+    return review_item
 
 
 def _evaluate_policy_gaps(
@@ -672,6 +706,10 @@ def _bool_value(value: object, key: str) -> bool:
 
 def _at_or_above(severity: str, threshold: str) -> bool:
     return SEVERITY_ORDER.get(severity.lower(), 0) >= SEVERITY_ORDER[threshold.lower()]
+
+
+def _known_policy_severity(severity: str) -> str:
+    return severity if severity in SEVERITY_ORDER else "critical"
 
 
 def _normalize_name(value: str) -> str:

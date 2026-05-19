@@ -50,6 +50,7 @@ def render_github_step_summary(bom: dict[str, Any], output_paths: list[Path]) ->
         f"- Models: {_joined_names(bom.get('models', []))}",
         f"- Frameworks: {_joined_names(bom.get('frameworks', []))}",
         f"- MCP servers: {_mcp_summary(bom.get('mcp_servers', []))}",
+        f"- Secret leak findings: {_count(bom.get('secret_leak_findings', []))}",
         "",
     ]
 
@@ -109,6 +110,10 @@ def _mcp_summary(items: object) -> str:
     if not names:
         return "0"
     return f"{len(items)} ({', '.join(_markdown_text(name) for name in names)})"
+
+
+def _count(items: object) -> int:
+    return len(items) if isinstance(items, list) else 0
 
 
 def _top_names(items: object) -> list[str]:

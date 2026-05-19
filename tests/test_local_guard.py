@@ -526,6 +526,28 @@ def test_guard_warnings_do_not_print_secret_values(tmp_path):
     assert "do-not-store" not in out.getvalue()
 
 
+def test_guard_enforce_blocks_secret_leaks_with_redacted_output(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    secret_value = "sk-proj-GUARDSECRET0000000000000000000001"
+    (project / ".env").write_text(f"OPENAI_API_KEY={secret_value}\n", encoding="utf-8")
+    policy = project / "agentbom.toml"
+    policy.write_text(
+        "[secrets]\nwarn_on_detected = true\nblock_leaks = true\n",
+        encoding="utf-8",
+    )
+
+    out = io.StringIO()
+    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO())
+
+    output = out.getvalue()
+    assert result == 1
+    assert "CRITICAL Possible OpenAI API key value" in output
+    assert ".env:1" in output
+    assert "Value redacted. Remove the key and rotate it." in output
+    assert secret_value not in output
+
+
 def _git_repo(tmp_path):
     repo = tmp_path / "repo"
     (repo / ".git" / "hooks").mkdir(parents=True)

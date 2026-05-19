@@ -12,7 +12,7 @@ It records static evidence, source paths, confidence, and rationale.
 4. Policy findings: controls that appear missing or violated.
 5. Policy review: the result of an optional `agentbom.toml` policy evaluation.
 6. Component sections: providers, models, frameworks, MCP security analysis,
-   prompts, dependencies, and secret references.
+   prompts, dependencies, secret references, and secret leak findings.
 7. Policy Workbench: an HTML-only builder for creating `agentbom.toml` from
    the current scan findings.
 
@@ -35,6 +35,8 @@ It records static evidence, source paths, confidence, and rationale.
 - Policy finding: a missing control or custom policy violation.
 - Policy review: advisory or enforced evaluation of `agentbom.toml`. Advisory
   review never fails the scan by itself.
+- Secret leak finding: a likely AI/API credential value detected by static
+  pattern matching. Values are always redacted.
 
 ## Model evidence
 
@@ -85,7 +87,18 @@ isolate it behind a sandbox or approval boundary, or make the repository policy
 explicit about why it exists.
 
 Secret reference findings require credential hygiene review only. AgentBOM
-records names such as `OPENAI_API_KEY`; it must not store or print secret values.
+records names such as `OPENAI_API_KEY`.
+
+Secret leak findings indicate likely AI/API credential values for providers
+such as OpenAI, Anthropic, Google/Gemini, Cohere, Hugging Face, GitHub, and
+generic `API_KEY`, `TOKEN`, `SECRET`, `ACCESS_KEY`, or `PRIVATE_KEY`
+assignments. The report includes only redacted metadata: provider/category,
+severity, confidence, source path, line number when available, redacted
+evidence, and suggested action. It must not store or print matched secret
+values in JSON, Markdown, HTML, SARIF, CLI output, GitHub summaries, or tests.
+
+These checks remain offline, static, deterministic, and AI-agent focused. They
+are not a replacement for full secret scanners such as Gitleaks or TruffleHog.
 
 ## Policy Workbench
 

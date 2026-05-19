@@ -395,6 +395,15 @@ def _print_policy_items(items: list[dict[str, object]], stdout: TextIO) -> None:
     for item in items[:3]:
         severity = str(item.get("severity", "low"))
         message = str(item.get("message", "")).strip()
+        if str(item.get("rule", "")).startswith("secrets.") and "value" in message.lower():
+            source = str(item.get("source", "")).strip()
+            line = str(item.get("line", "")).strip()
+            location = f"{source}:{line}" if source and line else source
+            print(f"{severity.upper()} {message}", file=stdout)
+            if location:
+                print(location, file=stdout)
+            print(str(item.get("suggested_remediation", "Value redacted.")), file=stdout)
+            continue
         if message:
             print(f"  - {severity}: {message}", file=stdout)
     remaining = len(items) - 3
