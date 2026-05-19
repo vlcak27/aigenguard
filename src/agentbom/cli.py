@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 import sys
 import webbrowser
 from pathlib import Path
@@ -32,9 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
             "for AI-agent repositories."
         ),
         epilog=(
-            "Examples:\n"
+            "Recommended workflow:\n"
+            "  agentbom scan . --pretty\n"
             "  agentbom init\n"
-            "  agentbom scan examples/simple_agent --pretty\n"
             "  agentbom scan . --policy agentbom.toml --html --open\n"
             "  agentbom scan . --suggest-policy agentbom.toml"
         ),
@@ -47,6 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
         "init",
         help="create a starter agentbom.toml policy",
         description="Create a starter AgentBOM TOML policy in the current directory.",
+        epilog=(
+            "Examples:\n"
+            "  agentbom init\n"
+            "  agentbom init --output agentbom-starter.toml"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     init_parser.add_argument(
         "--strict",
@@ -75,9 +82,14 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Common workflows:\n"
             "  agentbom scan . --pretty\n"
+            "  agentbom init\n"
             "  agentbom scan . --policy agentbom.toml --html --open\n"
             "  agentbom scan . --suggest-policy agentbom.toml\n"
-            "  agentbom scan . --policy agentbom.toml --enforce-policy"
+            "  agentbom scan . --policy agentbom.toml --enforce-policy\n"
+            "\n"
+            "Policy review is advisory by default. Add --enforce-policy only after review.\n"
+            "--open opens the generated HTML report. --suggest-policy writes a starter\n"
+            "policy from the current findings."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -87,11 +99,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=".",
         help="directory for generated reports (default: current directory)",
     )
-    scan_parser.add_argument("--policy", help="AgentBOM TOML policy file")
+    scan_parser.add_argument(
+        "--policy",
+        help="evaluate an AgentBOM TOML policy file in advisory mode by default",
+    )
     scan_parser.add_argument(
         "--enforce-policy",
         action="store_true",
-        help="exit nonzero when --policy produces policy violations",
+        help="opt in to nonzero exit when --policy produces policy violations",
     )
     scan_parser.add_argument(
         "--suggest-policy",
@@ -125,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     output_group.add_argument(
         "--open",
         action="store_true",
-        help="write HTML if needed and open agentbom.html in a browser",
+        help="write HTML if needed and open the generated agentbom.html in a browser",
     )
     output_group.add_argument(
         "--mermaid",
@@ -236,18 +251,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Wrote {cyclonedx_path}")
         if html_path is not None:
             print(f"Wrote {html_path}")
-            if args.open:
-                print(f"HTML report: {html_path}")
-                if browser_error is not None:
-                    print(
-                        f"Could not open browser automatically: {browser_error}",
-                        file=sys.stderr,
-                    )
-                elif not browser_opened:
-                    print(
-                        "Could not confirm browser opened automatically.",
-                        file=sys.stderr,
-                    )
+            if args.open and browser_error is not None:
+                print(
+                    f"Could not open browser automatically: {browser_error}",
+                    file=sys.stderr,
+                )
+            elif args.open and not browser_opened:
+                print(
+                    "Could not confirm browser opened automatically.",
+                    file=sys.stderr,
+                )
         if mermaid_path is not None:
             print(f"Wrote {mermaid_path}")
         if sarif_path is not None:
@@ -264,6 +277,14 @@ def main(argv: list[str] | None = None) -> int:
         policy_review = bom.get("policy_review")
         if isinstance(policy_review, dict):
             _print_policy_review(policy_review)
+        _print_scan_next_steps(
+            args=args,
+            output_dir=json_path.parent,
+            html_path=html_path,
+            browser_opened=browser_opened,
+            policy_review=policy_review if isinstance(policy_review, dict) else None,
+            suggested_policy_path=suggested_policy_path,
+        )
         diff = bom.get("diff", {})
         if isinstance(diff, dict) and args.fail_on_new:
             if has_new_findings_at_or_above(diff, args.fail_on_new):
@@ -286,6 +307,107 @@ def _print_next_steps(policy_path: str | Path) -> None:
     print("Next:")
     for command in next_steps(policy_path):
         print(f"  {command}")
+
+
+def _print_scan_next_steps(
+    *,
+    args: argparse.Namespace,
+    output_dir: Path,
+    html_path: Path | None,
+    browser_opened: bool,
+    policy_review: dict[str, object] | None,
+    suggested_policy_path: Path | None,
+) -> None:
+    print("")
+    print(f"Reports written to: {_display_dir(output_dir)}")
+    if html_path is not None:
+        print("")
+        if args.open and browser_opened:
+            print("Opened HTML report:")
+            print(f"  {html_path}")
+        else:
+            print("HTML report:")
+            print(f"  {html_path}")
+            print("")
+            print("Open it:")
+            print(f"  {_scan_command(args, html=True, open_report=True)}")
+    if suggested_policy_path is not None:
+        return
+    if policy_review is None:
+        _print_no_policy_next_steps(args)
+        return
+    _print_policy_next_steps(args, policy_review)
+
+
+def _print_no_policy_next_steps(args: argparse.Namespace) -> None:
+    policy_path = Path(args.path) / "agentbom.toml"
+    print("")
+    print("Next:")
+    if not args.html:
+        print("  Open HTML report:")
+        print(f"    {_scan_command(args, html=True, open_report=True)}")
+        print("")
+    if policy_path.exists():
+        print("  Use existing policy:")
+        print(
+            f"    {_scan_command(args, policy=policy_path, html=True, open_report=True)}"
+        )
+    else:
+        print("  Start policy review:")
+        print("    agentbom init")
+        print(
+            f"    {_scan_command(args, policy=Path('agentbom.toml'), html=True, open_report=True)}"
+        )
+
+
+def _print_policy_next_steps(args: argparse.Namespace, policy_review: dict[str, object]) -> None:
+    status = _policy_review_status(policy_review)
+    mode = str(policy_review.get("mode", "advisory"))
+    policy_path = Path(str(policy_review.get("policy_file") or args.policy))
+    print("")
+    print("Next:")
+    if mode == "enforced":
+        if status == "failed":
+            print("  Policy enforcement failed. Fix policy violations before committing/merging.")
+        else:
+            suffix = " with warnings" if status == "passed with warnings" else ""
+            print(f"  Policy enforcement passed{suffix}.")
+        return
+    print("  Review policy findings in the report.")
+    if status == "failed":
+        print(f"  Update {policy_path.as_posix()}, then run advisory mode again.")
+    print("")
+    print("  Enforce after review:")
+    print(f"    {_scan_command(args, policy=policy_path, enforce_policy=True)}")
+
+
+def _scan_command(
+    args: argparse.Namespace,
+    *,
+    policy: Path | None = None,
+    html: bool = False,
+    open_report: bool = False,
+    enforce_policy: bool = False,
+) -> str:
+    parts = ["agentbom", "scan", str(args.path)]
+    if args.output_dir != ".":
+        parts.extend(["--output-dir", str(args.output_dir)])
+    if policy is not None:
+        parts.extend(["--policy", policy.as_posix()])
+    if html:
+        parts.append("--html")
+    if open_report:
+        parts.append("--open")
+    if enforce_policy:
+        parts.append("--enforce-policy")
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def _display_dir(path: Path) -> str:
+    value = path.as_posix()
+    if value in {"", "."}:
+        return "."
+    return value.rstrip("/") + "/"
 
 
 def _print_policy_review(policy_review: dict[str, object]) -> None:
