@@ -66,6 +66,38 @@ Only later add enforcement:
 agentbom scan . --policy agentbom.toml --enforce-policy
 ```
 
+## Local Git Guard
+
+AgentBOM can install an opt-in local `pre-commit` hook without the external
+`pre-commit` framework:
+
+```bash
+agentbom install-hook --policy agentbom.toml
+```
+
+The hook runs from the git repository root, checks that the policy file exists,
+and scans into a temporary output directory that is removed when the hook exits.
+It does not leave `agentbom.json` or `agentbom.md` in the repository during
+normal commits.
+
+Advisory mode is the default. Policy violations are printed but do not block
+commits unless scanning itself fails or the hook is misconfigured. After review,
+install the enforced guard:
+
+```bash
+agentbom install-hook --policy agentbom.toml --enforce-policy
+```
+
+If `.git/hooks/pre-commit` already exists and is not managed by AgentBOM, the
+installer leaves it untouched. Use `--append` to add the AgentBOM managed block
+to an existing shell hook, or `--force` to replace the existing hook.
+
+Remove the managed block later with:
+
+```bash
+agentbom uninstall-hook
+```
+
 ## Format
 
 ```toml

@@ -1,13 +1,31 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from agentbom.cli import main
 from agentbom.github_summary import render_github_step_summary, write_github_step_summary
+from agentbom.hooks import MANAGED_BLOCK_END, MANAGED_BLOCK_START
 from agentbom.html_report import render_html
+
+
+def git_init(path: Path) -> None:
+    try:
+        subprocess.run(
+            ["git", "init"],
+            cwd=path,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        pytest.skip("git is required for local hook tests")
 
 
 def test_cli_version(capsys):
@@ -47,6 +65,8 @@ def test_cli_top_level_help_mentions_init(capsys):
     assert exc.value.code == 0
     help_text = capsys.readouterr().out
     assert "init" in help_text
+    assert "install-hook" in help_text
+    assert "uninstall-hook" in help_text
     assert "agentbom init" in help_text
 
 
@@ -232,6 +252,228 @@ def test_cli_init_output_custom_path(tmp_path, monkeypatch):
     assert result == 0
     assert (tmp_path / "policies" / "agentbom.toml").exists()
     assert not (tmp_path / "agentbom.toml").exists()
+
+
+def test_cli_install_hook_creates_advisory_pre_commit_guard(tmp_path, capsys):
+    git_init(tmp_path)
+    policy = tmp_path / "agentbom.toml"
+    policy.write_text("[risk]\nwarn_on = \"critical\"\n", encoding="utf-8")
+
+    result = main(["install-hook", "--path", str(tmp_path), "--policy", str(policy)])
+
+    assert result == 0
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    text = hook.read_text(encoding="utf-8")
+    captured = capsys.readouterr()
+    assert text.startswith("#!/bin/sh")
+    assert MANAGED_BLOCK_START in text
+    assert MANAGED_BLOCK_END in text
+    assert 'echo "Running AgentBOM policy guard..."' in text
+    assert "AGENTBOM_POLICY_FILE=agentbom.toml" in text
+    assert 'AGENTBOM_REPORT_DIR="$(mktemp -d' in text
+    assert '--output-dir "$AGENTBOM_REPORT_DIR"' in text
+    assert "--enforce-policy" not in text
+    assert os.access(hook, os.X_OK)
+    assert "AgentBOM policy guard created" in captured.out
+    assert "Mode: advisory" in captured.out
+    assert "git commit" in captured.out
+
+
+def test_cli_install_hook_requires_git_repository(tmp_path, capsys):
+    result = main(["install-hook", "--path", str(tmp_path)])
+
+    assert result == 1
+    assert "not inside a git repository" in capsys.readouterr().err
+
+
+def test_cli_install_hook_does_not_overwrite_existing_hook_by_default(tmp_path, capsys):
+    git_init(tmp_path)
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    original = "#!/bin/sh\necho custom\n"
+    hook.write_text(original, encoding="utf-8")
+
+    result = main(["install-hook", "--path", str(tmp_path)])
+
+    assert result == 1
+    assert hook.read_text(encoding="utf-8") == original
+    captured = capsys.readouterr()
+    assert "existing pre-commit hook is not managed by AgentBOM" in captured.err
+    assert "--append" in captured.err
+    assert "--force" in captured.err
+
+
+def test_cli_install_hook_append_preserves_existing_hook(tmp_path):
+    git_init(tmp_path)
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\necho custom\n", encoding="utf-8")
+
+    result = main(["install-hook", "--path", str(tmp_path), "--append"])
+
+    assert result == 0
+    text = hook.read_text(encoding="utf-8")
+    assert "echo custom" in text
+    assert MANAGED_BLOCK_START in text
+    assert text.index("echo custom") < text.index(MANAGED_BLOCK_START)
+
+
+def test_cli_install_hook_force_replaces_existing_hook(tmp_path):
+    git_init(tmp_path)
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\necho custom\n", encoding="utf-8")
+
+    result = main(["install-hook", "--path", str(tmp_path), "--force"])
+
+    assert result == 0
+    text = hook.read_text(encoding="utf-8")
+    assert "echo custom" not in text
+    assert MANAGED_BLOCK_START in text
+
+
+def test_cli_install_hook_updates_managed_block_only(tmp_path):
+    git_init(tmp_path)
+
+    assert main(["install-hook", "--path", str(tmp_path)]) == 0
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    text = hook.read_text(encoding="utf-8")
+    hook.write_text(text + "\necho after\n", encoding="utf-8")
+
+    result = main(["install-hook", "--path", str(tmp_path), "--enforce-policy"])
+
+    assert result == 0
+    updated = hook.read_text(encoding="utf-8")
+    assert updated.count(MANAGED_BLOCK_START) == 1
+    assert updated.count(MANAGED_BLOCK_END) == 1
+    assert "--enforce-policy" in updated
+    assert "echo after" in updated
+
+
+def test_cli_uninstall_hook_removes_managed_block_and_preserves_user_hook(tmp_path):
+    git_init(tmp_path)
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\necho custom\n", encoding="utf-8")
+    assert main(["install-hook", "--path", str(tmp_path), "--append"]) == 0
+
+    result = main(["uninstall-hook", "--path", str(tmp_path)])
+
+    assert result == 0
+    text = hook.read_text(encoding="utf-8")
+    assert "echo custom" in text
+    assert MANAGED_BLOCK_START not in text
+    assert MANAGED_BLOCK_END not in text
+
+
+def test_cli_uninstall_hook_removes_hook_created_by_agentbom(tmp_path):
+    git_init(tmp_path)
+    assert main(["install-hook", "--path", str(tmp_path)]) == 0
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+
+    result = main(["uninstall-hook", "--path", str(tmp_path)])
+
+    assert result == 0
+    assert not hook.exists()
+
+
+def test_installed_hook_uses_temp_output_dir_and_does_not_write_reports_to_repo(tmp_path):
+    git_init(tmp_path)
+    (tmp_path / "agentbom.toml").write_text("[risk]\nwarn_on = \"critical\"\n", encoding="utf-8")
+    args_path = tmp_path / "hook-args.txt"
+    fake_agentbom = tmp_path / "fake-agentbom"
+    fake_agentbom.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$@\" > {shlex.quote(str(args_path))}\n",
+        encoding="utf-8",
+    )
+    fake_agentbom.chmod(0o755)
+    assert (
+        main(
+            [
+                "install-hook",
+                "--path",
+                str(tmp_path),
+                "--agentbom-command",
+                str(fake_agentbom),
+            ]
+        )
+        == 0
+    )
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+
+    completed = subprocess.run(
+        ["sh", str(hook)],
+        cwd=tmp_path,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert "Running AgentBOM policy guard..." in completed.stdout
+    args = args_path.read_text(encoding="utf-8").splitlines()
+    assert args[:2] == ["scan", "."]
+    assert "--policy" in args
+    assert "agentbom.toml" in args
+    assert "--output-dir" in args
+    assert "--pretty" in args
+    assert not (tmp_path / "agentbom.json").exists()
+    assert not (tmp_path / "agentbom.md").exists()
+
+
+def test_installed_hook_can_be_skipped_with_environment_variable(tmp_path):
+    git_init(tmp_path)
+    (tmp_path / "agentbom.toml").write_text("[risk]\nwarn_on = \"critical\"\n", encoding="utf-8")
+    fake_agentbom = tmp_path / "fake-agentbom"
+    fake_agentbom.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+    fake_agentbom.chmod(0o755)
+    assert (
+        main(
+            [
+                "install-hook",
+                "--path",
+                str(tmp_path),
+                "--agentbom-command",
+                str(fake_agentbom),
+            ]
+        )
+        == 0
+    )
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    env = os.environ.copy()
+    env["AGENTBOM_SKIP_HOOK"] = "1"
+
+    completed = subprocess.run(
+        ["sh", str(hook)],
+        cwd=tmp_path,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    assert completed.returncode == 0
+    assert "Skipping AgentBOM policy guard" in completed.stdout
+    assert "Running AgentBOM policy guard" not in completed.stdout
+
+
+def test_installed_hook_blocks_when_policy_file_is_missing(tmp_path):
+    git_init(tmp_path)
+    assert main(["install-hook", "--path", str(tmp_path), "--policy", "missing.toml"]) == 0
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+
+    completed = subprocess.run(
+        ["sh", str(hook)],
+        cwd=tmp_path,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert "Running AgentBOM policy guard..." in completed.stdout
+    assert "AgentBOM policy file not found: missing.toml" in completed.stdout
+    assert "Run: agentbom init" in completed.stdout
 
 
 def test_cli_suggest_policy_writes_policy_and_scan_outputs(tmp_path, capsys):

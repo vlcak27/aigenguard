@@ -73,6 +73,16 @@ Policy violations do not fail the scan unless enforcement is explicit:
 agentbom scan . --policy agentbom.toml --enforce-policy
 ```
 
+Install the optional local git guard to review policy before commits. It writes
+reports to a temporary directory during the hook run and removes them afterward:
+
+```bash
+agentbom install-hook --policy agentbom.toml
+git commit
+agentbom install-hook --policy agentbom.toml --enforce-policy
+agentbom uninstall-hook
+```
+
 Every HTML report includes a Policy Workbench that helps build an
 `agentbom.toml` from the actual detected providers, models, frameworks,
 reachable capabilities, MCP servers, secret references, and policy gaps.

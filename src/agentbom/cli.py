@@ -12,6 +12,13 @@ from .cyclonedx import write_cyclonedx_report
 from .diff import attach_diff, has_new_findings_at_or_above, load_baseline_report, valid_severities
 from .github_summary import write_github_step_summary
 from .html_report import write_html_report
+from .hooks import (
+    HookError,
+    HookInstallResult,
+    HookUninstallResult,
+    install_pre_commit_hook,
+    uninstall_pre_commit_hook,
+)
 from .mermaid import write_mermaid_report
 from .policy_onboarding import (
     next_steps,
@@ -36,7 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  agentbom init\n"
             "  agentbom scan examples/simple_agent --pretty\n"
             "  agentbom scan . --policy agentbom.toml --html --open\n"
-            "  agentbom scan . --suggest-policy agentbom.toml"
+            "  agentbom scan . --suggest-policy agentbom.toml\n"
+            "  agentbom install-hook --policy agentbom.toml"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -133,6 +141,63 @@ def build_parser() -> argparse.ArgumentParser:
         help="write agentbom.mmd capability graph",
     )
     output_group.add_argument("--sarif", action="store_true", help="write agentbom.sarif")
+
+    hook_parser = subparsers.add_parser(
+        "install-hook",
+        help="install a local git pre-commit policy guard",
+        description=(
+            "Install an AgentBOM-managed block into .git/hooks/pre-commit. "
+            "Existing non-AgentBOM hooks are not changed unless --append or --force is used."
+        ),
+    )
+    hook_parser.add_argument(
+        "--policy",
+        default="agentbom.toml",
+        help="AgentBOM TOML policy file used by the hook (default: agentbom.toml)",
+    )
+    hook_mode = hook_parser.add_mutually_exclusive_group()
+    hook_mode.add_argument(
+        "--enforce-policy",
+        action="store_true",
+        help="block commits when policy violations exist",
+    )
+    hook_mode.add_argument(
+        "--advisory",
+        action="store_true",
+        help="install advisory mode explicitly; this is the default",
+    )
+    existing_hook_mode = hook_parser.add_mutually_exclusive_group()
+    existing_hook_mode.add_argument(
+        "--append",
+        action="store_true",
+        help="append an AgentBOM managed block to an existing pre-commit hook",
+    )
+    existing_hook_mode.add_argument(
+        "--force",
+        action="store_true",
+        help="replace an existing non-AgentBOM pre-commit hook",
+    )
+    hook_parser.add_argument(
+        "--path",
+        default=".",
+        help="repository path used to locate the git root (default: current directory)",
+    )
+    hook_parser.add_argument(
+        "--agentbom-command",
+        default="agentbom",
+        help="command used inside the hook, for example 'python -m agentbom'",
+    )
+
+    uninstall_parser = subparsers.add_parser(
+        "uninstall-hook",
+        help="remove the local AgentBOM pre-commit policy guard",
+        description="Remove only the AgentBOM-managed block from .git/hooks/pre-commit.",
+    )
+    uninstall_parser.add_argument(
+        "--path",
+        default=".",
+        help="repository path used to locate the git root (default: current directory)",
+    )
     return parser
 
 
@@ -277,6 +342,31 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
         return 0
 
+    if args.command == "install-hook":
+        try:
+            result = install_pre_commit_hook(
+                args.path,
+                policy_path=args.policy,
+                enforce_policy=args.enforce_policy,
+                append=args.append,
+                force=args.force,
+                agentbom_command=args.agentbom_command,
+            )
+        except HookError as exc:
+            print(f"agentbom: {exc}", file=sys.stderr)
+            return 1
+        _print_hook_install_result(result)
+        return 0
+
+    if args.command == "uninstall-hook":
+        try:
+            result = uninstall_pre_commit_hook(args.path)
+        except HookError as exc:
+            print(f"agentbom: {exc}", file=sys.stderr)
+            return 1
+        _print_hook_uninstall_result(result)
+        return 0
+
     parser.error("unknown command")
     return 2
 
@@ -311,6 +401,32 @@ def _print_policy_review(policy_review: dict[str, object]) -> None:
     if policy_review.get("mode") == "advisory" and violations:
         print("")
         print("Policy violations do not fail the scan unless --enforce-policy is used.")
+
+
+def _print_hook_install_result(result: HookInstallResult) -> None:
+    print(f"AgentBOM policy guard {result.action} at {result.hook_path}")
+    print(f"Repository: {result.repo_root}")
+    print(f"Policy: {result.policy_path}")
+    print(f"Mode: {result.mode}")
+    print("")
+    print("Next:")
+    print("  git commit")
+    if result.mode == "advisory":
+        print(f"  agentbom install-hook --policy {result.policy_path} --enforce-policy")
+    else:
+        print(f"  agentbom scan . --policy {result.policy_path} --pretty")
+    print("  agentbom uninstall-hook")
+
+
+def _print_hook_uninstall_result(result: HookUninstallResult) -> None:
+    if result.action == "removed-hook":
+        print(f"Removed AgentBOM pre-commit hook at {result.hook_path}")
+    elif result.action == "removed-block":
+        print(f"Removed AgentBOM managed block from {result.hook_path}")
+    elif result.action == "missing":
+        print(f"No pre-commit hook found at {result.hook_path}")
+    else:
+        print(f"No AgentBOM managed block found in {result.hook_path}")
 
 
 def _policy_items(value: object) -> list[dict[str, object]]:
