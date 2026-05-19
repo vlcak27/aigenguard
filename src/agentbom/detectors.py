@@ -210,6 +210,77 @@ SECRET_NAME_RE = re.compile(
 SECRET_ASSIGNMENT_RE = re.compile(
     r"(?i)\b([A-Z0-9_]*(?:api[_-]?key|token|secret|password|credential|private[_-]?key)[A-Z0-9_]*)\b\s*[:=]"
 )
+SECRET_VALUE_PATTERNS = (
+    (
+        "openai",
+        "api_key",
+        "Possible OpenAI API key value",
+        re.compile(
+            r"(?<![A-Za-z0-9_-])sk-(?!ant-)(?:proj-|svcacct-)?"
+            r"[A-Za-z0-9_-]{24,}(?![A-Za-z0-9_-])"
+        ),
+    ),
+    (
+        "anthropic",
+        "api_key",
+        "Possible Anthropic API key value",
+        re.compile(r"(?<![A-Za-z0-9_-])sk-ant-[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"),
+    ),
+    (
+        "google_gemini",
+        "api_key",
+        "Possible Google/Gemini API key value",
+        re.compile(r"(?<![A-Za-z0-9_-])AIza[0-9A-Za-z_-]{35}(?![A-Za-z0-9_-])"),
+    ),
+    (
+        "huggingface",
+        "token",
+        "Possible Hugging Face token value",
+        re.compile(r"(?<![A-Za-z0-9_-])hf_[A-Za-z0-9]{30,}(?![A-Za-z0-9_-])"),
+    ),
+    (
+        "github",
+        "token",
+        "Possible GitHub token value",
+        re.compile(
+            r"(?<![A-Za-z0-9_-])(?:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,})(?![A-Za-z0-9_-])"
+        ),
+    ),
+)
+GENERIC_SECRET_VALUE_RE = re.compile(
+    r"""(?ix)
+    \b(?P<name>[A-Za-z0-9_.-]*(?:api[_-]?key|token|secret|access[_-]?key|private[_-]?key)[A-Za-z0-9_.-]*)\b
+    \s*(?::|=)\s*
+    (?P<quote>["']?)
+    (?P<value>[^"'\s#,;]+)
+    (?P=quote)?
+    """
+)
+COHERE_SECRET_VALUE_RE = re.compile(r"(?<![A-Za-z0-9_-])[A-Za-z0-9]{40,}(?![A-Za-z0-9_-])")
+PLACEHOLDER_SECRET_VALUES = {
+    "api_key",
+    "apikey",
+    "changeme",
+    "dummy",
+    "example",
+    "fake",
+    "placeholder",
+    "replace-me",
+    "replace_me",
+    "test",
+    "token",
+    "your-api-key",
+    "your_api_key",
+    "your-token",
+}
+ENV_REFERENCE_MARKERS = (
+    "${",
+    "os.environ",
+    "os.getenv",
+    "process.env",
+    "getenv(",
+    "env.",
+)
 
 
 @dataclass(frozen=True)
@@ -233,7 +304,7 @@ class DetectionContext:
 class DetectionResult:
     """Findings returned by a detector."""
 
-    findings: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    findings: dict[str, list[dict[str, object]]] = field(default_factory=dict)
     has_policy: bool = False
 
 
@@ -415,14 +486,19 @@ class SecretDetector:
         names = {
             name
             for raw_name in raw_names
-            if (name := normalize_secret_name(raw_name, context.text)) is not None
+            if not _raw_secret_name_looks_like_value(raw_name)
+            and (name := normalize_secret_name(raw_name, context.text)) is not None
         }
         confidence = confidence_for_path(context.relpath)
         findings = [
             {"name": name, "path": context.relpath, "confidence": confidence}
             for name in sorted(names)
         ]
-        return DetectionResult({"secret_references": findings})
+        leak_findings = detect_secret_leak_values(context.text, context.relpath)
+        result: dict[str, list[dict[str, object]]] = {"secret_references": findings}
+        if leak_findings:
+            result["secret_leak_findings"] = leak_findings
+        return DetectionResult(result)
 
 
 BUILTIN_DETECTORS: tuple[Detector, ...] = (
@@ -454,7 +530,7 @@ def detect_in_file(
     return combined
 
 
-def detect_in_text(text: str, relpath: str) -> dict[str, list[dict[str, str]]]:
+def detect_in_text(text: str, relpath: str) -> dict[str, list[dict[str, object]]]:
     """Compatibility wrapper for text-based detections."""
     result = detect_in_file(
         relpath,
@@ -473,6 +549,7 @@ def detect_in_text(text: str, relpath: str) -> dict[str, list[dict[str, str]]]:
         "frameworks": result.findings.get("frameworks", []),
         "capabilities": result.findings.get("capabilities", []),
         "secret_references": result.findings.get("secret_references", []),
+        "secret_leak_findings": result.findings.get("secret_leak_findings", []),
     }
 
 
@@ -492,7 +569,213 @@ def is_policy_file(relpath: str) -> bool:
 
 def detect_secret_references(text: str, relpath: str) -> list[dict[str, str]]:
     findings = SecretDetector().detect(DetectionContext(relpath, text)).findings
-    return findings.get("secret_references", [])
+    return [
+        item
+        for item in findings.get("secret_references", [])
+        if isinstance(item, dict)
+    ]
+
+
+def detect_secret_leak_values(text: str, relpath: str) -> list[dict[str, object]]:
+    findings: list[dict[str, object]] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if _is_comment_only(line):
+            continue
+        for provider, category, title, pattern in SECRET_VALUE_PATTERNS:
+            for match in pattern.finditer(line):
+                value = match.group(0)
+                if _is_placeholder_secret_value(value):
+                    continue
+                _append_unique(
+                    findings,
+                    _secret_leak_finding(
+                        provider=provider,
+                        category=category,
+                        title=title,
+                        relpath=relpath,
+                        line=line_number,
+                        evidence=_redacted_evidence_for_line(line, provider),
+                        confidence="high",
+                    ),
+                )
+        for match in GENERIC_SECRET_VALUE_RE.finditer(line):
+            name = match.group("name")
+            value = match.group("value")
+            if _matches_provider_secret_value(value):
+                continue
+            if _is_env_secret_reference(value) or _is_placeholder_secret_value(value):
+                continue
+            if not _looks_like_secret_value(value):
+                continue
+            provider = _provider_for_secret_name(name) or "generic"
+            _append_unique(
+                findings,
+                _secret_leak_finding(
+                    provider=provider,
+                    category=_generic_secret_category(name),
+                    title=f"Possible {_display_secret_name(name)} value",
+                    relpath=relpath,
+                    line=line_number,
+                    evidence=f"{_display_secret_name(name)} = [REDACTED]",
+                    confidence="medium" if provider == "generic" else "high",
+                ),
+            )
+        if "cohere" in line.lower() and GENERIC_SECRET_VALUE_RE.search(line) is None:
+            for match in COHERE_SECRET_VALUE_RE.finditer(line):
+                value = match.group(0)
+                if _is_placeholder_secret_value(value):
+                    continue
+                _append_unique(
+                    findings,
+                    _secret_leak_finding(
+                        provider="cohere",
+                        category="api_key",
+                        title="Possible Cohere API key value",
+                        relpath=relpath,
+                        line=line_number,
+                        evidence=_redacted_evidence_for_line(line, "cohere"),
+                        confidence="medium",
+                    ),
+                )
+    return sort_secret_leak_findings(findings)
+
+
+def sort_secret_leak_findings(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    return sorted(
+        items,
+        key=lambda item: (
+            -_severity_rank(str(item.get("severity", "low"))),
+            -_confidence_rank(str(item.get("confidence", "low"))),
+            str(item.get("path", "")),
+            _line_number(item.get("line")),
+            str(item.get("provider", item.get("category", ""))),
+        ),
+    )
+
+
+def _secret_leak_finding(
+    *,
+    provider: str,
+    category: str,
+    title: str,
+    relpath: str,
+    line: int,
+    evidence: str,
+    confidence: str,
+) -> dict[str, object]:
+    return {
+        "provider": provider,
+        "category": category,
+        "severity": "critical" if provider in {"openai", "anthropic", "github"} else "high",
+        "confidence": confidence,
+        "path": relpath,
+        "line": line,
+        "title": title,
+        "redacted_evidence": evidence,
+        "suggested_action": "Value redacted. Remove the key and rotate it.",
+    }
+
+
+def _redacted_evidence_for_line(line: str, provider: str) -> str:
+    assignment = GENERIC_SECRET_VALUE_RE.search(line)
+    if assignment is not None:
+        return f"{_display_secret_name(assignment.group('name'))} = [REDACTED]"
+    return f"{provider} credential value [REDACTED]"
+
+
+def _display_secret_name(name: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_").upper()
+    return normalized or "SECRET"
+
+
+def _raw_secret_name_looks_like_value(name: str) -> bool:
+    return "_" not in name and len(name) >= 16
+
+
+def _provider_for_secret_name(name: str) -> str | None:
+    normalized = _display_secret_name(name)
+    if "OPENAI" in normalized:
+        return "openai"
+    if "ANTHROPIC" in normalized or "CLAUDE" in normalized:
+        return "anthropic"
+    if "GEMINI" in normalized or "GOOGLE" in normalized:
+        return "google_gemini"
+    if "COHERE" in normalized:
+        return "cohere"
+    if "HUGGINGFACE" in normalized or "HUGGING_FACE" in normalized or normalized.startswith("HF_"):
+        return "huggingface"
+    if "GITHUB" in normalized:
+        return "github"
+    return None
+
+
+def _generic_secret_category(name: str) -> str:
+    normalized = _display_secret_name(name)
+    if "API_KEY" in normalized or "ACCESS_KEY" in normalized:
+        return "api_key"
+    if "TOKEN" in normalized:
+        return "token"
+    if "PRIVATE_KEY" in normalized:
+        return "private_key"
+    return "secret"
+
+
+def _is_comment_only(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith(("#", "//"))
+
+
+def _is_env_secret_reference(value: str) -> bool:
+    lowered = value.lower()
+    return any(marker in lowered for marker in ENV_REFERENCE_MARKERS)
+
+
+def _is_placeholder_secret_value(value: str) -> bool:
+    normalized = value.strip().strip("\"'`").strip()
+    lowered = normalized.lower()
+    if not lowered:
+        return True
+    if lowered.startswith("<") and lowered.endswith(">"):
+        return True
+    if lowered.startswith("${") and lowered.endswith("}"):
+        return True
+    if lowered in PLACEHOLDER_SECRET_VALUES:
+        return True
+    if lowered in {"sk-...", "sk-ant-...", "ghp_...", "github_pat_...", "hf_..."}:
+        return True
+    if any(token in lowered for token in PLACEHOLDER_SECRET_VALUES):
+        return True
+    return False
+
+
+def _matches_provider_secret_value(value: str) -> bool:
+    return any(pattern.search(value) is not None for *_, pattern in SECRET_VALUE_PATTERNS)
+
+
+def _looks_like_secret_value(value: str) -> bool:
+    stripped = value.strip().strip("\"'`")
+    if stripped.startswith("-----BEGIN"):
+        return True
+    if len(stripped) < 16:
+        return False
+    if len(set(stripped)) < 6:
+        return False
+    has_letter = any(char.isalpha() for char in stripped)
+    has_digit = any(char.isdigit() for char in stripped)
+    has_secret_punctuation = any(char in "_-./+=" for char in stripped)
+    return has_letter and (has_digit or has_secret_punctuation)
+
+
+def _severity_rank(severity: str) -> int:
+    return {"low": 1, "medium": 2, "high": 3, "critical": 4}.get(severity, 0)
+
+
+def _confidence_rank(confidence: str) -> int:
+    return {"low": 1, "medium": 2, "high": 3}.get(confidence, 0)
+
+
+def _line_number(value: object) -> int:
+    return value if isinstance(value, int) else 0
 
 
 def detect_capabilities(text: str, lower_text: str, relpath: str) -> list[dict[str, str]]:
@@ -623,11 +906,11 @@ def _prompt_finding(relpath: str) -> dict[str, str]:
     return {"path": relpath, "type": "prompt", "confidence": confidence_for_path(relpath)}
 
 
-def _result(key: str, item: dict[str, str]) -> DetectionResult:
+def _result(key: str, item: dict[str, object]) -> DetectionResult:
     return DetectionResult({key: [item]})
 
 
-def _first(items: list[dict[str, str]]) -> dict[str, str] | None:
+def _first(items: list[dict[str, object]]) -> dict[str, object] | None:
     if not items:
         return None
     return items[0]
@@ -646,7 +929,7 @@ def _detect_patterns(
     return findings
 
 
-def _append_unique(items: list[dict[str, str]], item: dict[str, str]) -> None:
+def _append_unique(items: list[dict[str, object]], item: dict[str, object]) -> None:
     if item not in items:
         items.append(item)
 

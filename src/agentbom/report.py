@@ -27,6 +27,10 @@ SECTION_DESCRIPTIONS = {
         "Credential names referenced by the repository. AgentBOM records names "
         "only, never values."
     ),
+    "Secret Leak Findings": (
+        "Likely AI/API credential values found by deterministic static checks. "
+        "Values are always redacted."
+    ),
     "Risks": (
         "Scanner-level review signals derived from the findings above. "
         "They are not exploit claims."
@@ -73,6 +77,7 @@ def render_markdown(bom: dict[str, Any]) -> str:
     lines.extend(_section("Capabilities", bom["capabilities"]))
     lines.extend(_dependency_section(bom.get("dependencies", [])))
     lines.extend(_section("Secret References", bom["secret_references"]))
+    lines.extend(_secret_leak_section(bom.get("secret_leak_findings", [])))
     lines.extend(_risk_section(bom["risks"]))
     return "\n".join(lines).rstrip() + "\n"
 
@@ -126,6 +131,8 @@ def _review_priorities(bom: dict[str, Any]) -> list[str]:
             )
     if bom.get("secret_references"):
         priorities.append("Confirm referenced credentials are stored outside the repository.")
+    if bom.get("secret_leak_findings"):
+        priorities.append("Remove leaked credential values from the repository and rotate them.")
     return priorities[:5]
 
 
@@ -274,6 +281,32 @@ def _dependency_section(items: list[dict[str, str]]) -> list[str]:
         lines.append(
             "- {name} [category: {category}; path: {path}; confidence: {confidence}]".format(
                 **item
+            )
+        )
+    lines.append("")
+    return lines
+
+
+def _secret_leak_section(items: object) -> list[str]:
+    lines = ["## Secret Leak Findings", ""]
+    lines.extend([SECTION_DESCRIPTIONS["Secret Leak Findings"], ""])
+    findings = _finding_list(items)
+    if not findings:
+        lines.extend(["None detected.", ""])
+        return lines
+    for item in findings:
+        location = str(item.get("path", ""))
+        line = item.get("line")
+        if isinstance(line, int):
+            location = f"{location}:{line}" if location else str(line)
+        lines.append(
+            "- {severity}: {title} ({location}) "
+            "[confidence: {confidence}; evidence: {evidence}]".format(
+                severity=item.get("severity", "high"),
+                title=item.get("title", "Possible secret value"),
+                location=location,
+                confidence=item.get("confidence", "medium"),
+                evidence=item.get("redacted_evidence", "[REDACTED]"),
             )
         )
     lines.append("")

@@ -11,7 +11,9 @@ All notable changes to AgentBOM are documented here.
 - `safe` is now the default activation preset for newly created
   `agentbom.toml` files.
 - Preset policy templates include explicit secret leak policy configuration
-  without adding secret value detection.
+  and deterministic, offline AI/API credential leak detection.
+- Reports now include `secret_leak_findings` with provider/category, severity,
+  confidence, path, line, redacted evidence, and suggested action.
 
 ### Improved
 
@@ -23,8 +25,10 @@ All notable changes to AgentBOM are documented here.
 ### Security Model
 
 - Scanner and guard behavior remain offline-first and deterministic.
-- AgentBOM still records secret names only and never prints or stores secret
-  values.
+- AgentBOM never prints or stores matched secret values; leak findings are
+  redacted in JSON, Markdown, HTML, SARIF, CLI output, and GitHub summaries.
+- AI/API credential leak checks are not a replacement for full secret scanners
+  such as Gitleaks or TruffleHog.
 - No runtime dependency changes.
 
 ## v0.7.0

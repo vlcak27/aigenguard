@@ -9,7 +9,8 @@
 
 AgentBOM is a static, offline scanner for AI-agent repositories. It maps AI
 providers, model identifiers, frameworks, prompts, MCP servers, secret
-references, and risky capabilities that appear reachable from an agent.
+references, likely AI/API credential leaks, and risky capabilities that appear
+reachable from an agent.
 
 Use AgentBOM to review AI-agent attack surface. Use SAST for language-specific
 vulnerability patterns and SBOM tools for package inventory.
@@ -106,6 +107,7 @@ Troubleshooting prompt or PATH issues: [troubleshooting](docs/troubleshooting.md
 | MCP | `mcp.json`, `.mcp.json`, `claude_desktop_config.json`, Cursor/Claude MCP config paths |
 | Capabilities | shell, code execution, network, database, cloud, MCP tool invocation |
 | Secret references | credential names such as `OPENAI_API_KEY`, never values |
+| Secret leak findings | likely AI/API credential values, always redacted |
 | Policy gaps | prompt files, MCP config, shell/cloud access without policy documentation |
 
 Findings include source paths, confidence, reviewer-facing rationale, and
@@ -187,7 +189,8 @@ More details: [GitHub Action docs](docs/github-action.md).
 - skips files larger than 1 MB
 - skips binary-looking files
 - does not follow symlink loops
-- records secret names only, never secret values
+- records secret references by name and likely credential leaks with redacted
+  metadata only, never secret values
 - works offline and emits deterministic output for the same input repository
 
 ## Limitations
@@ -196,6 +199,8 @@ More details: [GitHub Action docs](docs/github-action.md).
 - Reachability is inferred from nearby static evidence, not runtime traces.
 - False positives and missed detections are possible.
 - Detector coverage is intentionally AI-agent focused, not general SAST.
+- AI/API credential leak checks are focused review signals and are not a
+  replacement for full secret scanners such as Gitleaks or TruffleHog.
 - Dependency parsing is deterministic and limited, not a full lockfile solver.
 - AgentBOM is not an SBOM, SPDX, or CycloneDX replacement.
 

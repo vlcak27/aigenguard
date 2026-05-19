@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import SCHEMA_VERSION
-from .detectors import detect_in_file
+from .detectors import detect_in_file, sort_secret_leak_findings
 from .graph import build_capability_graph
 from .policy import (
     evaluate_policy_file,
@@ -84,6 +84,7 @@ def scan_path(
         "policy_findings": [],
         "repository_risk": {"score": 0, "severity": "low", "rationale": []},
         "secret_references": [],
+        "secret_leak_findings": [],
         "risks": [],
     }
     has_policy = False
@@ -120,6 +121,9 @@ def scan_path(
     )  # type: ignore[arg-type]
     bom["risks"] = score_risks(
         bom["capabilities"], bom["prompts"], bom["mcp_servers"], has_policy  # type: ignore[arg-type]
+    )
+    bom["secret_leak_findings"] = sort_secret_leak_findings(
+        bom["secret_leak_findings"]  # type: ignore[arg-type]
     )
     bom["policy_findings"] = validate_policies(
         bom["prompts"], bom["capabilities"], bom["mcp_servers"], has_policy  # type: ignore[arg-type]
@@ -187,6 +191,6 @@ def read_text_file(path: Path) -> str | None:
         return data.decode("utf-8", errors="ignore")
 
 
-def _append_unique(items: list[dict[str, str]], item: dict[str, str]) -> None:
+def _append_unique(items: list[dict[str, object]], item: dict[str, object]) -> None:
     if item not in items:
         items.append(item)

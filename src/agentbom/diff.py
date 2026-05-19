@@ -14,6 +14,7 @@ DIFF_CATEGORIES = (
     "capabilities",
     "mcp_servers",
     "secret_references",
+    "secret_leak_findings",
     "policy_findings",
 )
 SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -122,6 +123,15 @@ def _identity(category: str, item: dict[str, Any]) -> dict[str, str]:
             "source_file": str(item.get("source_file", "")),
             "policy_id": str(item.get("policy_id", "")),
         }
+    if category == "secret_leak_findings":
+        return {
+            "category": category,
+            "provider": str(item.get("provider", "")),
+            "category_name": str(item.get("category", "")),
+            "path": str(item.get("path", "")),
+            "line": str(item.get("line", "")),
+            "redacted_evidence": str(item.get("redacted_evidence", "")),
+        }
     return {
         "category": category,
         "name": str(item.get("name", "")),
@@ -139,12 +149,16 @@ def _finding_id(category: str, identity: dict[str, str]) -> str:
 def _title(category: str, item: dict[str, Any]) -> str:
     if category == "policy_findings":
         return str(item.get("message", "policy finding"))
+    if category == "secret_leak_findings":
+        return str(item.get("title", "Possible secret value"))
     return str(item.get("name", item.get("path", category)))
 
 
 def _source_file(category: str, item: dict[str, Any]) -> str:
     if category == "policy_findings":
         return str(item.get("source_file", ""))
+    if category == "secret_leak_findings":
+        return str(item.get("path", ""))
     return str(item.get("path", ""))
 
 
@@ -157,6 +171,8 @@ def _severity(category: str, item: dict[str, Any]) -> str:
         return _known_severity(str(item.get("risk", "low")))
     if category == "secret_references":
         return "high"
+    if category == "secret_leak_findings":
+        return _known_severity(str(item.get("severity", "critical")))
     return "low"
 
 

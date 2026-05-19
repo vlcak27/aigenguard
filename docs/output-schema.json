@@ -97,6 +97,12 @@
         "$ref": "#/$defs/named_finding"
       }
     },
+    "secret_leak_findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/secret_leak_finding"
+      }
+    },
     "risks": {
       "type": "array",
       "items": {
@@ -416,6 +422,54 @@
           "type": "string"
         },
         "policy_id": {
+          "type": "string"
+        }
+      }
+    },
+    "secret_leak_finding": {
+      "type": "object",
+      "required": [
+        "provider",
+        "category",
+        "severity",
+        "confidence",
+        "path",
+        "line",
+        "redacted_evidence",
+        "suggested_action"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "redacted_evidence": {
+          "type": "string"
+        },
+        "suggested_action": {
           "type": "string"
         }
       }
