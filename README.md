@@ -32,6 +32,13 @@ cd path/to/your-agent-repo
 agentbom scan . --pretty
 ```
 
+Create a starter policy and open the HTML review workflow:
+
+```bash
+agentbom init
+agentbom scan . --policy agentbom.toml --html --open
+```
+
 Generate review artifacts:
 
 ```bash
@@ -43,20 +50,21 @@ agentbom scan . \
   --pretty
 ```
 
-Open the HTML report:
-
-```bash
-open agentbom-report/agentbom.html
-```
-
 AgentBOM does not execute scanned code.
 
 ## Policy Review
 
-AgentBOM can evaluate a local `agentbom.toml` policy in advisory mode:
+`agentbom init` creates a safe starter `agentbom.toml`. You can also generate
+a suggested policy from current scan findings:
 
 ```bash
-agentbom scan . --policy agentbom.toml --html --pretty
+agentbom scan . --suggest-policy agentbom.toml
+```
+
+AgentBOM evaluates policy in advisory mode by default:
+
+```bash
+agentbom scan . --policy agentbom.toml --html --open
 ```
 
 Policy violations do not fail the scan unless enforcement is explicit:
@@ -68,7 +76,8 @@ agentbom scan . --policy agentbom.toml --enforce-policy
 Every HTML report includes a Policy Workbench that helps build an
 `agentbom.toml` from the actual detected providers, models, frameworks,
 reachable capabilities, MCP servers, secret references, and policy gaps.
-See [policy docs](docs/policy.md) for the format and rollout workflow.
+Use it to refine the policy, then run advisory mode before enforcement.
+See [policy docs](docs/policy.md) for setup paths and the rollout workflow.
 
 ## Install by Platform
 

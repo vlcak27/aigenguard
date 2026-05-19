@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import webbrowser
 from pathlib import Path
 
 from . import __version__
@@ -12,6 +13,12 @@ from .diff import attach_diff, has_new_findings_at_or_above, load_baseline_repor
 from .github_summary import write_github_step_summary
 from .html_report import write_html_report
 from .mermaid import write_mermaid_report
+from .policy_onboarding import (
+    next_steps,
+    starter_policy_toml,
+    suggested_policy_toml,
+    write_policy_file,
+)
 from .report import write_reports
 from .sarif import write_sarif_report
 from .scanner import scan_path
@@ -26,14 +33,36 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Examples:\n"
+            "  agentbom init\n"
             "  agentbom scan examples/simple_agent --pretty\n"
-            "  agentbom scan . --output-dir agentbom-report --html --mermaid --sarif\n"
-            "  agentbom scan . --policy agentbom.toml --sarif --pretty"
+            "  agentbom scan . --policy agentbom.toml --html --open\n"
+            "  agentbom scan . --suggest-policy agentbom.toml"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"agentbom {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="command", required=True)
+
+    init_parser = subparsers.add_parser(
+        "init",
+        help="create a starter agentbom.toml policy",
+        description="Create a starter AgentBOM TOML policy in the current directory.",
+    )
+    init_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="write a stricter starter policy; review advisory results before enforcing",
+    )
+    init_parser.add_argument(
+        "--output",
+        default="agentbom.toml",
+        help="policy path to write (default: agentbom.toml)",
+    )
+    init_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite the policy file if it already exists",
+    )
 
     scan_parser = subparsers.add_parser(
         "scan",
@@ -46,8 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Common workflows:\n"
             "  agentbom scan . --pretty\n"
-            "  agentbom scan . --output-dir agentbom-report --html --mermaid\n"
-            "  agentbom scan . --baseline agentbom-baseline.json --fail-on-new high --sarif"
+            "  agentbom scan . --policy agentbom.toml --html --open\n"
+            "  agentbom scan . --suggest-policy agentbom.toml\n"
+            "  agentbom scan . --policy agentbom.toml --enforce-policy"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -62,6 +92,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--enforce-policy",
         action="store_true",
         help="exit nonzero when --policy produces policy violations",
+    )
+    scan_parser.add_argument(
+        "--suggest-policy",
+        metavar="PATH",
+        help="write a starter policy from scan findings without enforcing it",
+    )
+    scan_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite the --suggest-policy path if it already exists",
     )
     diff_group = scan_parser.add_argument_group("diff and policy gates")
     diff_group.add_argument("--baseline", help="baseline agentbom.json report for diff output")
@@ -83,6 +123,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="write self-contained offline agentbom.html",
     )
     output_group.add_argument(
+        "--open",
+        action="store_true",
+        help="write HTML if needed and open agentbom.html in a browser",
+    )
+    output_group.add_argument(
         "--mermaid",
         action="store_true",
         help="write agentbom.mmd capability graph",
@@ -95,9 +140,41 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.command == "init":
+        try:
+            path = write_policy_file(
+                args.output,
+                starter_policy_toml(strict=args.strict),
+                force=args.force,
+            )
+        except FileExistsError:
+            print(
+                f"agentbom: policy file already exists: {args.output}",
+                file=sys.stderr,
+            )
+            print("Use --force to overwrite it or --output PATH for another file.", file=sys.stderr)
+            return 1
+        print(f"Created {path}")
+        if args.strict:
+            print("Strict starter policy written. Run advisory mode before enforcement.")
+        _print_next_steps(path)
+        return 0
+
     if args.command == "scan":
         if args.fail_on_new and not args.baseline:
             parser.error("--fail-on-new requires --baseline PATH")
+        if args.open:
+            args.html = True
+        if args.suggest_policy and Path(args.suggest_policy).exists() and not args.force:
+            print(
+                f"agentbom: policy file already exists: {args.suggest_policy}",
+                file=sys.stderr,
+            )
+            print(
+                "Use --force to overwrite it or choose another --suggest-policy path.",
+                file=sys.stderr,
+            )
+            return 1
         try:
             bom = scan_path(
                 args.path,
@@ -117,6 +194,13 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if args.html:
                 html_path = write_html_report(bom, Path(args.output_dir))
+            suggested_policy_path = None
+            if args.suggest_policy:
+                suggested_policy_path = write_policy_file(
+                    args.suggest_policy,
+                    suggested_policy_toml(bom),
+                    force=args.force,
+                )
             if args.mermaid:
                 mermaid_path = write_mermaid_report(bom, Path(args.output_dir))
             if args.sarif:
@@ -126,6 +210,23 @@ def main(argv: list[str] | None = None) -> int:
                 if path is not None:
                     output_paths.append(path)
             write_github_step_summary(bom, output_paths)
+            browser_opened = False
+            browser_error = None
+            if args.open and html_path is not None:
+                try:
+                    browser_opened = webbrowser.open(html_path.resolve().as_uri())
+                except Exception as exc:  # noqa: BLE001
+                    browser_error = exc
+        except FileExistsError as exc:
+            print(
+                f"agentbom: policy file already exists: {exc}",
+                file=sys.stderr,
+            )
+            print(
+                "Use --force to overwrite it or choose another --suggest-policy path.",
+                file=sys.stderr,
+            )
+            return 1
         except (FileNotFoundError, NotADirectoryError, PermissionError, ValueError) as exc:
             print(f"agentbom: {exc}", file=sys.stderr)
             return 1
@@ -135,10 +236,26 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Wrote {cyclonedx_path}")
         if html_path is not None:
             print(f"Wrote {html_path}")
+            if args.open:
+                print(f"HTML report: {html_path}")
+                if browser_error is not None:
+                    print(
+                        f"Could not open browser automatically: {browser_error}",
+                        file=sys.stderr,
+                    )
+                elif not browser_opened:
+                    print(
+                        "Could not confirm browser opened automatically.",
+                        file=sys.stderr,
+                    )
         if mermaid_path is not None:
             print(f"Wrote {mermaid_path}")
         if sarif_path is not None:
             print(f"Wrote {sarif_path}")
+        if suggested_policy_path is not None:
+            print("")
+            print(f"Suggested policy written to {suggested_policy_path}")
+            _print_next_steps(suggested_policy_path)
         risk = bom.get("repository_risk", {})
         if isinstance(risk, dict):
             severity = risk.get("severity", "unknown")
@@ -162,6 +279,13 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.error("unknown command")
     return 2
+
+
+def _print_next_steps(policy_path: str | Path) -> None:
+    print("")
+    print("Next:")
+    for command in next_steps(policy_path):
+        print(f"  {command}")
 
 
 def _print_policy_review(policy_review: dict[str, object]) -> None:

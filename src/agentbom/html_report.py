@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .policy_onboarding import starter_policy_toml
+
 
 SECTION_HELP = {
     "providers-models": (
@@ -27,8 +29,8 @@ SECTION_HELP = {
     ),
     "policy-review": "Result of evaluating the supplied AgentBOM TOML policy.",
     "policy-workbench": (
-        "Build an agentbom.toml from the providers, models, frameworks, capabilities, "
-        "MCP servers, secrets, and policy gaps detected in this report."
+        "Generate a starter agentbom.toml from current findings, then run advisory "
+        "mode before enforcement."
     ),
     "prompts": "Prompt and instruction files that may influence agent behavior.",
     "dependencies": "AI, MCP, and sandbox dependencies detected in supported package manifests.",
@@ -70,6 +72,7 @@ def render_html(bom: dict[str, Any]) -> str:
             _sidebar(bom),
             '<main class="content">',
             _overview(bom, risk, score, severity),
+            _review_workflow(bom),
             _diff_summary(bom.get("diff", {})),
             _policy_review(bom.get("policy_review")),
             _review_priorities(bom),
@@ -96,6 +99,7 @@ def render_html(bom: dict[str, Any]) -> str:
 def _sidebar(bom: dict[str, Any]) -> str:
     sections = [
         ("Overview", "overview"),
+        ("Review Workflow", "review-workflow"),
         ("Review Priorities", "priorities"),
         ("Providers & Models", "providers-models"),
         ("Frameworks", "frameworks"),
@@ -267,6 +271,47 @@ def _policy_review_status(policy_review: dict[str, Any]) -> str:
     if warnings:
         return "passed with warnings"
     return "passed"
+
+
+def _review_workflow(bom: dict[str, Any]) -> str:
+    policy_review = _dict(bom.get("policy_review"))
+    title = "Review workflow"
+    if not policy_review:
+        body = [
+            "Review reachable capabilities and policy findings.",
+            "Use Policy Workbench to generate a starter agentbom.toml.",
+        ]
+        command = "agentbom scan . --policy agentbom.toml --html --open"
+    else:
+        status = _policy_review_status(policy_review)
+        mode = str(policy_review.get("mode", "advisory"))
+        if mode == "enforced":
+            if status == "failed":
+                body = [
+                    "Policy enforcement failed.",
+                    "Fix policy violations before relying on enforcement.",
+                ]
+            else:
+                body = [f"Policy enforcement {status}.", "Review warnings before release."]
+            command = ""
+        else:
+            body = [
+                f"Policy review {status}.",
+                "Review violations and warnings, then update agentbom.toml if needed.",
+                "Enforce only after advisory results match expectations.",
+            ]
+            command = "agentbom scan . --policy agentbom.toml --enforce-policy"
+    body_html = "<ul>" + "".join(f"<li>{escape(item)}</li>" for item in body) + "</ul>"
+    command_html = f"<pre><code>{escape(command)}</code></pre>" if command else ""
+    return (
+        '<section id="review-workflow" class="section">'
+        f"<h1>{escape(title)}</h1>"
+        '<div class="workflow-card">'
+        f"{body_html}"
+        f"{command_html}"
+        "</div>"
+        "</section>"
+    )
 
 
 def _review_priorities(bom: dict[str, Any]) -> str:
@@ -556,6 +601,10 @@ def _policy_workbench(bom: dict[str, Any]) -> str:
         '<section id="policy-workbench" class="section policy-workbench">'
         "<h1>Policy Workbench</h1>"
         f'<p class="section-lede">{escape(SECTION_HELP["policy-workbench"])}</p>'
+        '<p class="subtle">'
+        "Use the controls to turn current findings into a starter policy. "
+        "Run the policy in advisory mode first; add --enforce-policy only after review."
+        "</p>"
         '<div class="workbench-grid">'
         f'<div class="workbench-controls">{body}</div>'
         '<div class="policy-output">'
@@ -568,7 +617,8 @@ def _policy_workbench(bom: dict[str, Any]) -> str:
         '<button type="button" id="download-policy">Download agentbom.toml</button>'
         "</div>"
         "<h2>Follow-up commands</h2>"
-        "<pre><code>agentbom scan . --policy agentbom.toml --pretty\n"
+        "<pre><code>agentbom scan . --policy agentbom.toml --html --open\n"
+        "agentbom scan . --policy agentbom.toml --pretty\n"
         "agentbom scan . --policy agentbom.toml --enforce-policy</code></pre>"
         "</div>"
         "</div>"
@@ -669,40 +719,7 @@ def _policy_gap_names(items: Any) -> list[str]:
 
 def _initial_policy_toml(data: dict[str, list[str]]) -> str:
     del data
-    return "\n".join(
-        [
-            "[risk]",
-            'warn_on = "high"',
-            "",
-            "[providers]",
-            "allow = []",
-            "deny = []",
-            "",
-            "[models]",
-            "allow = []",
-            "deny = []",
-            "",
-            "[frameworks]",
-            "allow = []",
-            "deny = []",
-            "",
-            "[capabilities]",
-            "deny = []",
-            "",
-            "[mcp]",
-            "allow_servers = []",
-            "deny_servers = []",
-            "warn_on_unknown_server = true",
-            "require_policy_for_risky_servers = true",
-            "",
-            "[secrets]",
-            "warn_on_detected = true",
-            "",
-            "[policy_gaps]",
-            'warn_on = "medium"',
-            "",
-        ]
-    )
+    return starter_policy_toml(strict=False)
 
 
 def _policy_workbench_script(bom: dict[str, Any]) -> str:
@@ -1034,7 +1051,8 @@ h2 {
 .score-panel,
 .metric,
 .meta-grid > div,
-.explanation {
+.explanation,
+.workflow-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1115,6 +1133,12 @@ h2 {
 .explanation {
   margin-top: 14px;
   padding: 16px;
+}
+.workflow-card {
+  padding: 16px;
+}
+.workflow-card pre {
+  margin-top: 14px;
 }
 .explanation p {
   margin: 0;
@@ -1309,7 +1333,7 @@ code {
   .sidebar { display: none; }
   .content { width: 100%; padding: 0; }
   .section { break-inside: avoid; border-bottom-color: #d1d5db; }
-  .score-panel, .metric, .meta-grid > div, .explanation, .table-wrap, .empty {
+  .score-panel, .metric, .meta-grid > div, .explanation, .workflow-card, .table-wrap, .empty {
     background: #fff;
     border-color: #d1d5db;
   }
