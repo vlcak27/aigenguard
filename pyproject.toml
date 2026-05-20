@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-agentbom"
-version = "0.7.0"
+version = "0.8.0"
 description = "Offline AI agent bill of materials and attack surface scanner"
 readme = "README.md"
 requires-python = ">=3.11"

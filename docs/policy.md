@@ -238,7 +238,7 @@ Use advisory mode first:
 
 ```yaml
 - name: Run AgentBOM
-  uses: vlcak27/agentbom@v0.7.0
+  uses: vlcak27/agentbom@v0.8.0
   with:
     path: .
     fail-on: none
@@ -252,7 +252,7 @@ Then opt into policy enforcement:
 
 ```yaml
 - name: Run AgentBOM
-  uses: vlcak27/agentbom@v0.7.0
+  uses: vlcak27/agentbom@v0.8.0
   with:
     path: .
     fail-on: none

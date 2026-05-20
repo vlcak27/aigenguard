@@ -21,6 +21,9 @@ All notable changes to AgentBOM are documented here.
   policy categories, and next commands for the local pre-commit workflow.
 - `agentbom activate --strict` remains compatible as an alias for
   `agentbom activate --preset strict`.
+- Local guard terminal output is clearer and uses colored status indicators
+  when the terminal supports them.
+- README and demo materials have been polished for the v0.8.0 workflow.
 
 ### Security Model
 

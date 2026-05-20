@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run AgentBOM
-        uses: vlcak27/agentbom@v0.7.0
+        uses: vlcak27/agentbom@v0.8.0
         with:
           path: .
           # Informational mode:
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run AgentBOM
-        uses: vlcak27/agentbom@v0.7.0
+        uses: vlcak27/agentbom@v0.8.0
         with:
           path: .
           fail-on: none
@@ -114,7 +114,7 @@ Advisory workflow:
 
 ```yaml
 - name: Run AgentBOM
-  uses: vlcak27/agentbom@v0.7.0
+  uses: vlcak27/agentbom@v0.8.0
   with:
     path: .
     fail-on: none
@@ -128,7 +128,7 @@ Enforced policy workflow:
 
 ```yaml
 - name: Run AgentBOM
-  uses: vlcak27/agentbom@v0.7.0
+  uses: vlcak27/agentbom@v0.8.0
   with:
     path: .
     fail-on: none
