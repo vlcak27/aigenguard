@@ -36,7 +36,7 @@ def test_readme_includes_recommended_workflow_and_local_guard_example():
     assert "creates or reuses `agentbom.toml`" in readme
     assert "repo-local" in readme
     assert "default mode is `confirm`" in readme
-    assert "agentbom ok" in readme
+    assert "AgentBOM OK" in readme
     assert "agentbom scan . --policy agentbom.toml --html --open" in readme
     assert "advisory" in readme
     assert "confirm" in readme
@@ -57,7 +57,7 @@ def test_policy_docs_explain_local_guard_modes_and_bypass():
     assert "agentbom guard . --policy agentbom.toml --mode advisory" in policy_docs
     assert "agentbom guard . --policy agentbom.toml --mode confirm" in policy_docs
     assert "agentbom guard . --policy agentbom.toml --mode enforce" in policy_docs
-    assert "agentbom ok" in policy_docs
+    assert "AgentBOM OK" in policy_docs
     assert "AGENTBOM_SKIP_HOOK=1 git commit" in policy_docs
     assert "git commit --no-verify" in policy_docs
 

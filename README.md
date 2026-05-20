@@ -33,7 +33,7 @@ AgentBOM does not execute scanned code.
 
 `agentbom activate` creates or reuses `agentbom.toml` and installs a repo-local
 pre-commit guard. The default mode is `confirm`: passing commits print
-`agentbom ok`, and AgentBOM asks before committing when policy violations are
+`AgentBOM OK`, and AgentBOM asks before committing when policy violations are
 found. Activation only affects this local clone and does not overwrite an
 existing `agentbom.toml` unless `--force` is passed.
 
