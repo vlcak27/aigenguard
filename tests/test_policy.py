@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from agentbom.policy import PolicyError, load_toml_policy, parse_policy_yaml
+from agentbom.policy_onboarding import starter_policy_toml
 from agentbom.scanner import scan_path
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_custom_policy_reports_denies_and_required_controls(tmp_path):
@@ -330,3 +336,14 @@ def test_toml_policy_invalid_severity_is_clear(tmp_path):
 
     with pytest.raises(PolicyError, match="invalid severity for risk.warn_on"):
         load_toml_policy(policy)
+
+
+def test_strict_example_blocks_secret_leaks_like_builtin_strict_preset(tmp_path):
+    builtin_path = tmp_path / "strict.toml"
+    builtin_path.write_text(starter_policy_toml(preset="strict"), encoding="utf-8")
+
+    example = load_toml_policy(ROOT / "examples" / "policies" / "strict-agentbom.toml")
+    builtin = load_toml_policy(builtin_path)
+
+    assert example["secrets"] == builtin["secrets"]
+    assert example["secrets"]["block_leaks"] is True

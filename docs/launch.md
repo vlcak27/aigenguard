@@ -145,17 +145,18 @@ X/Twitter:
 Hacker News:
 
 > AgentBOM is a small open-source CLI that scans AI-agent repositories offline
-> and writes JSON, Markdown, HTML, Mermaid, and SARIF reports. v0.7.0 expands
-> modern model and framework detection, adds OpenRouter and LiteLLM-prefixed
-> model support, and writes GitHub Actions job summaries.
+> and writes JSON, Markdown, HTML, Mermaid, and SARIF reports. v0.8.0 adds
+> activation presets, an AI/API secret leak guard with redacted values, clearer
+> colored guard terminal output, and README/demo polish.
 
 Reddit:
 
 > I built AgentBOM, an open-source offline scanner for AI-agent repositories. It
 > reports providers, model identifiers, frameworks, prompts, MCP configuration,
 > reachable capabilities, and policy gaps without executing code or reading
-> secret values. v0.7.0 expands model and framework detection, improves
-> reachability explanations, and adds GitHub Actions job summaries.
+> secret values. v0.8.0 adds activation presets, an AI/API secret leak guard
+> with redacted values, clearer colored guard terminal output, and README/demo
+> polish.
 
 LinkedIn:
 

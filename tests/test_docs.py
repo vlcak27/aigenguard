@@ -27,6 +27,13 @@ def test_readme_links_to_troubleshooting_doc():
     assert "[Troubleshooting](docs/troubleshooting.md)" in text
 
 
+def test_github_action_installs_checked_out_action_code():
+    text = (ROOT / "action.yml").read_text(encoding="utf-8")
+
+    assert 'python -m pip install "$GITHUB_ACTION_PATH"' in text
+    assert "pip install ai-agentbom" not in text
+
+
 def test_readme_includes_recommended_workflow_and_local_guard_example():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
