@@ -19,7 +19,7 @@ jobs:
 
       - name: Run AgentBOM
         id: agentbom
-        uses: vlcak27/agentbom@v0.8.0
+        uses: ./
         with:
           path: .
           # Public demo mode: keep findings in workflow artifacts without
