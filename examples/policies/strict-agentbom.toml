@@ -34,6 +34,7 @@ require_policy_for_risky_servers = true
 
 [secrets]
 warn_on_detected = true
+block_leaks = true
 
 [policy_gaps]
 warn_on = "medium"

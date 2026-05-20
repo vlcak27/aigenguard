@@ -1,16 +1,17 @@
 # Security Policy
 
 AgentBOM is a static scanner for reviewing AI agent repositories. It is designed
-to run safely against untrusted source trees.
+to run safely against untrusted source trees without executing project code.
 
 ## Supported Versions
 
-Security fixes are prioritized for the latest released version.
+Security fixes are prioritized for the current release line.
 
 | Version | Supported |
 | --- | --- |
-| 0.5.x | Yes |
-| older | Best effort |
+| latest minor release | Supported |
+| previous minor release | Best effort |
+| older versions | Unsupported or best effort only |
 
 ## Reporting a Vulnerability
 
@@ -33,14 +34,18 @@ Useful reports include:
 
 ## Security Boundaries
 
-AgentBOM should:
+For the 0.8 series, AgentBOM is static analysis only:
 
-- avoid executing scanned code
-- avoid importing scanned modules
-- avoid network access during scanning
-- avoid following symlink loops
-- skip binary-looking and oversized files
-- record secret names only, never secret values
+- AgentBOM does not execute scanned code.
+- AgentBOM does not import scanned modules.
+- AgentBOM does not execute MCP servers.
+- AgentBOM does not contact networks during scanning.
+- AgentBOM avoids following symlink loops.
+- AgentBOM skips binary-looking and oversized files.
+- AgentBOM records secret reference names.
+- AgentBOM may detect likely AI/API credential values.
+- Secret values must never be printed, stored, serialized, or included in reports.
+- Secret leak findings use redacted metadata only.
 
 Findings are review signals and should not be treated as proof of exploitability
 without human review.
