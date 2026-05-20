@@ -7,27 +7,52 @@
 
 ## What AgentBOM Is
 
-AgentBOM is a static, offline scanner for AI-agent repositories. It maps AI
-providers, model identifiers, frameworks, prompts, MCP servers, secret
-references, likely AI/API credential leaks, and risky capabilities that appear
-reachable from an agent.
+AgentBOM is a local-first pre-commit security guard for AI-agent repositories.
 
-Use AgentBOM to review AI-agent attack surface. Use SAST for language-specific
-vulnerability patterns and SBOM tools for package inventory.
+AI-agent repos often mix prompts, tool permissions, MCP config, and API keys.
+AgentBOM gives you a local commit-time check before risky changes enter git.
 
-![AgentBOM HTML report preview](docs/assets/html-report-preview.svg)
+- Activate once with `agentbom activate`.
+- Commit normally.
+- Block likely AI/API key leaks and risky agent capabilities.
+- Run offline with deterministic checks and no scanned-code execution.
 
 ## Quickstart
 
 ```bash
 pip install ai-agentbom
-cd path/to/your-agent-repo
-
+cd my-agent-repo
 agentbom activate
 git commit
 ```
 
-AgentBOM does not execute scanned code.
+## What It Catches
+
+- likely AI/API key leaks, with values redacted
+- risky shell or code execution capabilities
+- MCP server exposure
+- AI provider or model usage outside policy
+
+## Demo
+
+Passing commit:
+
+```text
+AgentBOM OK
+No policy violations found.
+```
+
+Blocked commit:
+
+```text
+AgentBOM blocked this commit
+
+CRITICAL Possible OpenAI API key value
+.env:1
+Value redacted. Remove the key and rotate it.
+```
+
+Secret values are redacted in output.
 
 ## Recommended Workflow
 
@@ -38,17 +63,15 @@ found. Activation only affects this local clone and does not overwrite an
 existing `agentbom.toml` unless `--force` is passed.
 
 ```bash
-agentbom activate --preset safe
-git commit
 agentbom status
 agentbom scan . --policy agentbom.toml --html --open
 ```
 
 Activation presets:
 
-- `audit`: warn-only starter policy with no blocking defaults.
-- `safe`: default guard-first policy with secret leak policy enabled.
-- `strict`: stricter capability and MCP policy for mature repositories.
+- `safe`: default, good for normal use.
+- `audit`: observe without blocking.
+- `strict`: stronger policy for sensitive repos.
 
 `agentbom activate --strict` remains available as an alias for
 `agentbom activate --preset strict`.
@@ -114,6 +137,8 @@ Findings include source paths, confidence, reviewer-facing rationale, and
 mitigation signals where static evidence is available.
 
 ## Reports
+
+![AgentBOM HTML report preview](docs/assets/html-report-preview.svg)
 
 Generate review artifacts:
 
@@ -198,7 +223,8 @@ More details: [GitHub Action docs](docs/github-action.md).
 - Findings are review signals, not exploit verification.
 - Reachability is inferred from nearby static evidence, not runtime traces.
 - False positives and missed detections are possible.
-- Detector coverage is intentionally AI-agent focused, not general SAST.
+- AgentBOM is AI-agent focused. Use SAST for language-specific vulnerability
+  patterns and SBOM tools for package inventory.
 - AI/API credential leak checks are focused review signals and are not a
   replacement for full secret scanners such as Gitleaks or TruffleHog.
 - Dependency parsing is deterministic and limited, not a full lockfile solver.
