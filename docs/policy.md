@@ -162,7 +162,7 @@ agentbom guard . --policy agentbom.toml --mode enforce
 
 `agentbom guard` runs the scan with temporary report output outside the
 repository and prints concise commit-time status. Passing policy prints
-`agentbom ok` in green when stdout is a TTY and `NO_COLOR` is not set; otherwise
+`AgentBOM OK` in green when stdout is a TTY and `NO_COLOR` is not set; otherwise
 it prints plain text.
 
 Bypass a local hook intentionally with either command:

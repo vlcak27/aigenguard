@@ -53,7 +53,6 @@ def run_guard(
     env = os.environ if environ is None else environ
     guard_mode = normalize_guard_mode(mode)
 
-    print("Running AgentBOM policy guard...", file=out)
     try:
         with tempfile.TemporaryDirectory(prefix="agentbom-guard-") as output_dir:
             bom = scan_path(
@@ -75,18 +74,21 @@ def run_guard(
     warnings = _policy_items(policy_review.get("warnings"))
 
     if not violations and not warnings:
-        print(_color("agentbom ok", "green", out, env), file=out)
+        _print_guard_status("AgentBOM OK", "green", out, env)
+        print("No policy violations found.", file=out)
         return 0
 
     if not violations:
-        print(_color("agentbom ok: policy passed with warnings", "yellow", out, env), file=out)
-        _print_policy_items(warnings, out)
+        _print_guard_status("AgentBOM passed with warnings", "yellow", out, env)
+        print("", file=out)
+        _print_policy_items(warnings, out, env)
         print("Commit allowed.", file=out)
         return 0
 
     if guard_mode == "advisory":
-        print(_color("agentbom review: policy violations found", "yellow", out, env), file=out)
-        _print_policy_items(violations, out)
+        _print_guard_status("AgentBOM found policy violations", "yellow", out, env)
+        print("", file=out)
+        _print_policy_items(violations, out, env)
         print("Commit allowed because guard mode is advisory.", file=out)
         print("", file=out)
         print("To block commits, run:", file=out)
@@ -94,16 +96,9 @@ def run_guard(
         return 0
 
     if guard_mode == "confirm":
-        print(
-            _color(
-                "agentbom recommends not committing: policy violations found",
-                "yellow",
-                out,
-                env,
-            ),
-            file=out,
-        )
-        _print_policy_items(violations, out)
+        _print_guard_status("AgentBOM found policy violations", "yellow", out, env)
+        print("", file=out)
+        _print_policy_items(violations, out, env)
         reader = _read_confirmation_from_tty if confirm_reader is None else confirm_reader
         answer = reader("Continue with commit? [y/N]: ")
         if answer is None:
@@ -119,8 +114,9 @@ def run_guard(
         print("Commit blocked.", file=out)
         return 1
 
-    print("agentbom blocked: policy violations found", file=out)
-    _print_policy_items(violations, out)
+    _print_guard_status("AgentBOM blocked this commit", "red", out, env)
+    print("", file=out)
+    _print_policy_items(violations, out, env)
     print("", file=out)
     print("Fix violations or bypass locally with:", file=out)
     print("  AGENTBOM_SKIP_HOOK=1 git commit", file=out)
@@ -391,21 +387,40 @@ def _policy_items(value: object) -> list[dict[str, object]]:
     return [item for item in value if isinstance(item, dict)]
 
 
-def _print_policy_items(items: list[dict[str, object]], stdout: TextIO) -> None:
+def _print_guard_status(
+    message: str,
+    color: str,
+    stdout: TextIO,
+    environ: Mapping[str, str],
+) -> None:
+    print(_color(message, color, stdout, environ), file=stdout)
+
+
+def _print_policy_items(
+    items: list[dict[str, object]],
+    stdout: TextIO,
+    environ: Mapping[str, str],
+) -> None:
     for item in items[:3]:
         severity = str(item.get("severity", "low"))
+        severity_label = _format_severity(severity, stdout, environ)
         message = str(item.get("message", "")).strip()
+        source = str(item.get("source", "")).strip()
+        line = str(item.get("line", "")).strip()
+        location = f"{source}:{line}" if source and line else source
+        remediation = str(item.get("suggested_remediation", "")).strip()
         if str(item.get("rule", "")).startswith("secrets.") and "value" in message.lower():
-            source = str(item.get("source", "")).strip()
-            line = str(item.get("line", "")).strip()
-            location = f"{source}:{line}" if source and line else source
-            print(f"{severity.upper()} {message}", file=stdout)
+            print(f"{severity_label} {message}", file=stdout)
             if location:
                 print(location, file=stdout)
-            print(str(item.get("suggested_remediation", "Value redacted.")), file=stdout)
+            print(remediation or "Value redacted.", file=stdout)
             continue
         if message:
-            print(f"  - {severity}: {message}", file=stdout)
+            print(f"{severity_label} {message}", file=stdout)
+            if location:
+                print(location, file=stdout)
+            if remediation:
+                print(remediation, file=stdout)
     remaining = len(items) - 3
     if remaining > 0:
         print(f"  - {remaining} more policy item(s)", file=stdout)
@@ -414,12 +429,28 @@ def _print_policy_items(items: list[dict[str, object]], stdout: TextIO) -> None:
 def _color(text: str, color: str, stdout: TextIO, environ: Mapping[str, str]) -> str:
     if not _supports_color(stdout, environ):
         return text
-    code = {"green": "32", "yellow": "33"}[color]
+    code = {"green": "32", "yellow": "33", "red": "31", "bold_red": "1;31"}[color]
     return f"\033[{code}m{text}\033[0m"
 
 
 def _supports_color(stdout: TextIO, environ: Mapping[str, str]) -> bool:
     return "NO_COLOR" not in environ and hasattr(stdout, "isatty") and stdout.isatty()
+
+
+def _format_severity(
+    severity: str,
+    stdout: TextIO,
+    environ: Mapping[str, str],
+) -> str:
+    label = severity.upper()
+    color = {
+        "CRITICAL": "red",
+        "HIGH": "bold_red",
+        "MEDIUM": "yellow",
+    }.get(label)
+    if color is None:
+        return label
+    return _color(label, color, stdout, environ)
 
 
 def _shell_double_quote(value: str) -> str:

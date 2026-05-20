@@ -406,8 +406,7 @@ def test_guard_advisory_allows_policy_violations(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result == 0
-    assert "Running AgentBOM policy guard..." in captured.out
-    assert "agentbom review: policy violations found" in captured.out
+    assert "AgentBOM found policy violations" in captured.out
     assert "Commit allowed because guard mode is advisory." in captured.out
     assert not (project / "agentbom.json").exists()
     assert not (project / "agentbom.md").exists()
@@ -420,7 +419,7 @@ def test_guard_enforce_blocks_policy_violations(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "agentbom blocked: policy violations found" in captured.out
+    assert "AgentBOM blocked this commit" in captured.out
     assert "AGENTBOM_SKIP_HOOK=1 git commit" in captured.out
     assert "git commit --no-verify" in captured.out
 
@@ -433,7 +432,7 @@ def test_guard_confirm_allows_on_yes(tmp_path, monkeypatch, capsys):
 
     captured = capsys.readouterr()
     assert result == 0
-    assert "agentbom recommends not committing: policy violations found" in captured.out
+    assert "AgentBOM found policy violations" in captured.out
     assert "Commit allowed." in captured.out
 
 
@@ -467,7 +466,8 @@ def test_guard_prints_ok_plain_when_output_is_not_tty(tmp_path):
     result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO(), environ={})
 
     assert result == 0
-    assert "agentbom ok" in out.getvalue()
+    assert "AgentBOM OK" in out.getvalue()
+    assert "No policy violations found." in out.getvalue()
     assert "\033[" not in out.getvalue()
 
 
@@ -478,7 +478,7 @@ def test_guard_prints_ok_green_when_tty_supports_color(tmp_path):
     result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO(), environ={})
 
     assert result == 0
-    assert "\033[32magentbom ok\033[0m" in out.getvalue()
+    assert "\033[32mAgentBOM OK\033[0m" in out.getvalue()
 
 
 def test_guard_no_color_disables_ansi(tmp_path):
@@ -495,56 +495,101 @@ def test_guard_no_color_disables_ansi(tmp_path):
     )
 
     assert result == 0
-    assert "agentbom ok" in out.getvalue()
+    assert "AgentBOM OK" in out.getvalue()
     assert "\033[" not in out.getvalue()
 
 
-def test_guard_warnings_do_not_print_secret_values(tmp_path):
-    project = tmp_path / "agent"
-    project.mkdir()
-    (project / "agent.py").write_text("OPENAI_API_KEY = 'do-not-store'\n", encoding="utf-8")
-    policy = project / "agentbom.toml"
-    policy.write_text(
-        "\n".join(
-            [
-                "[mcp]",
-                "warn_on_unknown_server = false",
-                "require_policy_for_risky_servers = false",
-                "[secrets]",
-                "warn_on_detected = true",
-            ]
-        ),
-        encoding="utf-8",
+def test_guard_blocking_tty_output_uses_red(tmp_path):
+    project, policy = _project_with_model_violation(tmp_path)
+    out = TtyBuffer()
+
+    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO(), environ={})
+
+    output = out.getvalue()
+    assert result == 1
+    assert "\033[31mAgentBOM blocked this commit\033[0m" in output
+    assert "\033[33mMEDIUM\033[0m Model denied by policy: gpt-4o." in output
+
+
+def test_guard_warning_tty_output_uses_yellow(tmp_path):
+    project, policy = _project_with_secret_reference_warning(tmp_path)
+    out = TtyBuffer()
+
+    result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO(), environ={})
+
+    output = out.getvalue()
+    assert result == 0
+    assert "\033[33mAgentBOM passed with warnings\033[0m" in output
+    assert "\033[33mMEDIUM\033[0m Secret reference detected" in output
+
+
+def test_guard_confirm_tty_output_uses_yellow(tmp_path):
+    project, policy = _project_with_model_violation(tmp_path)
+    out = TtyBuffer()
+
+    result = run_guard(
+        project,
+        policy,
+        "confirm",
+        stdout=out,
+        stderr=io.StringIO(),
+        environ={},
+        confirm_reader=lambda prompt: True,
     )
+
+    output = out.getvalue()
+    assert result == 0
+    assert "\033[33mAgentBOM found policy violations\033[0m" in output
+    assert "Commit allowed." in output
+
+
+def test_guard_blocking_non_tty_output_has_no_ansi(tmp_path):
+    project, policy = _project_with_model_violation(tmp_path)
+    out = io.StringIO()
+
+    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO(), environ={})
+
+    output = out.getvalue()
+    assert result == 1
+    assert "AgentBOM blocked this commit" in output
+    assert "\033[" not in output
+
+
+def test_guard_warnings_do_not_print_secret_values(tmp_path):
+    project, policy = _project_with_secret_reference_warning(tmp_path)
 
     out = io.StringIO()
     result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO())
 
     assert result == 0
-    assert "agentbom ok: policy passed with warnings" in out.getvalue()
+    assert "AgentBOM passed with warnings" in out.getvalue()
     assert "Secret reference detected" in out.getvalue()
     assert "do-not-store" not in out.getvalue()
 
 
 def test_guard_enforce_blocks_secret_leaks_with_redacted_output(tmp_path):
-    project = tmp_path / "agent"
-    project.mkdir()
-    secret_value = "sk-proj-GUARDSECRET0000000000000000000001"
-    (project / ".env").write_text(f"OPENAI_API_KEY={secret_value}\n", encoding="utf-8")
-    policy = project / "agentbom.toml"
-    policy.write_text(
-        "[secrets]\nwarn_on_detected = true\nblock_leaks = true\n",
-        encoding="utf-8",
-    )
+    project, policy, secret_value = _project_with_secret_leak(tmp_path)
 
     out = io.StringIO()
-    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO())
+    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO(), environ={})
 
     output = out.getvalue()
     assert result == 1
     assert "CRITICAL Possible OpenAI API key value" in output
     assert ".env:1" in output
     assert "Value redacted. Remove the key and rotate it." in output
+    assert secret_value not in output
+
+
+def test_guard_critical_tty_severity_uses_red(tmp_path):
+    project, policy, secret_value = _project_with_secret_leak(tmp_path)
+    out = TtyBuffer()
+
+    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO(), environ={})
+
+    output = out.getvalue()
+    assert result == 1
+    assert "\033[31mCRITICAL\033[0m Possible OpenAI API key value" in output
     assert secret_value not in output
 
 
@@ -583,3 +628,36 @@ def _project_without_policy_items(tmp_path):
         encoding="utf-8",
     )
     return project, policy
+
+
+def _project_with_secret_reference_warning(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("OPENAI_API_KEY = 'do-not-store'\n", encoding="utf-8")
+    policy = project / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[mcp]",
+                "warn_on_unknown_server = false",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return project, policy
+
+
+def _project_with_secret_leak(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    secret_value = "sk-proj-GUARDSECRET0000000000000000000001"
+    (project / ".env").write_text(f"OPENAI_API_KEY={secret_value}\n", encoding="utf-8")
+    policy = project / "agentbom.toml"
+    policy.write_text(
+        "[secrets]\nwarn_on_detected = true\nblock_leaks = true\n",
+        encoding="utf-8",
+    )
+    return project, policy, secret_value
