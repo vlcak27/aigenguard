@@ -53,10 +53,11 @@ def test_cli_top_level_help_mentions_init(capsys):
     assert "activate" in help_text
     assert "status" in help_text
     assert "deactivate" in help_text
+    assert "run" in help_text
     assert "Recommended workflow" in help_text
     assert "agentbom activate" in help_text
     assert "git commit" in help_text
-    assert "agentbom status" in help_text
+    assert "agentbom run" in help_text
     assert "agentbom scan . --policy agentbom.toml --html --open" in help_text
 
 

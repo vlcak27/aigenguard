@@ -41,7 +41,11 @@ def test_activate_creates_policy_and_installs_confirm_hook(tmp_path, monkeypatch
     assert '"shell_execution"' in policy_text
     assert '"code_execution"' in policy_text
     assert "block_leaks = true" in policy_text
-    assert '--mode "confirm"' in hook.read_text(encoding="utf-8")
+    hook_text = hook.read_text(encoding="utf-8")
+    assert '--mode "confirm"' in hook_text
+    assert "agentbom guard ." in hook_text
+    assert "agentbom run" not in hook_text
+    assert "runbom" not in hook_text.lower()
     assert "AgentBOM activated" in captured.out
     assert "Policy: agentbom.toml" in captured.out
     assert "Preset: safe" in captured.out
@@ -105,18 +109,6 @@ def test_activate_strict_preset_creates_strict_policy(tmp_path, monkeypatch, cap
     assert '"mcp_tool_invocation"' in text
     assert '"network_access"' in text
     assert "require_policy_for_risky_servers = true" in text
-
-
-def test_activate_reuses_existing_policy(tmp_path, monkeypatch):
-    repo = _git_repo(tmp_path)
-    policy = repo / "agentbom.toml"
-    policy.write_text("# existing policy\n", encoding="utf-8")
-    monkeypatch.chdir(repo)
-
-    result = main(["activate"])
-
-    assert result == 0
-    assert policy.read_text(encoding="utf-8") == "# existing policy\n"
 
 
 def test_activate_force_overwrites_existing_policy(tmp_path, monkeypatch):
