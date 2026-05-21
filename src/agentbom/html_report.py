@@ -10,6 +10,10 @@ from typing import Any
 from .policy_onboarding import starter_policy_toml
 
 
+class SafeHtml(str):
+    """Explicit marker for report-owned HTML fragments."""
+
+
 SECTION_HELP = {
     "providers-models": (
         "AI providers and concrete model identifiers found in source or configuration."
@@ -259,10 +263,10 @@ def _policy_review_table(items: list[dict[str, Any]]) -> str:
     rows = [
         [
             _badge(str(item.get("severity", ""))),
-            escape(str(item.get("rule", ""))),
-            escape(str(item.get("message", ""))),
-            escape(str(item.get("source", ""))),
-            escape(str(item.get("suggested_remediation", ""))),
+            str(item.get("rule", "")),
+            str(item.get("message", "")),
+            str(item.get("source", "")),
+            str(item.get("suggested_remediation", "")),
         ]
         for item in items
     ]
@@ -391,10 +395,10 @@ def _diff_summary(diff_value: Any) -> str:
     ):
         rows = [
             [
-                escape(str(_dict(item).get("id", ""))),
-                escape(str(_dict(item).get("category", ""))),
-                escape(str(_dict(item).get("title", ""))),
-                escape(str(_dict(item).get("source_file", ""))),
+                str(_dict(item).get("id", "")),
+                str(_dict(item).get("category", "")),
+                str(_dict(item).get("title", "")),
+                str(_dict(item).get("source_file", "")),
                 _badge(str(_dict(item).get("severity", ""))),
             ]
             for item in _list(diff.get(key))
@@ -420,7 +424,7 @@ def _scanner_risks(items: Any) -> str:
     rows = [
         [
             _badge(str(_dict(item).get("severity", ""))),
-            escape(str(_dict(item).get("reason", ""))),
+            str(_dict(item).get("reason", "")),
         ]
         for item in risks
     ]
@@ -435,11 +439,11 @@ def _providers_and_models(bom: dict[str, Any]) -> str:
     providers = _named_rows(bom.get("providers", []))
     models = [
         [
-            escape(str(_dict(item).get("name", ""))),
-            escape(str(_dict(item).get("type", ""))),
-            escape(str(_dict(item).get("source_file", ""))),
+            str(_dict(item).get("name", "")),
+            str(_dict(item).get("type", "")),
+            str(_dict(item).get("source_file", "")),
             _badge(str(_dict(item).get("confidence", "")), "confidence"),
-            escape(str(_dict(item).get("evidence", ""))),
+            str(_dict(item).get("evidence", "")),
         ]
         for item in _list(bom.get("models"))
     ]
@@ -471,8 +475,8 @@ def _named_section(title: str, section_id: str, items: Any) -> str:
 def _named_rows(items: Any) -> list[list[str]]:
     return [
         [
-            escape(str(_dict(item).get("name", _dict(item).get("path", "")))),
-            escape(str(_dict(item).get("path", ""))),
+            str(_dict(item).get("name", _dict(item).get("path", ""))),
+            str(_dict(item).get("path", "")),
             _badge(str(_dict(item).get("confidence", "")), "confidence"),
         ]
         for item in _list(items)
@@ -485,16 +489,16 @@ def _mcp_security(items: Any) -> str:
         finding = _dict(item)
         rows.append(
             [
-                escape(str(finding.get("name", ""))),
-                escape(str(finding.get("path", ""))),
-                escape(str(finding.get("command", ""))),
-                escape(" ".join(str(value) for value in _list(finding.get("args")))),
-                escape(str(finding.get("package", ""))),
-                escape(str(finding.get("transport", ""))),
-                escape(", ".join(str(value) for value in _list(finding.get("env")))),
+                str(finding.get("name", "")),
+                str(finding.get("path", "")),
+                str(finding.get("command", "")),
+                " ".join(str(value) for value in _list(finding.get("args"))),
+                str(finding.get("package", "")),
+                str(finding.get("transport", "")),
+                ", ".join(str(value) for value in _list(finding.get("env"))),
                 _badge(str(finding.get("risk", ""))),
-                escape(", ".join(str(value) for value in _list(finding.get("risk_categories")))),
-                escape("; ".join(str(value) for value in _list(finding.get("rationale")))),
+                ", ".join(str(value) for value in _list(finding.get("risk_categories"))),
+                "; ".join(str(value) for value in _list(finding.get("rationale"))),
             ]
         )
     return (
@@ -515,16 +519,16 @@ def _reachable_capabilities(items: Any) -> str:
             paths = []
         rows.append(
             [
-                escape(str(finding.get("capability", ""))),
-                escape(str(finding.get("reachable_from", ""))),
-                escape(str(finding.get("source_file", ""))),
+                str(finding.get("capability", "")),
+                str(finding.get("reachable_from", "")),
+                str(finding.get("source_file", "")),
                 _badge(str(finding.get("risk", ""))),
                 _badge(str(finding.get("confidence", "")), "confidence"),
-                escape(str(finding.get("confidence_score", ""))),
-                escape(", ".join(str(path) for path in paths)),
-                escape(str(finding.get("mcp_server", ""))),
-                escape(", ".join(str(value) for value in _list(finding.get("mitigations")))),
-                escape("; ".join(str(value) for value in _list(finding.get("rationale")))),
+                str(finding.get("confidence_score", "")),
+                ", ".join(str(path) for path in paths),
+                str(finding.get("mcp_server", "")),
+                ", ".join(str(value) for value in _list(finding.get("mitigations"))),
+                "; ".join(str(value) for value in _list(finding.get("rationale"))),
             ]
         )
     return (
@@ -540,9 +544,9 @@ def _policy_findings(items: Any) -> str:
     rows = [
         [
             _badge(str(_dict(item).get("severity", ""))),
-            escape(str(_dict(item).get("message", ""))),
-            escape(str(_dict(item).get("source_file", ""))),
-            escape(str(_dict(item).get("policy_id", ""))),
+            str(_dict(item).get("message", "")),
+            str(_dict(item).get("source_file", "")),
+            str(_dict(item).get("policy_id", "")),
         ]
         for item in _list(items)
     ]
@@ -558,8 +562,8 @@ def _policy_findings(items: Any) -> str:
 def _prompt_surfaces(items: Any) -> str:
     rows = [
         [
-            escape(str(_dict(item).get("path", ""))),
-            escape(str(_dict(item).get("type", ""))),
+            str(_dict(item).get("path", "")),
+            str(_dict(item).get("type", "")),
             _badge(str(_dict(item).get("confidence", "")), "confidence"),
         ]
         for item in _list(items)
@@ -576,9 +580,9 @@ def _prompt_surfaces(items: Any) -> str:
 def _dependencies(items: Any) -> str:
     rows = [
         [
-            escape(str(_dict(item).get("name", ""))),
-            escape(str(_dict(item).get("category", ""))),
-            escape(str(_dict(item).get("path", ""))),
+            str(_dict(item).get("name", "")),
+            str(_dict(item).get("category", "")),
+            str(_dict(item).get("path", "")),
             _badge(str(_dict(item).get("confidence", "")), "confidence"),
         ]
         for item in _list(items)
@@ -599,14 +603,14 @@ def _secret_leaks(items: Any) -> str:
         rows.append(
             [
                 _badge(str(finding.get("severity", ""))),
-                escape(str(finding.get("provider", ""))),
-                escape(str(finding.get("category", ""))),
-                escape(str(finding.get("path", ""))),
-                escape(str(finding.get("line", ""))),
+                str(finding.get("provider", "")),
+                str(finding.get("category", "")),
+                str(finding.get("path", "")),
+                str(finding.get("line", "")),
                 _badge(str(finding.get("confidence", "")), "confidence"),
-                escape(str(finding.get("title", ""))),
-                escape(str(finding.get("redacted_evidence", ""))),
-                escape(str(finding.get("suggested_action", ""))),
+                str(finding.get("title", "")),
+                str(finding.get("redacted_evidence", "")),
+                str(finding.get("suggested_action", "")),
             ]
         )
     return (
@@ -858,17 +862,17 @@ def _policy_workbench_script(bom: dict[str, Any]) -> str:
 def _capability_graph(graph: dict[str, Any]) -> str:
     node_rows = [
         [
-            escape(str(_dict(item).get("id", ""))),
-            escape(str(_dict(item).get("type", ""))),
-            escape(str(_dict(item).get("name", ""))),
+            str(_dict(item).get("id", "")),
+            str(_dict(item).get("type", "")),
+            str(_dict(item).get("name", "")),
         ]
         for item in _list(graph.get("nodes"))
     ]
     edge_rows = [
         [
-            escape(str(_dict(item).get("source", ""))),
-            escape(str(_dict(item).get("target", ""))),
-            escape(str(_dict(item).get("type", ""))),
+            str(_dict(item).get("source", "")),
+            str(_dict(item).get("target", "")),
+            str(_dict(item).get("type", "")),
         ]
         for item in _list(graph.get("edges"))
     ]
@@ -932,13 +936,13 @@ def _secret_leak_headers() -> list[str]:
     ]
 
 
-def _table(headers: list[str], rows: list[list[str]], empty: str) -> str:
+def _table(headers: list[str], rows: list[list[Any]], empty: str) -> str:
     if not rows:
         return f'<p class="empty">{escape(empty)}</p>'
     header_html = "".join(f"<th>{escape(header)}</th>" for header in headers)
     body_rows = []
     for row in rows:
-        cells = "".join(f"<td>{cell}</td>" for cell in row)
+        cells = "".join(f"<td>{_table_cell(cell)}</td>" for cell in row)
         body_rows.append(f"<tr>{cells}</tr>")
     return (
         '<div class="table-wrap">'
@@ -950,6 +954,12 @@ def _table(headers: list[str], rows: list[list[str]], empty: str) -> str:
     )
 
 
+def _table_cell(value: Any) -> str:
+    if isinstance(value, SafeHtml):
+        return str(value)
+    return escape(str(value))
+
+
 def _bullets(items: list[Any], empty: str) -> str:
     if not items:
         return f'<p class="empty">{escape(empty)}</p>'
@@ -959,7 +969,7 @@ def _bullets(items: list[Any], empty: str) -> str:
 def _badge(label: str, kind: str = "severity") -> str:
     if not label:
         return ""
-    return f'<span class="badge {_badge_class(label, kind)}">{escape(label)}</span>'
+    return SafeHtml(f'<span class="badge {_badge_class(label, kind)}">{escape(label)}</span>')
 
 
 def _badge_class(label: str, kind: str = "severity") -> str:

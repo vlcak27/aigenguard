@@ -7,7 +7,7 @@ import pytest
 
 from agentbom.cli import main
 from agentbom.github_summary import render_github_step_summary, write_github_step_summary
-from agentbom.html_report import render_html
+from agentbom.html_report import _table, render_html
 
 
 def test_cli_version(capsys):
@@ -683,6 +683,103 @@ def test_html_report_escapes_bom_values():
     assert "review &lt;filesystem&gt; access" in html
     assert "<unsafe>" not in html
     assert "\\u003copenai\\u003e" in html
+
+
+def test_html_report_table_escapes_cells_by_default():
+    html = _table(["Name"], [["<img src=x onerror=alert(1)>"]], "None.")
+
+    assert "<img src=x onerror=alert(1)>" not in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+
+
+def test_html_report_escapes_xss_payloads_in_report_fields():
+    image_payload = "<img src=x onerror=alert(1)>"
+    script_payload = "<script>alert(1)</script>"
+    svg_payload = '"><svg onload=alert(1)>'
+    html = render_html(
+        {
+            "schema_version": "0.1.0",
+            "repository": "repo",
+            "generated_by": "agentbom",
+            "providers": [
+                {"name": image_payload, "path": svg_payload, "confidence": "high"}
+            ],
+            "models": [
+                {
+                    "name": script_payload,
+                    "type": "llm",
+                    "source_file": svg_payload,
+                    "confidence": "high",
+                    "evidence": image_payload,
+                }
+            ],
+            "frameworks": [],
+            "mcp_servers": [
+                {
+                    "name": svg_payload,
+                    "path": "mcp.json",
+                    "kind": "server",
+                    "parse_status": "parsed",
+                    "risk": "high",
+                    "risk_categories": ["network"],
+                    "rationale": [script_payload],
+                    "command": "npx",
+                    "args": [script_payload],
+                    "package": image_payload,
+                    "transport": "stdio",
+                }
+            ],
+            "capabilities": [],
+            "dependencies": [
+                {
+                    "name": image_payload,
+                    "category": "ai",
+                    "path": svg_payload,
+                    "confidence": "high",
+                }
+            ],
+            "reachable_capabilities": [
+                {
+                    "capability": "filesystem",
+                    "reachable_from": "agent",
+                    "source_file": svg_payload,
+                    "risk": "high",
+                    "confidence": "high",
+                    "paths": [script_payload],
+                    "mcp_server": svg_payload,
+                    "rationale": [image_payload],
+                }
+            ],
+            "capability_graph": {
+                "nodes": [{"id": "agent", "type": "actor", "name": script_payload}],
+                "edges": [{"source": "agent", "target": svg_payload, "type": "uses"}],
+            },
+            "policy_findings": [
+                {
+                    "severity": "high",
+                    "message": script_payload,
+                    "source_file": svg_payload,
+                    "policy_id": "xss",
+                }
+            ],
+            "secret_references": [],
+            "risks": [{"severity": "high", "reason": image_payload}],
+            "repository_risk": {
+                "score": 80,
+                "severity": "high",
+                "rationale": [script_payload],
+            },
+        }
+    )
+
+    assert image_payload not in html
+    assert script_payload not in html
+    assert svg_payload not in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&quot;&gt;&lt;svg onload=alert(1)&gt;" in html
+    assert html.count("<script>") == 1
+    assert "<script>alert(1)</script>" not in html
 
 
 def test_cli_generates_sarif_when_requested(tmp_path):
