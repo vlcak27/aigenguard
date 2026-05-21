@@ -32,6 +32,7 @@ from .policy_onboarding import (
     write_policy_file,
 )
 from .report import write_reports
+from .runbom import configure_runbom, detect_runbom_command, run_runbom
 from .sarif import write_sarif_report
 from .scanner import scan_path
 
@@ -47,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Recommended workflow:\n"
             "  agentbom activate\n"
             "  git commit\n"
-            "  agentbom status\n"
+            "  agentbom run\n"
             "  agentbom scan . --policy agentbom.toml --html --open\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -165,7 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="activate the repo-local AgentBOM guard",
         description=(
             "Create or reuse agentbom.toml and install a repo-local pre-commit "
-            "guard. Default mode is confirm."
+            "guard. Configure RunBOM when possible. Default mode is confirm."
         ),
     )
     activate_parser.add_argument(
@@ -204,6 +205,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--agentbom-command",
         default="agentbom",
         help="agentbom executable path for the hook to call (default: agentbom)",
+    )
+    activate_parser.add_argument(
+        "--command",
+        dest="runbom_command",
+        help=(
+            "RunBOM direct command to configure; executed without a shell. "
+            "Examples: pytest, python -m pytest, npm test"
+        ),
+    )
+    activate_parser.add_argument(
+        "--no-runbom",
+        action="store_true",
+        help="skip RunBOM configuration setup",
+    )
+
+    subparsers.add_parser(
+        "run",
+        help="run RunBOM runtime verification",
+        description=(
+            "Run the configured RunBOM runtime command from agentbom.toml without a shell. "
+            "Configure a direct command like: pytest, python -m pytest, or npm test."
+        ),
     )
 
     subparsers.add_parser(
@@ -447,6 +470,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "activate":
         return _activate(args)
 
+    if args.command == "run":
+        return run_runbom()
+
     if args.command == "status":
         return _print_status()
 
@@ -518,6 +544,9 @@ def _activate(args: argparse.Namespace) -> int:
                 starter_policy_toml(preset=preset),
                 force=args.force,
             )
+        if not args.no_runbom:
+            runbom_command = args.runbom_command or detect_runbom_command(repo_root)
+            configure_runbom(policy_file, runbom_command)
         install_hook(
             args.policy,
             args.mode,
@@ -548,6 +577,7 @@ def _activate(args: argparse.Namespace) -> int:
     print("")
     print("Next:")
     print("  git commit")
+    print("  agentbom run")
     print("  agentbom status")
     print(f"  agentbom scan . --policy {args.policy} --html --open")
     return 0
