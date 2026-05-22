@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import shlex
@@ -10,69 +11,108 @@ import sys
 import tempfile
 import time
 import tomllib
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Any, TextIO
 
 
 RUNBOM_BASELINE = ".agentbom/runbom-baseline.json"
 RUNBOM_LOG = ".agentbom/runbom.jsonl"
+RUNBOM_SUMMARY = ".agentbom/runbom-summary.json"
+RISK_LEVELS = ("low", "medium", "high", "critical")
+RUNTIME_EVENT_TYPES = (
+    "filesystem.read",
+    "filesystem.write",
+    "process.exec",
+    "network.connect",
+    "env.read",
+)
+AI_PROVIDER_KEYS = {
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "COHERE_API_KEY",
+    "HUGGINGFACE_API_TOKEN",
+}
+PRIVATE_NETWORKS = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+)
 
 
-def configure_runbom(policy_file: Path, command: str) -> None:
+@dataclass(frozen=True)
+class RunbomDetectedCommand:
+    """A command RunBOM can safely prefer without guessing an app entrypoint."""
+
+    command: str
+    reason: str
+
+
+def configure_runbom(
+    policy_file: Path,
+    command: str | RunbomDetectedCommand | None,
+    *,
+    force: bool = False,
+) -> None:
     """Append or update the RunBOM section without changing static policy sections."""
     text = policy_file.read_text(encoding="utf-8") if policy_file.exists() else ""
+    if not force and _existing_runbom_command(text):
+        return
+    command_text = _command_text(command)
     text = _remove_toml_table(text, "runbom").rstrip()
     if text:
         text += "\n\n"
-    text += _runbom_toml(command)
+    text += _runbom_toml(command_text)
     policy_file.parent.mkdir(parents=True, exist_ok=True)
     policy_file.write_text(text.rstrip() + "\n", encoding="utf-8")
 
 
-def detect_runbom_command(repo_root: Path) -> str:
+def detect_runbom_command(repo_root: Path) -> RunbomDetectedCommand | None:
     """Detect a simple runtime verification command without executing project code."""
     if (repo_root / "tests" / "agent_runtime").is_dir():
-        return "pytest tests/agent_runtime"
-    if _has_pytest_project(repo_root):
-        return "pytest"
-    if _has_python_pytest_dependency(repo_root):
-        return "python -m pytest"
+        return RunbomDetectedCommand(
+            "python -m pytest tests/agent_runtime",
+            "tests/agent_runtime directory exists",
+        )
+    if (repo_root / "tests" / "runbom").is_dir():
+        return RunbomDetectedCommand(
+            "python -m pytest tests/runbom",
+            "tests/runbom directory exists",
+        )
+    if (repo_root / "tests").is_dir() and _has_pytest_project_signal(repo_root):
+        return RunbomDetectedCommand(
+            "python -m pytest",
+            "tests directory exists with pytest project signals",
+        )
     if _package_json_has_test_script(repo_root / "package.json"):
         if (repo_root / "pnpm-lock.yaml").is_file():
-            return "pnpm test"
+            return RunbomDetectedCommand("pnpm test", "package.json test script with pnpm lock")
         if (repo_root / "bun.lockb").is_file() or (repo_root / "bun.lock").is_file():
-            return "bun test"
-        return "npm test"
-    return ""
+            return RunbomDetectedCommand("bun test", "package.json test script with bun lock")
+        return RunbomDetectedCommand("npm test", "package.json test script")
+    return None
+
+
+def explain_runbom_command_detection(detected: RunbomDetectedCommand | None) -> str:
+    if detected is None:
+        return _runbom_setup_message()
+    return f"RunBOM detected command: {detected.command}"
 
 
 def run_runbom(config_path: Path = Path("agentbom.toml")) -> int:
     """Run the configured RunBOM command and write minimal JSONL lifecycle events."""
     repo_root = config_path.parent.resolve()
-    if not config_path.exists():
-        print("RunBOM is not configured. Run: agentbom activate", file=sys.stderr)
+    command, detected, config_error = _resolve_runbom_command(config_path, repo_root)
+    if config_error:
         return 1
-    try:
-        config = tomllib.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
-        print(f"agentbom: {exc}", file=sys.stderr)
+    if command is None:
+        print(_runbom_setup_message(), file=sys.stderr)
         return 1
+    if detected is not None:
+        print(explain_runbom_command_detection(detected))
 
-    runbom = config.get("runbom")
-    if not isinstance(runbom, dict) or runbom.get("enabled") is not True:
-        print(
-            'RunBOM is not enabled. Run: agentbom activate --command "pytest"',
-            file=sys.stderr,
-        )
-        return 1
-
-    command = str(runbom.get("command") or "").strip()
-    if not command:
-        print(
-            'RunBOM has no runtime command configured. Run: agentbom activate --command "pytest"',
-            file=sys.stderr,
-        )
-        return 1
     try:
         argv = shlex.split(command)
     except ValueError as exc:
@@ -124,7 +164,13 @@ def run_runbom(config_path: Path = Path("agentbom.toml")) -> int:
         env["AGENTBOM_RUNBOM_EVENTS"] = str(jsonl_path)
         env["AGENTBOM_REPO_ROOT"] = str(repo_root)
         try:
-            completed = subprocess.run(argv, cwd=repo_root, env=env)
+            completed = subprocess.run(
+                argv,
+                cwd=repo_root,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except OSError as exc:
             print(f"RunBOM command failed to start: {exc}", file=sys.stderr)
             exit_code = 1
@@ -141,12 +187,225 @@ def run_runbom(config_path: Path = Path("agentbom.toml")) -> int:
             "duration_seconds": round(ended_at - started_at, 6),
         },
     )
+    events = [normalize_runbom_event(event) for event in _read_jsonl_events(jsonl_path)]
+    _write_jsonl_events_path(jsonl_path, events)
+    summary = build_runbom_summary(
+        events,
+        command_exit_code=exit_code,
+        command=command,
+    )
+    write_runbom_summary(repo_root / RUNBOM_SUMMARY, summary)
 
     if exit_code == 0:
         print("AgentBOM RunBOM OK")
     else:
         print("AgentBOM RunBOM FAILED")
+    print(
+        "Runtime events: "
+        f"{summary['events_total']} observed, "
+        f"{summary['unique_events']} unique, "
+        f"highest risk: {summary['highest_risk']}"
+    )
     return exit_code
+
+
+def normalize_runbom_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Return a stable, sanitized RunBOM event shape."""
+    event_type = str(event.get("event") or "")
+    normalized: dict[str, Any] = {"event": event_type}
+    if event_type in {"run.start", "run.end"}:
+        if "command" in event:
+            normalized["command"] = _redact_secret_text(str(event.get("command") or ""))
+        if "exit_code" in event:
+            normalized["exit_code"] = _json_safe_scalar(event.get("exit_code"))
+        if "duration_seconds" in event:
+            normalized["duration_seconds"] = _json_safe_scalar(event.get("duration_seconds"))
+        if "timestamp" in event:
+            normalized["timestamp"] = _json_safe_scalar(event.get("timestamp"))
+        normalized.update(classify_runbom_event(normalized))
+        return normalized
+
+    if event_type in {"filesystem.read", "filesystem.write"}:
+        normalized["path"] = str(event.get("path") or "")
+        if "mode" in event:
+            normalized["mode"] = str(event.get("mode") or "")
+        if "method" in event:
+            normalized["method"] = str(event.get("method") or "")
+    elif event_type == "env.read":
+        normalized["name"] = str(event.get("name") or "")
+    elif event_type == "process.exec":
+        argv = event.get("argv")
+        normalized["argv"] = _normalize_argv(argv)
+        executable = event.get("executable")
+        if executable:
+            normalized["executable"] = _redact_secret_text(str(executable))
+    elif event_type == "network.connect":
+        normalized["host"] = str(event.get("host") or "")
+        if "port" in event:
+            normalized["port"] = _json_safe_scalar(event.get("port"))
+    else:
+        for key in sorted(event):
+            if key in {"event", "value", "secret", "env_value"}:
+                continue
+            normalized[key] = _json_safe_scalar(event[key])
+
+    if "timestamp" in event:
+        normalized["timestamp"] = _json_safe_scalar(event.get("timestamp"))
+    normalized.update(classify_runbom_event(normalized))
+    return normalized
+
+
+def classify_runbom_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Classify a normalized event for summary-only risk reporting."""
+    risk = "low"
+    tags: list[str] = []
+    event_type = str(event.get("event") or "")
+
+    if event_type in {"filesystem.read", "filesystem.write"}:
+        path = str(event.get("path") or "")
+        path_name = _path_name(path)
+        if _is_ssh_path(path):
+            risk = _max_risk(risk, "critical")
+            _add_tags(tags, "ssh-material", "protected-path")
+        if event_type == "filesystem.read" and (path_name == ".env" or path_name.startswith(".env.")):
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "secret-file", "protected-path")
+        if event_type == "filesystem.read" and _is_git_config_path(path):
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "git-config", "protected-path")
+        if event_type == "filesystem.write" and _is_github_workflow_path(path):
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "protected-workflow")
+
+    elif event_type == "env.read":
+        name = str(event.get("name") or "")
+        if name == "GITHUB_TOKEN":
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "secret-env", "github-token")
+        if name.startswith("AWS_"):
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "secret-env", "cloud-credential")
+        if name.startswith("SSH_"):
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "secret-env", "ssh-material")
+        if name.endswith(("_SECRET", "_TOKEN", "_PRIVATE_KEY")):
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "secret-env")
+        if name in AI_PROVIDER_KEYS:
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "secret-env", "ai-provider-key")
+
+    elif event_type == "process.exec":
+        basename = _process_basename(event)
+        if basename in {"sh", "bash", "zsh"}:
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "shell-exec")
+        if basename in {"curl", "wget", "nc", "ncat", "socat"}:
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "network-tool")
+
+    elif event_type == "network.connect":
+        host = str(event.get("host") or "")
+        if host == "169.254.169.254":
+            risk = _max_risk(risk, "critical")
+            _add_tags(tags, "metadata-service")
+        elif _is_rfc1918_host(host):
+            risk = _max_risk(risk, "high")
+            _add_tags(tags, "private-network")
+
+    return {"risk": risk, "tags": tags}
+
+
+def runbom_event_identity(event: dict[str, Any]) -> tuple[Any, ...]:
+    event_type = str(event.get("event") or "")
+    risk = str(event.get("risk") or "low")
+    tags = tuple(str(tag) for tag in event.get("tags") or [])
+    if event_type in {"filesystem.read", "filesystem.write"}:
+        return (event_type, str(event.get("path") or ""), risk, tags)
+    if event_type == "env.read":
+        return (event_type, str(event.get("name") or ""), risk, tags)
+    if event_type == "process.exec":
+        argv = tuple(str(arg) for arg in event.get("argv") or [])
+        return (event_type, str(event.get("executable") or ""), argv, risk, tags)
+    if event_type == "network.connect":
+        return (
+            event_type,
+            str(event.get("host") or ""),
+            _json_safe_scalar(event.get("port")),
+            risk,
+            tags,
+        )
+    return (event_type, risk, tags)
+
+
+def build_runbom_summary(
+    events: list[dict[str, Any]],
+    command_exit_code: int,
+    command: str,
+) -> dict[str, Any]:
+    normalized_events = [normalize_runbom_event(event) for event in events]
+    runtime_events = [
+        event for event in normalized_events if event.get("event") in RUNTIME_EVENT_TYPES
+    ]
+    unique_events: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for event in runtime_events:
+        unique_events.setdefault(runbom_event_identity(event), event)
+
+    unique_runtime_events = list(unique_events.values())
+    risk_counts = {risk: 0 for risk in RISK_LEVELS}
+    event_types = {event_type: 0 for event_type in RUNTIME_EVENT_TYPES}
+    highest_risk = "low"
+    risky_events: list[dict[str, Any]] = []
+    for event in unique_runtime_events:
+        event_type = str(event.get("event") or "")
+        risk = str(event.get("risk") or "low")
+        if event_type in event_types:
+            event_types[event_type] += 1
+        if risk in risk_counts:
+            risk_counts[risk] += 1
+        highest_risk = _max_risk(highest_risk, risk)
+        if risk in {"high", "critical"}:
+            risky_events.append(_summary_event(event))
+
+    risky_events.sort(key=_risky_event_sort_key)
+    return {
+        "schema_version": "runbom.summary.v1",
+        "command": _redact_secret_text(command),
+        "command_exit_code": command_exit_code,
+        "events_total": len(runtime_events),
+        "unique_events": len(unique_runtime_events),
+        "highest_risk": highest_risk,
+        "risk_counts": risk_counts,
+        "event_types": event_types,
+        "risky_events": risky_events,
+    }
+
+
+def write_runbom_summary(path: Path, summary: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+
+
+def _resolve_runbom_command(
+    config_path: Path,
+    repo_root: Path,
+) -> tuple[str | None, RunbomDetectedCommand | None, bool]:
+    if config_path.exists():
+        try:
+            config = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+            print(f"agentbom: {exc}", file=sys.stderr)
+            return None, None, True
+        runbom = config.get("runbom")
+        if isinstance(runbom, dict) and runbom.get("enabled") is True:
+            command = str(runbom.get("command") or "").strip()
+            if command:
+                return command, None, False
+
+    detected = detect_runbom_command(repo_root)
+    if detected is None:
+        return None, None, False
+    return detected.command, detected, False
 
 
 def _runbom_toml(command: str) -> str:
@@ -162,34 +421,81 @@ def _runbom_toml(command: str) -> str:
     )
 
 
-def _has_pytest_project(repo_root: Path) -> bool:
-    if (repo_root / "tests").is_dir():
-        return True
-    if (repo_root / "pytest.ini").is_file() or (repo_root / ".pytest.ini").is_file():
+def _command_text(command: str | RunbomDetectedCommand | None) -> str:
+    if command is None:
+        return ""
+    if isinstance(command, RunbomDetectedCommand):
+        return command.command
+    return str(command).strip()
+
+
+def _existing_runbom_command(text: str) -> str:
+    if not text.strip():
+        return ""
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return ""
+    runbom = data.get("runbom")
+    if not isinstance(runbom, dict):
+        return ""
+    return str(runbom.get("command") or "").strip()
+
+
+def _runbom_setup_message() -> str:
+    return "\n".join(
+        [
+            "RunBOM is not configured yet.",
+            "",
+            "Run one of:",
+            "  agentbom activate",
+            '  agentbom activate --command "python -m pytest"',
+            "",
+            "Recommended:",
+            "  create tests/agent_runtime/ and run agentbom activate again",
+        ]
+    )
+
+
+def _has_pytest_project_signal(repo_root: Path) -> bool:
+    if (repo_root / "pytest.ini").is_file():
         return True
     pyproject = _read_small_text(repo_root / "pyproject.toml")
     if pyproject and "[tool.pytest" in pyproject:
         return True
-    for name in ("tox.ini", "setup.cfg"):
-        text = _read_small_text(repo_root / name)
-        if text and ("[pytest]" in text or "[tool:pytest]" in text):
+    tox = _read_small_text(repo_root / "tox.ini")
+    if tox and ("[pytest]" in tox or "[tool:pytest]" in tox):
+        return True
+    requirements = _read_small_text(repo_root / "requirements.txt")
+    if requirements and _mentions_pytest(requirements):
+        return True
+    requirements_dev = _read_small_text(repo_root / "requirements-dev.txt")
+    if requirements_dev and _mentions_pytest(requirements_dev):
+        return True
+    return (repo_root / "uv.lock").is_file() and _appears_python_project(repo_root)
+
+
+def _mentions_pytest(text: str) -> bool:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("pytest"):
             return True
     return False
 
 
-def _has_python_pytest_dependency(repo_root: Path) -> bool:
-    pyproject = _read_small_text(repo_root / "pyproject.toml")
-    if pyproject and "pytest" in pyproject:
+def _appears_python_project(repo_root: Path) -> bool:
+    if (repo_root / "pyproject.toml").is_file():
         return True
-    requirements = _read_small_text(repo_root / "requirements-dev.txt")
-    if requirements and _mentions_pytest(requirements):
+    if (repo_root / "setup.py").is_file() or (repo_root / "setup.cfg").is_file():
         return True
-    requirements = _read_small_text(repo_root / "requirements.txt")
-    return bool(requirements and _mentions_pytest(requirements))
-
-
-def _mentions_pytest(text: str) -> bool:
-    return any(line.strip().startswith("pytest") for line in text.splitlines())
+    if (repo_root / "requirements.txt").is_file() or (repo_root / "requirements-dev.txt").is_file():
+        return True
+    try:
+        return any(path.suffix == ".py" and path.is_file() for path in repo_root.iterdir())
+    except OSError:
+        return False
 
 
 def _has_unsupported_shell_syntax(command: str) -> bool:
@@ -259,6 +565,132 @@ def _write_jsonl_event_path(
 ) -> None:
     with path.open(mode, encoding="utf-8") as handle:
         _write_jsonl_event(handle, event)
+
+
+def _read_jsonl_events(path: Path) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return events
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def _write_jsonl_events_path(path: Path, events: list[dict[str, Any]]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        for event in events:
+            _write_jsonl_event(handle, event)
+
+
+def _json_safe_scalar(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _normalize_argv(argv: Any) -> list[str]:
+    if isinstance(argv, (list, tuple)):
+        return [_redact_secret_text(str(arg)) for arg in argv]
+    if argv is None:
+        return []
+    return [_redact_secret_text(str(argv))]
+
+
+def _path_name(path: str) -> str:
+    return path.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _is_ssh_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").rstrip("/")
+    return (
+        normalized == "~/.ssh"
+        or normalized.startswith("~/.ssh/")
+        or normalized.endswith("/.ssh")
+        or "/.ssh/" in normalized
+    )
+
+
+def _is_git_config_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").strip("/")
+    return normalized == ".git/config" or normalized.endswith("/.git/config")
+
+
+def _is_github_workflow_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").lstrip("/")
+    return normalized.startswith(".github/workflows/") or "/.github/workflows/" in normalized
+
+
+def _max_risk(left: str, right: str) -> str:
+    if right not in RISK_LEVELS:
+        return left if left in RISK_LEVELS else "low"
+    if left not in RISK_LEVELS:
+        return right
+    return right if RISK_LEVELS.index(right) > RISK_LEVELS.index(left) else left
+
+
+def _add_tags(tags: list[str], *new_tags: str) -> None:
+    for tag in new_tags:
+        if tag not in tags:
+            tags.append(tag)
+
+
+def _process_basename(event: dict[str, Any]) -> str:
+    executable = str(event.get("executable") or "")
+    if not executable:
+        argv = event.get("argv")
+        if isinstance(argv, list) and argv:
+            executable = str(argv[0])
+    return executable.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+
+
+def _is_rfc1918_host(host: str) -> bool:
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return any(address in network for network in PRIVATE_NETWORKS)
+
+
+def _summary_event(event: dict[str, Any]) -> dict[str, Any]:
+    event_type = str(event.get("event") or "")
+    summary: dict[str, Any] = {"event": event_type}
+    if event_type in {"filesystem.read", "filesystem.write"}:
+        summary["path"] = str(event.get("path") or "")
+    elif event_type == "env.read":
+        summary["name"] = str(event.get("name") or "")
+    elif event_type == "process.exec":
+        if event.get("executable"):
+            summary["executable"] = str(event.get("executable"))
+        summary["argv"] = [str(arg) for arg in event.get("argv") or []]
+    elif event_type == "network.connect":
+        summary["host"] = str(event.get("host") or "")
+        if "port" in event:
+            summary["port"] = _json_safe_scalar(event.get("port"))
+    summary["risk"] = str(event.get("risk") or "low")
+    summary["tags"] = [str(tag) for tag in event.get("tags") or []]
+    return summary
+
+
+def _risky_event_sort_key(event: dict[str, Any]) -> tuple[Any, ...]:
+    risk = str(event.get("risk") or "low")
+    risk_rank = RISK_LEVELS.index(risk) if risk in RISK_LEVELS else 0
+    return (
+        -risk_rank,
+        str(event.get("event") or ""),
+        str(event.get("path") or event.get("name") or event.get("host") or ""),
+        str(event.get("port") or ""),
+        tuple(str(arg) for arg in event.get("argv") or []),
+        tuple(str(tag) for tag in event.get("tags") or []),
+    )
 
 
 def _sitecustomize_source() -> str:

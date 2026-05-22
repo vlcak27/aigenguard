@@ -550,7 +550,7 @@ def _activate(args: argparse.Namespace) -> int:
             )
         if not args.no_runbom:
             runbom_command = args.runbom_command or detect_runbom_command(repo_root)
-            configure_runbom(policy_file, runbom_command)
+            configure_runbom(policy_file, runbom_command, force=args.force)
         install_hook(
             args.policy,
             args.mode,
