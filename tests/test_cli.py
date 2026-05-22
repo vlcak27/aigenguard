@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -8,6 +11,9 @@ import pytest
 from agentbom.cli import main
 from agentbom.github_summary import render_github_step_summary, write_github_step_summary
 from agentbom.html_report import _table, render_html
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_cli_version(capsys):
@@ -54,11 +60,43 @@ def test_cli_top_level_help_mentions_init(capsys):
     assert "status" in help_text
     assert "deactivate" in help_text
     assert "run" in help_text
+    assert "guard" in help_text
     assert "Recommended workflow" in help_text
     assert "agentbom activate" in help_text
     assert "git commit" in help_text
     assert "agentbom run" in help_text
     assert "agentbom scan . --policy agentbom.toml --html --open" in help_text
+
+
+def test_project_script_uses_modern_cli_entrypoint():
+    pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["scripts"]["agentbom"] == "agentbom.cli:cli"
+
+
+def test_installed_console_script_help_matches_module_help():
+    script = Path(sys.executable).with_name("agentbom")
+    if not script.exists():
+        script = script.with_suffix(".exe")
+    if not script.exists():
+        pytest.skip("agentbom console script is not installed for this interpreter")
+
+    module = subprocess.run(
+        [sys.executable, "-m", "agentbom.cli", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    console = subprocess.run(
+        [str(script), "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert console.stdout == module.stdout
+    for command in ("init", "scan", "activate", "run", "status", "deactivate", "guard"):
+        assert command in console.stdout
 
 
 def test_cli_fail_on_new_error_mentions_required_baseline(capsys):

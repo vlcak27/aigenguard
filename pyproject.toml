@@ -39,7 +39,7 @@ dev = [
 ]
 
 [project.scripts]
-agentbom = "agentbom.cli:main"
+agentbom = "agentbom.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

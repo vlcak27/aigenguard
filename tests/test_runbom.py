@@ -116,10 +116,7 @@ def test_runbom_runs_configured_command_without_shell_and_writes_jsonl(
     tmp_path, monkeypatch, capsys
 ):
     repo = _git_repo(tmp_path)
-    command = (
-        f"{shlex.quote(sys.executable)} -c "
-        "\"from pathlib import Path; Path('runtime-ok.txt').write_text('ok')\""
-    )
+    command = _python_command("from pathlib import Path; Path('runtime-ok.txt').write_text('ok')")
     _write_runbom_config(repo, command)
     monkeypatch.chdir(repo)
 
@@ -133,8 +130,166 @@ def test_runbom_runs_configured_command_without_shell_and_writes_jsonl(
     assert result == 0
     assert "AgentBOM RunBOM OK" in captured.out
     assert (repo / "runtime-ok.txt").read_text(encoding="utf-8") == "ok"
-    assert [event["event"] for event in events] == ["run.start", "run.end"]
+    assert events[0]["event"] == "run.start"
+    assert events[-1]["event"] == "run.end"
     assert events[-1]["exit_code"] == 0
+
+
+def test_runbom_records_filesystem_read_event(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    (repo / "input.txt").write_text("hello", encoding="utf-8")
+    _write_runbom_config(repo, _python_command("open('input.txt', encoding='utf-8').read()"))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    events = _read_runbom_events(repo)
+    assert result == 0
+    assert any(
+        event["event"] == "filesystem.read" and event["path"] == "input.txt"
+        for event in events
+    )
+
+
+def test_runbom_records_filesystem_write_event(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    _write_runbom_config(repo, _python_command("open('output.txt', 'w').write('hello')"))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    events = _read_runbom_events(repo)
+    assert result == 0
+    assert any(
+        event["event"] == "filesystem.write" and event["path"] == "output.txt"
+        for event in events
+    )
+
+
+def test_runbom_records_process_exec_event(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    script = (
+        "import subprocess, sys; "
+        "subprocess.run([sys.executable, '-c', 'print(123)'], check=True)"
+    )
+    _write_runbom_config(repo, _python_command(script))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    events = _read_runbom_events(repo)
+    assert result == 0
+    assert any(
+        event["event"] == "process.exec" and "-c" in event["argv"] for event in events
+    )
+
+
+def test_runbom_records_network_connect_event(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    script = """import socket
+
+try:
+    socket.create_connection(("127.0.0.1", 9), timeout=0.001)
+except OSError:
+    pass
+"""
+    _write_runbom_config(repo, _python_command(script))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    events = _read_runbom_events(repo)
+    assert result == 0
+    assert any(
+        event["event"] == "network.connect"
+        and event["host"] == "127.0.0.1"
+        and event["port"] == 9
+        for event in events
+    )
+
+
+def test_runbom_records_env_read_event_without_secret_value(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    secret = "super-secret-runtime-value"
+    monkeypatch.setenv("AGENTBOM_TEST_SECRET", secret)
+    _write_runbom_config(
+        repo,
+        _python_command("import os; os.getenv('AGENTBOM_TEST_SECRET')"),
+    )
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    log_text = (repo / ".agentbom" / "runbom.jsonl").read_text(encoding="utf-8")
+    events = [json.loads(line) for line in log_text.splitlines()]
+    assert result == 0
+    assert secret not in log_text
+    assert any(
+        event["event"] == "env.read" and event["name"] == "AGENTBOM_TEST_SECRET"
+        for event in events
+    )
+
+
+def test_runbom_decodes_bytes_env_read_names(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    secret = "bytes-secret-runtime-value"
+    monkeypatch.setenv("AGENTBOM_TEST_SECRET", secret)
+    script = (
+        "import os; "
+        "os.environb.get(b'AGENTBOM_TEST_SECRET') "
+        "if hasattr(os, 'environb') else os.getenv('AGENTBOM_TEST_SECRET')"
+    )
+    _write_runbom_config(repo, _python_command(script))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    log_text = (repo / ".agentbom" / "runbom.jsonl").read_text(encoding="utf-8")
+    events = [json.loads(line) for line in log_text.splitlines()]
+    env_names = [
+        event["name"] for event in events if event["event"] == "env.read"
+    ]
+    assert result == 0
+    assert secret not in log_text
+    assert "AGENTBOM_TEST_SECRET" in env_names
+    assert "b'AGENTBOM_TEST_SECRET'" not in env_names
+
+
+def test_runbom_preserves_command_exit_code(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    _write_runbom_config(repo, _python_command("import sys; sys.exit(3)"))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    assert result == 3
+    assert "AgentBOM RunBOM FAILED" in capsys.readouterr().out
+
+
+def test_runbom_lifecycle_events_still_exist(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    _write_runbom_config(repo, _python_command("print('ok')"))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    events = _read_runbom_events(repo)
+    assert result == 0
+    assert events[0]["event"] == "run.start"
+    assert events[-1]["event"] == "run.end"
+
+
+def test_activate_pre_commit_hook_stays_static_only(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    monkeypatch.chdir(repo)
+
+    result = main(["activate", "--command", "pytest"])
+
+    hook_text = (repo / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
+    assert result == 0
+    assert "agentbom guard ." in hook_text
+    assert "agentbom run" not in hook_text
+    assert "runbom" not in hook_text.lower()
 
 
 def test_runbom_rejects_shell_operators(tmp_path, monkeypatch, capsys):
@@ -163,7 +318,7 @@ def test_runbom_unparseable_command_gives_helpful_error(tmp_path, monkeypatch, c
 
 def test_runbom_failing_command_returns_nonzero(tmp_path, monkeypatch, capsys):
     repo = _git_repo(tmp_path)
-    command = f"{shlex.quote(sys.executable)} -c \"import sys; sys.exit(7)\""
+    command = _python_command("import sys; sys.exit(7)")
     _write_runbom_config(repo, command)
     monkeypatch.chdir(repo)
 
@@ -232,6 +387,17 @@ def _write_runbom_config(repo, command: str) -> None:
         ),
         encoding="utf-8",
     )
+
+
+def _python_command(script: str) -> str:
+    return f"{shlex.quote(sys.executable)} -c {shlex.quote(script)}"
+
+
+def _read_runbom_events(repo) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in (repo / ".agentbom" / "runbom.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
 
 
 def _git_repo(tmp_path):

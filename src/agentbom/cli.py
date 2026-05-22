@@ -320,7 +320,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def cli(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -513,6 +513,10 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.error("unknown command")
     return 2
+
+
+def main(argv: list[str] | None = None) -> int:
+    return cli(argv)
 
 
 def _activate(args: argparse.Namespace) -> int:
@@ -819,4 +823,4 @@ def _policy_review_status(policy_review: dict[str, object]) -> str:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())
