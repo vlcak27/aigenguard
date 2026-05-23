@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "custom-local": {
+      "command": "custom-local-server"
+    }
+  }
+}

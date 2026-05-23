@@ -1,0 +1,8 @@
+[capabilities]
+deny = []
+
+[mcp]
+require_policy_for_risky_servers = false
+
+[secrets]
+warn_on_detected = false

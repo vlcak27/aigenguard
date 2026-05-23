@@ -1,0 +1,97 @@
+[
+  {
+    "case": "good/docs_only_mentions",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "notes": "documentation-only risky words should not be treated as executable evidence"
+  },
+  {
+    "case": "good/env_reference_only",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "notes": "environment variable references should not be treated as leaked secret values"
+  },
+  {
+    "case": "good/readme_example_only",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "notes": "README examples and placeholder tokens should not become leaked secrets"
+  },
+  {
+    "case": "good/test_files_only",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "notes": "test text and mocked examples should not become high-risk executable evidence"
+  },
+  {
+    "case": "good/config_names_only",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "notes": "configuration can name required environment variables without storing values"
+  },
+  {
+    "case": "good/policy_documented_shell",
+    "kind": "good",
+    "policy": "agentbom.toml",
+    "expectation": "documented_risky_capability_no_policy_block",
+    "allowed_high_or_critical_sources": ["risks"],
+    "notes": "documented shell evidence may remain a high review risk but should not produce a blocking policy gap"
+  },
+  {
+    "case": "bad/leaked_ai_key_value",
+    "kind": "bad",
+    "expected_any": ["openai", "api_key", "secret_leak"],
+    "expected_paths": [".env"],
+    "min_severity": "critical",
+    "raw_values_absent": ["sk-proj-AGENTBOMSTATICPRECISION0000000000001"],
+    "notes": "likely AI API key values must be reported and redacted"
+  },
+  {
+    "case": "bad/shell_exec_agent",
+    "kind": "bad",
+    "expected_any": ["shell", "shell_execution", "without restrictions"],
+    "expected_paths": ["agent.py"],
+    "min_severity": "high",
+    "notes": "executable agent code invokes subprocess"
+  },
+  {
+    "case": "bad/code_exec_agent",
+    "kind": "bad",
+    "expected_any": ["code_execution", "eval", "exec"],
+    "expected_paths": ["agent.py"],
+    "min_severity": "high",
+    "notes": "executable agent code uses dynamic code execution"
+  },
+  {
+    "case": "bad/mcp_filesystem_agent",
+    "kind": "bad",
+    "expected_any": ["filesystem_access", "high-risk MCP server", "mcp"],
+    "expected_paths": ["mcp.json"],
+    "min_severity": "high",
+    "notes": "MCP config exposes filesystem access"
+  },
+  {
+    "case": "bad/unknown_mcp_server",
+    "kind": "bad",
+    "expected_any": ["unknown_custom_server", "MCP config detected without policy documentation"],
+    "expected_paths": ["mcp.json"],
+    "min_severity": "medium",
+    "notes": "custom MCP servers should be visible for review"
+  },
+  {
+    "case": "bad/prompt_allows_shell_agent",
+    "kind": "bad",
+    "expected_any": ["shell", "without restrictions", "prompt file detected without security policy"],
+    "expected_paths": ["AGENTS.md"],
+    "min_severity": "high",
+    "notes": "agent instructions explicitly allow shell execution"
+  },
+  {
+    "case": "bad/policy_gap_risky_capability",
+    "kind": "bad",
+    "expected_any": ["without restrictions", "policy", "shell"],
+    "expected_paths": ["agent.py"],
+    "min_severity": "high",
+    "notes": "risky capability evidence without policy documentation should produce a policy gap"
+  }
+]
