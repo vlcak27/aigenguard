@@ -7,15 +7,19 @@
 
 ## What AgentBOM Is
 
-AgentBOM is a local-first pre-commit security guard for AI-agent repositories.
+AgentBOM is a local-first security guard for AI-agent repositories. It combines
+a fast static pre-commit guard with optional experimental RunBOM runtime
+evidence.
 
 AI-agent repos often mix prompts, tool permissions, MCP config, and API keys.
-AgentBOM gives you a local commit-time check before risky changes enter git.
+AgentBOM gives you a local review signal before risky changes enter git.
 
 - Activate once with `agentbom activate`.
-- Commit normally.
-- Block likely AI/API key leaks and risky agent capabilities.
-- Run offline with deterministic checks and no scanned-code execution.
+- Commit normally with the static local guard.
+- Use `agentbom scan` and pre-commit for static-only review.
+- Optionally run `agentbom run` for best-effort Python runtime evidence.
+- Keep RunBOM separate from enforcement: it is not a sandbox and does not
+  enforce policy yet.
 
 ## Quickstart
 
@@ -25,6 +29,19 @@ cd my-agent-repo
 agentbom activate
 git commit
 ```
+
+Normal commits use the static local guard installed by `agentbom activate`.
+`agentbom scan` and the local guard do not execute scanned code.
+
+Optional runtime evidence:
+
+```bash
+agentbom run
+```
+
+`agentbom run` intentionally executes the configured or autodetected command
+under experimental Python-focused instrumentation. JSON artifacts are written
+for machines and CI; terminal output is the developer summary.
 
 ## What It Catches
 
@@ -47,12 +64,20 @@ Blocked commit:
 ```text
 AgentBOM blocked this commit
 
+2 blocking finding(s)
+Highest severity: critical
+
 CRITICAL Possible OpenAI API key value
 .env:1
-Value redacted. Remove the key and rotate it.
+Why: likely credential value found in a committed file.
+Fix: remove the key, rotate it, and keep secrets in environment variables or a secret manager.
+Secret value redacted.
 ```
 
-Secret values are redacted in output.
+The local guard can block commits based on configured policy. Blocked output
+shows source, Why, Fix, and whether a secret value was redacted. Static findings
+are review signals, not exploit proof. Static capability findings mean
+code/config appears capable, not that it executed.
 
 ## Recommended Workflow
 
@@ -119,6 +144,66 @@ agentbom deactivate
 ```
 
 Troubleshooting prompt or PATH issues: [troubleshooting](docs/troubleshooting.md).
+
+## RunBOM
+
+RunBOM is an experimental, optional runtime evidence mode:
+
+```bash
+agentbom activate
+agentbom run
+```
+
+`agentbom activate` installs the static local guard. It can also configure
+`[runbom]` in `agentbom.toml` when a safe test or runtime command is detected.
+`agentbom run` intentionally executes the configured command, or an
+autodetected command, under best-effort Python runtime instrumentation.
+
+Autodetection prefers simple commands such as:
+
+- `python -m pytest tests/agent_runtime`
+- `python -m pytest tests/runbom`
+- `python -m pytest`
+- npm, pnpm, or bun test scripts when detected
+
+RunBOM prints a human-readable terminal summary and writes machine-readable
+artifacts:
+
+```text
+AgentBOM RunBOM OK
+
+Runtime summary:
+  153 events observed
+  57 unique events
+  Highest risk: high
+
+Top runtime signals:
+  HIGH env.read OPENAI_API_KEY
+       Why: agent read an AI provider credential variable name.
+       Note: secret value was not recorded.
+
+  HIGH filesystem.read .env
+       Why: agent read a common local secrets file.
+       Fix: avoid reading local secrets files during agent runtime checks unless expected.
+
+Artifacts:
+  .agentbom/runbom-summary.json
+  .agentbom/runbom.jsonl
+```
+
+The terminal output shows the developer summary and at most the top runtime
+signals. JSON artifacts are for machines and CI:
+
+- `.agentbom/runbom.jsonl`
+- `.agentbom/runbom-summary.json`
+
+`.agentbom/runbom-summary.json` is the machine-readable summary.
+`.agentbom/runbom.jsonl` is the raw event log. Events are classified with risk
+and tags, but secret values are never recorded. High-risk runtime evidence does
+not fail the command by itself.
+
+RunBOM is Python-focused and best-effort. It is not a sandbox, does not enforce
+policy yet, and is not part of pre-commit by default.
 
 ## What It Finds
 
@@ -206,7 +291,9 @@ More details: [GitHub Action docs](docs/github-action.md).
 
 ## Security Model
 
-- static analysis only
+Static scan and local guard:
+
+- `agentbom scan` and the local guard are static-only
 - does not execute scanned code
 - does not import scanned modules
 - does not execute MCP servers
@@ -217,6 +304,17 @@ More details: [GitHub Action docs](docs/github-action.md).
 - records secret references by name and likely credential leaks with redacted
   metadata only, never secret values
 - works offline and emits deterministic output for the same input repository
+
+RunBOM:
+
+- optional
+- intentionally executes the configured or autodetected command
+- records best-effort Python runtime evidence
+- prints a human-readable terminal summary
+- writes JSON artifacts under `.agentbom/`
+- never records secret values
+- not a sandbox
+- no policy enforcement yet
 
 ## Limitations
 
@@ -251,3 +349,4 @@ Useful docs:
 - [SECURITY.md](SECURITY.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [RunBOM](docs/runbom.md)
