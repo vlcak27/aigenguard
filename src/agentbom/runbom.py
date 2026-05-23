@@ -50,6 +50,15 @@ class RunbomDetectedCommand:
     reason: str
 
 
+@dataclass(frozen=True)
+class RunbomSignalExplanation:
+    """Human-facing explanation for a risky RunBOM signal."""
+
+    why: str
+    fix: str | None = None
+    note: str | None = None
+
+
 def configure_runbom(
     policy_file: Path,
     command: str | RunbomDetectedCommand | None,
@@ -200,13 +209,136 @@ def run_runbom(config_path: Path = Path("agentbom.toml")) -> int:
         print("AgentBOM RunBOM OK")
     else:
         print("AgentBOM RunBOM FAILED")
-    print(
-        "Runtime events: "
-        f"{summary['events_total']} observed, "
-        f"{summary['unique_events']} unique, "
-        f"highest risk: {summary['highest_risk']}"
-    )
+        print(f"Runtime command failed with exit code {exit_code}")
+    print("")
+    print(format_runbom_terminal_summary(summary))
     return exit_code
+
+
+def format_runbom_terminal_summary(summary: dict[str, Any]) -> str:
+    """Format the human-readable RunBOM terminal summary."""
+    lines = [
+        "Runtime summary:",
+        f"  {_summary_int(summary, 'events_total')} events observed",
+        f"  {_summary_int(summary, 'unique_events')} unique events",
+        f"  Highest risk: {str(summary.get('highest_risk') or 'low')}",
+        "",
+        "Top runtime signals:",
+    ]
+    signals = sort_top_runtime_signals(_summary_list(summary.get("risky_events")))[:5]
+    if not signals:
+        lines.append("  No high or critical runtime signals observed.")
+    else:
+        for signal in signals:
+            explanation = explain_runbom_signal(signal)
+            lines.append(f"  {_runtime_signal_title(signal)}")
+            lines.append(f"       Why: {explanation.why}")
+            if explanation.fix:
+                lines.append(f"       Fix: {explanation.fix}")
+            if explanation.note:
+                lines.append(f"       Note: {explanation.note}")
+            lines.append("")
+        if lines[-1] == "":
+            lines.pop()
+    lines.extend(
+        [
+            "",
+            "Artifacts:",
+            f"  {RUNBOM_SUMMARY}",
+            f"  {RUNBOM_LOG}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def sort_top_runtime_signals(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return high/critical runtime signals in stable review order."""
+    signals = [_runtime_signal_event(event) for event in events]
+    return sorted(
+        (event for event in signals if str(event.get("risk") or "low") in {"critical", "high"}),
+        key=_risky_event_sort_key,
+    )
+
+
+def explain_runbom_signal(event: dict[str, Any]) -> RunbomSignalExplanation:
+    """Explain a risky runtime event without exposing secret values."""
+    event_type = str(event.get("event") or "")
+    tags = {str(tag) for tag in event.get("tags") or []}
+
+    if event_type == "env.read":
+        name = str(event.get("name") or "")
+        if name in AI_PROVIDER_KEYS:
+            return RunbomSignalExplanation(
+                why="agent read an AI provider credential variable name.",
+                note="secret value was not recorded.",
+            )
+        if name == "GITHUB_TOKEN":
+            return RunbomSignalExplanation(
+                why="agent read a GitHub token variable name.",
+                fix="avoid exposing repository or CI tokens to agent runtime unless required.",
+            )
+        if name.startswith("AWS_"):
+            return RunbomSignalExplanation(
+                why="agent read a cloud credential variable name.",
+                fix="avoid exposing cloud credentials to agent runtime unless explicitly required.",
+            )
+        if "secret-env" in tags:
+            return RunbomSignalExplanation(
+                why="agent read a credential-like environment variable name.",
+                note="secret value was not recorded.",
+            )
+
+    if event_type == "filesystem.read":
+        path = str(event.get("path") or "")
+        if "secret-file" in tags or _path_name(path) == ".env":
+            return RunbomSignalExplanation(
+                why="agent read a common local secrets file.",
+                fix="avoid reading local secrets files during agent runtime checks unless expected.",
+            )
+        if "git-config" in tags or _is_git_config_path(path):
+            return RunbomSignalExplanation(
+                why="agent read local Git repository configuration.",
+                fix="verify the agent does not depend on local Git metadata unexpectedly.",
+            )
+
+    if event_type == "filesystem.write":
+        path = str(event.get("path") or "")
+        if "protected-workflow" in tags or _is_github_workflow_path(path):
+            return RunbomSignalExplanation(
+                why="agent wrote to GitHub Actions workflow configuration.",
+                fix="review workflow changes carefully before commit.",
+            )
+
+    if event_type == "process.exec":
+        basename = _process_basename(event)
+        if basename in {"sh", "bash", "zsh"} or "shell-exec" in tags:
+            return RunbomSignalExplanation(
+                why="runtime evidence shows shell execution.",
+                fix="remove shell execution or make it explicit and reviewed.",
+            )
+        if basename in {"curl", "wget", "nc", "ncat", "socat"} or "network-tool" in tags:
+            return RunbomSignalExplanation(
+                why="runtime evidence shows execution of a network-capable command-line tool.",
+                fix="verify network access is expected.",
+            )
+
+    if event_type == "network.connect":
+        host = str(event.get("host") or "")
+        if host == "169.254.169.254" or "metadata-service" in tags:
+            return RunbomSignalExplanation(
+                why="runtime evidence shows a connection attempt to the cloud metadata service.",
+                fix="block metadata service access unless explicitly required.",
+            )
+        if _is_rfc1918_host(host) or "private-network" in tags:
+            return RunbomSignalExplanation(
+                why="runtime evidence shows access to a private network address.",
+                fix="verify this is expected in the runtime environment.",
+            )
+
+    return RunbomSignalExplanation(
+        why="runtime evidence matched a high-risk signal.",
+        fix="review whether this runtime behavior is expected.",
+    )
 
 
 def normalize_runbom_event(event: dict[str, Any]) -> dict[str, Any]:
@@ -678,6 +810,48 @@ def _summary_event(event: dict[str, Any]) -> dict[str, Any]:
     summary["risk"] = str(event.get("risk") or "low")
     summary["tags"] = [str(tag) for tag in event.get("tags") or []]
     return summary
+
+
+def _summary_int(summary: dict[str, Any], key: str) -> int:
+    value = summary.get(key)
+    return value if isinstance(value, int) else 0
+
+
+def _summary_list(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _runtime_signal_event(event: dict[str, Any]) -> dict[str, Any]:
+    normalized = normalize_runbom_event(event)
+    risk = str(event.get("risk") or "")
+    if risk in RISK_LEVELS:
+        normalized["risk"] = risk
+    tags = event.get("tags")
+    if isinstance(tags, list):
+        normalized["tags"] = [str(tag) for tag in tags]
+    return normalized
+
+
+def _runtime_signal_title(event: dict[str, Any]) -> str:
+    risk = str(event.get("risk") or "low").upper()
+    event_type = str(event.get("event") or "")
+    target = _runtime_signal_target(event)
+    return f"{risk} {event_type} {target}".rstrip()
+
+
+def _runtime_signal_target(event: dict[str, Any]) -> str:
+    event_type = str(event.get("event") or "")
+    if event_type in {"filesystem.read", "filesystem.write"}:
+        return str(event.get("path") or "")
+    if event_type == "env.read":
+        return str(event.get("name") or "")
+    if event_type == "process.exec":
+        return _process_basename(event)
+    if event_type == "network.connect":
+        return str(event.get("host") or "")
+    return ""
 
 
 def _risky_event_sort_key(event: dict[str, Any]) -> tuple[Any, ...]:

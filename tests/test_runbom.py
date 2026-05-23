@@ -9,7 +9,11 @@ from pathlib import Path
 import pytest
 
 from agentbom.cli import main
-from agentbom.runbom import build_runbom_summary, normalize_runbom_event
+from agentbom.runbom import (
+    build_runbom_summary,
+    format_runbom_terminal_summary,
+    normalize_runbom_event,
+)
 
 
 def test_run_help_explains_direct_commands_without_shell(capsys):
@@ -189,7 +193,7 @@ def test_runbom_runs_configured_command_without_shell_and_writes_jsonl(
     ]
     assert result == 0
     assert "AgentBOM RunBOM OK" in captured.out
-    assert "Runtime events:" in captured.out
+    assert "Runtime summary:" in captured.out
     assert (repo / "runtime-ok.txt").read_text(encoding="utf-8") == "ok"
     assert events[0]["event"] == "run.start"
     assert events[-1]["event"] == "run.end"
@@ -297,6 +301,128 @@ def test_runbom_records_env_read_event_without_secret_value(tmp_path, monkeypatc
         event["event"] == "env.read" and event["name"] == "AGENTBOM_TEST_SECRET"
         for event in events
     )
+
+
+def test_runbom_success_prints_human_readable_runtime_summary(
+    tmp_path, monkeypatch, capsys
+):
+    repo = _git_repo(tmp_path)
+    secret = "super-secret-runtime-value"
+    (repo / ".env").write_text(f"OPENAI_API_KEY={secret}\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY", secret)
+    _write_runbom_config(
+        repo,
+        _python_command(
+            "import os; "
+            "from pathlib import Path; "
+            "os.getenv('OPENAI_API_KEY'); "
+            "Path('.env').read_text(encoding='utf-8')"
+        ),
+    )
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    captured = capsys.readouterr()
+    summary = _read_runbom_summary(repo)
+    assert result == 0
+    assert "AgentBOM RunBOM OK" in captured.out
+    assert "Runtime summary:" in captured.out
+    assert f"{summary['events_total']} events observed" in captured.out
+    assert f"{summary['unique_events']} unique events" in captured.out
+    assert "Highest risk: high" in captured.out
+    assert "Top runtime signals:" in captured.out
+    assert "HIGH env.read OPENAI_API_KEY" in captured.out
+    assert "Why: agent read an AI provider credential variable name." in captured.out
+    assert "Note: secret value was not recorded." in captured.out
+    assert "HIGH filesystem.read .env" in captured.out
+    assert "Artifacts:" in captured.out
+    assert ".agentbom/runbom-summary.json" in captured.out
+    assert ".agentbom/runbom.jsonl" in captured.out
+    assert secret not in captured.out
+    assert secret not in captured.err
+
+
+def test_runbom_low_only_summary_reports_no_high_or_critical_signals(
+    tmp_path, monkeypatch, capsys
+):
+    repo = _git_repo(tmp_path)
+    _write_runbom_config(repo, _python_command("open('output.txt', 'w').write('ok')"))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "Runtime summary:" in captured.out
+    assert "Highest risk: low" in captured.out
+    assert "No high or critical runtime signals observed." in captured.out
+
+
+def test_runbom_failed_command_still_prints_summary_when_available(
+    tmp_path, monkeypatch, capsys
+):
+    repo = _git_repo(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "runtime-token-value")
+    _write_runbom_config(
+        repo,
+        _python_command("import os, sys; os.getenv('GITHUB_TOKEN'); sys.exit(7)"),
+    )
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    captured = capsys.readouterr()
+    assert result == 7
+    assert "AgentBOM RunBOM FAILED" in captured.out
+    assert "Runtime command failed with exit code 7" in captured.out
+    assert "Runtime summary:" in captured.out
+    assert "HIGH env.read GITHUB_TOKEN" in captured.out
+    assert "runtime-token-value" not in captured.out
+    assert _read_runbom_summary(repo)["command_exit_code"] == 7
+
+
+def test_runbom_terminal_summary_shows_at_most_five_top_runtime_signals():
+    summary = build_runbom_summary(
+        [
+            {"event": "network.connect", "host": "169.254.169.254", "port": 80},
+            {"event": "env.read", "name": "GITHUB_TOKEN"},
+            {"event": "env.read", "name": "AWS_ACCESS_KEY_ID"},
+            {"event": "env.read", "name": "OPENAI_API_KEY"},
+            {"event": "filesystem.read", "path": ".env"},
+            {"event": "filesystem.read", "path": ".git/config"},
+            {"event": "process.exec", "argv": ["bash", "-lc", "echo ok"]},
+        ],
+        command_exit_code=0,
+        command="python -m pytest",
+    )
+
+    output = format_runbom_terminal_summary(summary)
+
+    signal_lines = [
+        line for line in output.splitlines() if line.startswith(("  HIGH ", "  CRITICAL "))
+    ]
+    assert len(signal_lines) == 5
+    assert signal_lines[0].startswith("  CRITICAL network.connect 169.254.169.254")
+
+
+def test_runbom_high_runtime_risk_does_not_fail_successful_command(
+    tmp_path, monkeypatch, capsys
+):
+    repo = _git_repo(tmp_path)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "runtime-aws-secret-value")
+    _write_runbom_config(
+        repo,
+        _python_command("import os; os.getenv('AWS_SECRET_ACCESS_KEY')"),
+    )
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "Highest risk: high" in captured.out
+    assert _read_runbom_summary(repo)["command_exit_code"] == 0
 
 
 def test_runbom_decodes_bytes_env_read_names(tmp_path, monkeypatch):
@@ -423,7 +549,7 @@ def test_runbom_failing_command_returns_nonzero(tmp_path, monkeypatch, capsys):
     summary = _read_runbom_summary(repo)
     assert result == 7
     assert "AgentBOM RunBOM FAILED" in captured.out
-    assert "Runtime events:" in captured.out
+    assert "Runtime summary:" in captured.out
     assert summary["command_exit_code"] == 7
 
 

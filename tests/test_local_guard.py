@@ -412,6 +412,10 @@ def test_guard_enforce_blocks_policy_violations(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 1
     assert "AgentBOM blocked this commit" in captured.out
+    assert "blocking finding(s)" in captured.out
+    assert "Highest severity: medium" in captured.out
+    assert "Why:" in captured.out
+    assert "Fix:" in captured.out
     assert "AGENTBOM_SKIP_HOOK=1 git commit" in captured.out
     assert "git commit --no-verify" in captured.out
 
@@ -567,9 +571,12 @@ def test_guard_enforce_blocks_secret_leaks_with_redacted_output(tmp_path):
 
     output = out.getvalue()
     assert result == 1
+    assert "AgentBOM blocked this commit" in output
     assert "CRITICAL Possible OpenAI API key value" in output
     assert ".env:1" in output
-    assert "Value redacted. Remove the key and rotate it." in output
+    assert "Why: likely credential value found in a committed file." in output
+    assert "Fix: remove the key, rotate it" in output
+    assert "Secret value redacted." in output
     assert secret_value not in output
 
 
@@ -583,6 +590,97 @@ def test_guard_critical_tty_severity_uses_red(tmp_path):
     assert result == 1
     assert "\033[31mCRITICAL\033[0m Possible OpenAI API key value" in output
     assert secret_value not in output
+
+
+def test_guard_blocked_shell_capability_output_explains_static_evidence(tmp_path):
+    project, policy = _project_with_shell_capability_violation(tmp_path)
+
+    out = io.StringIO()
+    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO(), environ={})
+
+    output = out.getvalue()
+    assert result == 1
+    assert "HIGH Shell execution capability" in output
+    assert "agent.py" in output
+    assert "static evidence shows the agent appears capable of executing shell commands" in output
+    assert "remove shell access or document and allow it explicitly in agentbom.toml" in output
+
+
+def test_guard_blocked_mcp_exposure_output_explains_policy_fix(tmp_path):
+    project, policy = _project_with_mcp_exposure_violation(tmp_path)
+
+    out = io.StringIO()
+    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO(), environ={})
+
+    output = out.getvalue()
+    assert result == 1
+    assert "HIGH MCP filesystem server exposure" in output
+    assert ".cursor/mcp.json" in output
+    assert "MCP config appears to expose filesystem access." in output
+    assert "restrict allowed MCP servers or document the exception in agentbom.toml" in output
+
+
+def test_guard_secret_reference_output_does_not_call_reference_a_leak(tmp_path):
+    project, policy = _project_with_secret_reference_warning(tmp_path)
+
+    out = io.StringIO()
+    result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO())
+
+    output = out.getvalue()
+    assert result == 0
+    assert "Secret reference detected" in output
+    assert "credential variable name" in output
+    assert "not necessarily a leaked secret value" in output
+    assert "Secret value redacted." not in output
+
+
+def test_guard_policy_gap_output_is_review_signal_not_vulnerability(tmp_path):
+    project, policy = _project_with_policy_gap_warning(tmp_path)
+
+    out = io.StringIO()
+    result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO())
+
+    output = out.getvalue()
+    assert result == 0
+    assert "Policy gap" in output
+    assert "policy finding and review signal" in output
+    assert "vulnerability" not in output.lower()
+
+
+def test_guard_blocked_output_truncates_to_top_five_findings(tmp_path):
+    project, policy = _project_with_many_model_violations(tmp_path)
+
+    out = io.StringIO()
+    result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO(), environ={})
+
+    output = out.getvalue()
+    finding_lines = [
+        line for line in output.splitlines() if line.startswith("MEDIUM Model denied by policy")
+    ]
+    assert result == 1
+    assert "7 blocking finding(s)" in output
+    assert len(finding_lines) == 5
+    assert "Showing top 5 blocking findings." in output
+    assert "Run: agentbom scan . --policy agentbom.toml --pretty" in output
+
+
+def test_guard_blocked_no_color_respects_no_color(tmp_path):
+    project, policy = _project_with_model_violation(tmp_path)
+    out = TtyBuffer()
+
+    result = run_guard(
+        project,
+        policy,
+        "enforce",
+        stdout=out,
+        stderr=io.StringIO(),
+        environ={"NO_COLOR": "1"},
+    )
+
+    output = out.getvalue()
+    assert result == 1
+    assert "AgentBOM blocked this commit" in output
+    assert "\033[" not in output
 
 
 def _git_repo(tmp_path):
@@ -653,3 +751,118 @@ def _project_with_secret_leak(tmp_path):
         encoding="utf-8",
     )
     return project, policy, secret_value
+
+
+def _project_with_shell_capability_violation(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "\n".join(
+            [
+                "import subprocess",
+                "model = 'gpt-4o'",
+                "subprocess.run('echo hello', shell=True)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    policy = project / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[capabilities]",
+                'deny = ["shell_execution"]',
+                "[mcp]",
+                "warn_on_unknown_server = false",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return project, policy
+
+
+def _project_with_mcp_exposure_violation(tmp_path):
+    project = tmp_path / "agent"
+    (project / ".cursor").mkdir(parents=True)
+    (project / ".cursor" / "mcp.json").write_text(
+        """
+        {
+          "mcpServers": {
+            "filesystem": {
+              "command": "npx",
+              "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+    policy = project / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[mcp]",
+                "warn_on_unknown_server = false",
+                "require_policy_for_risky_servers = true",
+                "[secrets]",
+                "warn_on_detected = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return project, policy
+
+
+def _project_with_policy_gap_warning(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "AGENTS.md").write_text("agent prompt", encoding="utf-8")
+    (project / "agent.py").write_text(
+        "import subprocess\nsubprocess.run('echo hello', shell=True)\n",
+        encoding="utf-8",
+    )
+    policy = project / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[policy_gaps]",
+                'warn_on = "medium"',
+                "[mcp]",
+                "warn_on_unknown_server = false",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return project, policy
+
+
+def _project_with_many_model_violations(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    for index in range(6):
+        (project / f"agent_{index}.py").write_text(
+            f"model = 'gpt-4o'  # model {index}\n",
+            encoding="utf-8",
+        )
+    policy = project / "agentbom.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[models]",
+                'deny = ["gpt-4o"]',
+                "[mcp]",
+                "warn_on_unknown_server = false",
+                "require_policy_for_risky_servers = false",
+                "[secrets]",
+                "warn_on_detected = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return project, policy

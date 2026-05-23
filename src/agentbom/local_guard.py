@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import shlex
 import stat
 import sys
@@ -35,6 +36,15 @@ class LocalGuardStatus:
     hook_path: Path | None
     hook_installed: bool
     mode: str | None
+
+
+@dataclass(frozen=True)
+class StaticFindingExplanation:
+    """Human-facing explanation for a static policy finding."""
+
+    why: str
+    fix: str
+    secret_redacted: bool = False
 
 
 def run_guard(
@@ -116,7 +126,14 @@ def run_guard(
 
     _print_guard_status("AgentBOM blocked this commit", "red", out, env)
     print("", file=out)
-    _print_policy_items(violations, out, env)
+    print(
+        format_blocking_findings(
+            violations,
+            policy_path=_guard_scan_policy_arg(policy_path),
+            severity_formatter=lambda severity: _format_severity(severity, out, env),
+        ),
+        file=out,
+    )
     print("", file=out)
     print("Fix violations or bypass locally with:", file=out)
     print("  AGENTBOM_SKIP_HOOK=1 git commit", file=out)
@@ -401,29 +418,296 @@ def _print_policy_items(
     stdout: TextIO,
     environ: Mapping[str, str],
 ) -> None:
-    for item in items[:3]:
-        severity = str(item.get("severity", "low"))
-        severity_label = _format_severity(severity, stdout, environ)
-        message = str(item.get("message", "")).strip()
-        source = str(item.get("source", "")).strip()
-        line = str(item.get("line", "")).strip()
-        location = f"{source}:{line}" if source and line else source
-        remediation = str(item.get("suggested_remediation", "")).strip()
-        if str(item.get("rule", "")).startswith("secrets.") and "value" in message.lower():
-            print(f"{severity_label} {message}", file=stdout)
-            if location:
-                print(location, file=stdout)
-            print(remediation or "Value redacted.", file=stdout)
-            continue
-        if message:
-            print(f"{severity_label} {message}", file=stdout)
-            if location:
-                print(location, file=stdout)
-            if remediation:
-                print(remediation, file=stdout)
-    remaining = len(items) - 3
-    if remaining > 0:
-        print(f"  - {remaining} more policy item(s)", file=stdout)
+    print(
+        _format_explained_policy_items(
+            items,
+            severity_formatter=lambda severity: _format_severity(severity, stdout, environ),
+        ),
+        file=stdout,
+    )
+
+
+def format_blocking_findings(
+    items: list[dict[str, object]],
+    *,
+    policy_path: str | Path = "agentbom.toml",
+    severity_formatter: Callable[[str], str] | None = None,
+) -> str:
+    """Format concise pre-commit blocker details."""
+    sorted_items = sort_top_blocking_findings(items)
+    highest = _highest_severity(sorted_items)
+    lines = [
+        f"{len(items)} blocking finding(s)",
+        f"Highest severity: {highest}",
+        "",
+        *_format_explained_policy_items(
+            sorted_items,
+            severity_formatter=severity_formatter,
+            limit=5,
+            include_remaining=False,
+        ).splitlines(),
+    ]
+    if len(sorted_items) > 5:
+        lines.extend(
+            [
+                "",
+                "Showing top 5 blocking findings.",
+                f"Run: agentbom scan . --policy {policy_path} --pretty",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def sort_top_blocking_findings(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Return policy findings in stable review order."""
+    return sorted(items, key=_blocking_finding_sort_key)
+
+
+def explain_static_finding(item: dict[str, object]) -> StaticFindingExplanation:
+    """Explain a static finding with careful evidence wording."""
+    rule = str(item.get("rule", ""))
+    message = str(item.get("message", ""))
+    remediation = str(item.get("suggested_remediation", "")).strip()
+    capability = _capability_from_message(message)
+
+    if _is_secret_leak_item(item):
+        return StaticFindingExplanation(
+            why="likely credential value found in a committed file.",
+            fix=(
+                "remove the key, rotate it, and keep secrets in environment variables "
+                "or a secret manager."
+            ),
+            secret_redacted=True,
+        )
+    if rule.startswith("secrets."):
+        return StaticFindingExplanation(
+            why=(
+                "static evidence references a credential variable name; this is not "
+                "necessarily a leaked secret value."
+            ),
+            fix=(
+                remediation
+                or "confirm credentials are stored outside the repository."
+            ),
+        )
+    if rule == "capabilities.deny" and capability == "shell_execution":
+        return StaticFindingExplanation(
+            why=(
+                "static evidence shows the agent appears capable of executing shell "
+                "commands."
+            ),
+            fix="remove shell access or document and allow it explicitly in agentbom.toml.",
+        )
+    if rule == "capabilities.deny" and capability == "code_execution":
+        return StaticFindingExplanation(
+            why=(
+                "static evidence shows the agent appears capable of evaluating or "
+                "executing code."
+            ),
+            fix=(
+                "remove dynamic code execution or document and allow it explicitly "
+                "in agentbom.toml."
+            ),
+        )
+    if rule == "capabilities.deny":
+        return StaticFindingExplanation(
+            why=(
+                "static evidence shows a risky reachable capability that is denied "
+                "by policy."
+            ),
+            fix=remediation or "remove the capability or document and allow it explicitly.",
+        )
+    if rule.startswith("mcp."):
+        if rule == "mcp.warn_on_unknown_server":
+            return StaticFindingExplanation(
+                why="MCP config references a custom or unknown server.",
+                fix="review the server implementation or document the exception in policy.",
+            )
+        if _mcp_name_from_message(message) == "filesystem":
+            return StaticFindingExplanation(
+                why="MCP config appears to expose filesystem access.",
+                fix="restrict allowed MCP servers or document the exception in agentbom.toml.",
+            )
+        return StaticFindingExplanation(
+            why="MCP config appears to expose high-risk server access.",
+            fix="restrict allowed MCP servers or document the exception in policy.",
+        )
+    if rule in {"providers.allow", "providers.deny"}:
+        return StaticFindingExplanation(
+            why="policy finding: detected provider is outside the configured policy.",
+            fix=remediation or "remove the provider or update agentbom.toml after review.",
+        )
+    if rule in {"models.allow", "models.deny"}:
+        return StaticFindingExplanation(
+            why="policy finding: detected model is outside the configured policy.",
+            fix=remediation or "remove the model or update agentbom.toml after review.",
+        )
+    if rule in {"frameworks.allow", "frameworks.deny"}:
+        return StaticFindingExplanation(
+            why="policy finding: detected framework is outside the configured policy.",
+            fix=remediation or "remove the framework or update agentbom.toml after review.",
+        )
+    if rule == "policy_gaps.warn_on":
+        return StaticFindingExplanation(
+            why=(
+                "policy finding and review signal: static evidence found risky agent "
+                "behavior without matching policy documentation."
+            ),
+            fix="document the intended behavior in agentbom.toml or remove the risky capability.",
+        )
+    if rule == "risk.warn_on":
+        return StaticFindingExplanation(
+            why="policy finding: repository risk met the configured review threshold.",
+            fix=remediation or "review reachable capabilities and policy gaps.",
+        )
+    return StaticFindingExplanation(
+        why="policy finding requires review before commit.",
+        fix=remediation or "update policy or remove the finding.",
+    )
+
+
+def _format_explained_policy_items(
+    items: list[dict[str, object]],
+    *,
+    severity_formatter: Callable[[str], str] | None = None,
+    limit: int = 5,
+    include_remaining: bool = True,
+) -> str:
+    formatted = [
+        _format_one_policy_item(item, severity_formatter=severity_formatter)
+        for item in sort_top_blocking_findings(items)[:limit]
+    ]
+    remaining = len(items) - limit
+    if include_remaining and remaining > 0:
+        formatted.append(f"{remaining} more policy item(s).")
+    return "\n\n".join(line for line in formatted if line)
+
+
+def _format_one_policy_item(
+    item: dict[str, object],
+    *,
+    severity_formatter: Callable[[str], str] | None,
+) -> str:
+    severity = str(item.get("severity") or "low")
+    severity_label = (
+        severity_formatter(severity) if severity_formatter is not None else severity.upper()
+    )
+    explanation = explain_static_finding(item)
+    lines = [f"{severity_label} {_static_finding_title(item)}"]
+    location = _finding_location(item)
+    if location:
+        lines.append(location)
+    lines.append(f"Why: {_redact_static_text(explanation.why)}")
+    lines.append(f"Fix: {_redact_static_text(explanation.fix)}")
+    if explanation.secret_redacted:
+        lines.append("Secret value redacted.")
+    return "\n".join(lines)
+
+
+def _static_finding_title(item: dict[str, object]) -> str:
+    rule = str(item.get("rule", ""))
+    message = str(item.get("message", "")).strip()
+    capability = _capability_from_message(message)
+    if _is_secret_leak_item(item):
+        return _redact_static_text(message or "Possible secret value")
+    if rule.startswith("secrets."):
+        return "Secret reference detected"
+    if rule == "capabilities.deny" and capability == "shell_execution":
+        return "Shell execution capability"
+    if rule == "capabilities.deny" and capability == "code_execution":
+        return "Code execution capability"
+    if rule == "capabilities.deny":
+        return "Risky reachable capability"
+    if rule == "mcp.warn_on_unknown_server":
+        return "Unknown MCP server"
+    if rule.startswith("mcp."):
+        name = _mcp_name_from_message(message)
+        if name:
+            return f"MCP {name} server exposure"
+        return "MCP server exposure"
+    if rule == "policy_gaps.warn_on":
+        return "Policy gap"
+    return _redact_static_text(message or "Policy finding")
+
+
+def _finding_location(item: dict[str, object]) -> str:
+    source = _redact_static_text(str(item.get("source", "")).strip())
+    line = str(item.get("line", "")).strip()
+    return f"{source}:{line}" if source and line else source
+
+
+def _blocking_finding_sort_key(item: dict[str, object]) -> tuple[object, ...]:
+    severity = str(item.get("severity") or "low").lower()
+    return (
+        -_severity_rank(severity),
+        str(item.get("rule") or ""),
+        str(item.get("source") or ""),
+        str(item.get("line") or ""),
+        str(item.get("message") or ""),
+    )
+
+
+def _highest_severity(items: list[dict[str, object]]) -> str:
+    if not items:
+        return "none"
+    return str(items[0].get("severity") or "low").lower()
+
+
+def _severity_rank(severity: str) -> int:
+    levels = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+    return levels.get(severity.lower(), 0)
+
+
+def _is_secret_leak_item(item: dict[str, object]) -> bool:
+    rule = str(item.get("rule", ""))
+    message = str(item.get("message", "")).lower()
+    return rule.startswith("secrets.") and "value" in message
+
+
+def _capability_from_message(message: str) -> str:
+    for capability in (
+        "shell_execution",
+        "code_execution",
+        "mcp_tool_invocation",
+        "network_access",
+        "cloud_access",
+        "autonomous_execution",
+    ):
+        if capability in message:
+            return capability
+    return ""
+
+
+def _mcp_name_from_message(message: str) -> str:
+    if ":" not in message:
+        return ""
+    name = message.rsplit(":", 1)[-1].strip().strip(".").lower()
+    return _redact_static_text(name)
+
+
+_STATIC_SECRET_VALUE_RE = re.compile(
+    "|".join(
+        [
+            r"sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}",
+            r"sk-ant-[A-Za-z0-9_-]{20,}",
+            r"github_pat_[A-Za-z0-9_]{20,}",
+            r"gh[pousr]_[A-Za-z0-9]{20,}",
+            r"AIza[0-9A-Za-z_-]{20,}",
+            r"hf_[A-Za-z0-9]{20,}",
+        ]
+    )
+)
+
+
+def _redact_static_text(text: str) -> str:
+    return _STATIC_SECRET_VALUE_RE.sub("[REDACTED]", text)
+
+
+def _guard_scan_policy_arg(policy_path: str | Path) -> str:
+    path = Path(policy_path)
+    if path.is_absolute() and path.name == "agentbom.toml":
+        return path.name
+    return str(policy_path)
 
 
 def _color(text: str, color: str, stdout: TextIO, environ: Mapping[str, str]) -> str:
