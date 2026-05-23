@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+from pathlib import Path
+import sys
+from types import ModuleType
 from typing import Any
 
 import pytest
 
-from scripts import precision_corpus
+
+def load_precision_corpus_module() -> ModuleType:
+    module_path = Path(__file__).resolve().parents[1] / "scripts" / "precision_corpus.py"
+    spec = importlib.util.spec_from_file_location("agentbom_precision_corpus", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load precision corpus module from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+precision_corpus = load_precision_corpus_module()
 
 
 CASES = precision_corpus.load_cases()
