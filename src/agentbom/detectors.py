@@ -203,6 +203,31 @@ CAPABILITY_REGEXES = {
 MCP_CONFIG_NAMES = MCP_CONFIG_FILENAMES
 PROMPT_NAMES = {"AGENTS.md", "CLAUDE.md"}
 POLICY_NAMES = {"policy.md", "policies.md", "security.md", "permissions.md"}
+PROMPT_SHELL_PERMISSION_PATTERNS = (
+    re.compile(
+        r"\b(?:shell|bash|terminal|command(?:s)?)\s+execution\s+is\s+allowed\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:shell|bash|terminal)\s+commands\s+are\s+allowed\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\byou\s+may\s+(?:use|run|execute)\s+(?:the\s+)?"
+        r"(?:shell|bash|terminal|command(?:s)?)\b",
+        re.IGNORECASE,
+    ),
+)
+PROMPT_CODE_PERMISSION_PATTERNS = (
+    re.compile(
+        r"\b(?:eval|exec|dynamic\s+code\s+execution)\s+is\s+allowed\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\byou\s+may\s+(?:use|run|execute)\s+(?:eval|exec|dynamic\s+code)\b",
+        re.IGNORECASE,
+    ),
+)
 GENERIC_SECRET_NAMES = {"API_KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "PRIVATE_KEY"}
 SECRET_NAME_RE = re.compile(
     r"\b[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|PRIVATE_KEY)[A-Z0-9_]*\b"
@@ -459,6 +484,10 @@ class CapabilityDetector:
             return DetectionResult()
         if context.is_python and context.tree is not None:
             return DetectionResult({"capabilities": _detect_python_capabilities(context)})
+        if _is_prompt_path(context.relpath):
+            return DetectionResult({"capabilities": _detect_prompt_capabilities(context)})
+        if _is_documentation_path(context.relpath):
+            return DetectionResult()
 
         findings = _detect_patterns(CAPABILITIES, context.lower_text, context.relpath)
         for name, patterns in CAPABILITY_REGEXES.items():
@@ -904,6 +933,42 @@ def capability_confidence(name: str, relpath: str) -> str:
 
 def _prompt_finding(relpath: str) -> dict[str, str]:
     return {"path": relpath, "type": "prompt", "confidence": confidence_for_path(relpath)}
+
+
+def _is_prompt_path(relpath: str) -> bool:
+    path = PurePosixPath(relpath)
+    filename = path.name
+    if filename in PROMPT_NAMES:
+        return True
+    if filename.endswith((".prompt.yaml", ".prompt.yml")):
+        return True
+    return len(path.parts) >= 2 and path.parts[-2] == "prompts" and filename.endswith(".md")
+
+
+def _is_documentation_path(relpath: str) -> bool:
+    path = PurePosixPath(relpath)
+    suffix = path.suffix.lower()
+    if suffix not in {".md", ".rst", ".txt"}:
+        return False
+    return not _is_prompt_path(relpath)
+
+
+def _detect_prompt_capabilities(context: DetectionContext) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    if context.text is None:
+        return findings
+    confidence = confidence_for_path(context.relpath)
+    if any(pattern.search(context.text) for pattern in PROMPT_SHELL_PERMISSION_PATTERNS):
+        _append_unique(
+            findings,
+            {"name": "shell", "path": context.relpath, "confidence": confidence},
+        )
+    if any(pattern.search(context.text) for pattern in PROMPT_CODE_PERMISSION_PATTERNS):
+        _append_unique(
+            findings,
+            {"name": "code_execution", "path": context.relpath, "confidence": confidence},
+        )
+    return findings
 
 
 def _result(key: str, item: dict[str, object]) -> DetectionResult:
