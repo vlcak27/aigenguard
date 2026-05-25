@@ -1,6 +1,7 @@
 # AgentBOM
 
 ![CI](https://github.com/vlcak27/agentbom/actions/workflows/ci.yml/badge.svg)
+[![Precision Corpus](https://github.com/vlcak27/agentbom/actions/workflows/precision-corpus.yml/badge.svg)](https://github.com/vlcak27/agentbom/actions/workflows/precision-corpus.yml)
 ![PyPI](https://img.shields.io/pypi/v/ai-agentbom)
 ![Python](https://img.shields.io/pypi/pyversions/ai-agentbom)
 ![License](https://img.shields.io/badge/license-MIT-blue)
