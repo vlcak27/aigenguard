@@ -7,11 +7,14 @@ It exists to show that AgentBOM can distinguish harmless AI-agent repository
 patterns from concrete risky behavior, and to prevent false-positive and
 false-negative regressions.
 
-Run it from the repository root:
+Maintainers can run it locally from the repository root:
 
 ```sh
 python scripts/precision_corpus.py
 ```
+
+The precision corpus also runs in CI. The CI job makes the corpus visible as
+proof-of-value and regression coverage.
 
 Good cases are expected to avoid high or critical blocking findings. They cover
 documentation-only risky words, environment variable names, placeholders, test
