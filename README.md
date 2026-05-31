@@ -1,4 +1,8 @@
-# AgentBOM
+# AigenGuard
+
+Previously AgentBOM.
+
+Local-first pre-commit policy guard for AI-agent repositories.
 
 ![CI](https://github.com/vlcak27/agentbom/actions/workflows/ci.yml/badge.svg)
 [![Precision Corpus](https://github.com/vlcak27/agentbom/actions/workflows/precision-corpus.yml/badge.svg)](https://github.com/vlcak27/agentbom/actions/workflows/precision-corpus.yml)
@@ -6,19 +10,19 @@
 ![Python](https://img.shields.io/pypi/pyversions/ai-agentbom)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-## What AgentBOM Is
+## What AigenGuard Is
 
-AgentBOM is a local-first security guard for AI-agent repositories. It combines
+AigenGuard is a local-first pre-commit policy guard for AI-agent repositories. It combines
 a fast static pre-commit guard with optional experimental RunBOM runtime
 evidence.
 
 AI-agent repos often mix prompts, tool permissions, MCP config, and API keys.
-AgentBOM gives you a local review signal before risky changes enter git.
+AigenGuard gives you a local review signal before risky changes enter git.
 
-- Activate once with `agentbom activate`.
+- Activate once with `aigenguard activate`.
 - Commit normally with the static local guard.
-- Use `agentbom scan` and pre-commit for static-only review.
-- Optionally run `agentbom run` for best-effort Python runtime evidence.
+- Use `aigenguard scan` and pre-commit for static-only review.
+- Optionally run `aigenguard run` for best-effort Python runtime evidence.
 - Keep RunBOM separate from enforcement: it is not a sandbox and does not
   enforce policy yet.
 
@@ -27,20 +31,30 @@ AgentBOM gives you a local review signal before risky changes enter git.
 ```bash
 pip install ai-agentbom
 cd my-agent-repo
-agentbom activate
+aigenguard activate
 git commit
 ```
 
-Normal commits use the static local guard installed by `agentbom activate`.
-`agentbom scan` and the local guard do not execute scanned code.
+Normal commits use the static local guard installed by `aigenguard activate`.
+`aigenguard scan` and the local guard do not execute scanned code.
+
+## Migration from AgentBOM
+
+AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
+
+Policy discovery uses this order:
+
+1. An explicit `--policy` path.
+2. `aigenguard.toml` when present.
+3. `agentbom.toml` as a compatibility fallback.
 
 Optional runtime evidence:
 
 ```bash
-agentbom run
+aigenguard run
 ```
 
-`agentbom run` intentionally executes the configured or autodetected command
+`aigenguard run` intentionally executes the configured or autodetected command
 under experimental Python-focused instrumentation. JSON artifacts are written
 for machines and CI; terminal output is the developer summary.
 
@@ -82,15 +96,16 @@ code/config appears capable, not that it executed.
 
 ## Recommended Workflow
 
-`agentbom activate` creates or reuses `agentbom.toml` and installs a repo-local
-pre-commit guard. The default mode is `confirm`: passing commits print
-`AgentBOM OK`, and AgentBOM asks before committing when policy violations are
+`aigenguard activate` creates or reuses `aigenguard.toml` and installs a
+repo-local pre-commit guard. Existing `agentbom.toml` files are reused as a
+compatibility fallback. The default mode is `confirm`: passing commits print
+`AgentBOM OK`, and the guard asks before committing when policy violations are
 found. Activation only affects this local clone and does not overwrite an
-existing `agentbom.toml` unless `--force` is passed.
+existing policy unless `--force` is passed.
 
 ```bash
-agentbom status
-agentbom scan . --policy agentbom.toml --html --open
+aigenguard status
+aigenguard scan . --policy aigenguard.toml --html --open
 ```
 
 Activation presets:
@@ -99,25 +114,25 @@ Activation presets:
 - `audit`: observe without blocking.
 - `strict`: stronger policy for sensitive repos.
 
-`agentbom activate --strict` remains available as an alias for
-`agentbom activate --preset strict`.
+`aigenguard activate --strict` remains available as an alias for
+`aigenguard activate --preset strict`.
 
 ## Policy Review
 
 Policy review is advisory by default:
 
 ```bash
-agentbom scan . --policy agentbom.toml --pretty
+aigenguard scan . --policy aigenguard.toml --pretty
 ```
 
 Make policy violations fail a scan only when you opt in:
 
 ```bash
-agentbom scan . --policy agentbom.toml --enforce-policy
+aigenguard scan . --policy aigenguard.toml --enforce-policy
 ```
 
 The HTML report includes a Policy Workbench for generating and refining
-`agentbom.toml` from detected providers, models, frameworks, reachable
+`aigenguard.toml` from detected providers, models, frameworks, reachable
 capabilities, MCP servers, secret references, and policy gaps.
 
 See [policy docs](docs/policy.md) for policy format, rollout, local guard
@@ -128,7 +143,7 @@ modes, and bypass behavior.
 Install a repo-local pre-commit guard:
 
 ```bash
-agentbom activate
+aigenguard activate
 ```
 
 Modes:
@@ -141,7 +156,7 @@ The hook is local to the current repository under `.git/hooks/pre-commit`.
 Disable it with:
 
 ```bash
-agentbom deactivate
+aigenguard deactivate
 ```
 
 Troubleshooting prompt or PATH issues: [troubleshooting](docs/troubleshooting.md).
@@ -151,13 +166,13 @@ Troubleshooting prompt or PATH issues: [troubleshooting](docs/troubleshooting.md
 RunBOM is an experimental, optional runtime evidence mode:
 
 ```bash
-agentbom activate
-agentbom run
+aigenguard activate
+aigenguard run
 ```
 
-`agentbom activate` installs the static local guard. It can also configure
-`[runbom]` in `agentbom.toml` when a safe test or runtime command is detected.
-`agentbom run` intentionally executes the configured command, or an
+`aigenguard activate` installs the static local guard. It can also configure
+`[runbom]` in `aigenguard.toml` when a safe test or runtime command is detected.
+`aigenguard run` intentionally executes the configured command, or an
 autodetected command, under best-effort Python runtime instrumentation.
 
 Autodetection prefers simple commands such as:
@@ -229,13 +244,13 @@ mitigation signals where static evidence is available.
 Generate review artifacts:
 
 ```bash
-agentbom scan . --output-dir agentbom-report --html --mermaid --sarif --pretty
+aigenguard scan . --output-dir agentbom-report --html --mermaid --sarif --pretty
 ```
 
 Diff-aware scans compare the current report with a baseline JSON report:
 
 ```bash
-agentbom scan . --baseline agentbom-baseline.json --fail-on-new high --sarif --html --pretty
+aigenguard scan . --baseline agentbom-baseline.json --fail-on-new high --sarif --html --pretty
 ```
 
 `--fail-on-new` accepts `low`, `medium`, `high`, or `critical`.
@@ -294,7 +309,7 @@ More details: [GitHub Action docs](docs/github-action.md).
 
 Static scan and local guard:
 
-- `agentbom scan` and the local guard are static-only
+- `aigenguard scan` and the local guard are static-only
 - does not execute scanned code
 - does not import scanned modules
 - does not execute MCP servers
@@ -322,12 +337,12 @@ RunBOM:
 - Findings are review signals, not exploit verification.
 - Reachability is inferred from nearby static evidence, not runtime traces.
 - False positives and missed detections are possible.
-- AgentBOM is AI-agent focused. Use SAST for language-specific vulnerability
+- AigenGuard is AI-agent focused. Use SAST for language-specific vulnerability
   patterns and SBOM tools for package inventory.
 - AI/API credential leak checks are focused review signals and are not a
   replacement for full secret scanners such as Gitleaks or TruffleHog.
 - Dependency parsing is deterministic and limited, not a full lockfile solver.
-- AgentBOM is not an SBOM, SPDX, or CycloneDX replacement.
+- AigenGuard is not an SBOM, SPDX, or CycloneDX replacement.
 
 ## Development
 

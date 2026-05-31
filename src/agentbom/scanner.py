@@ -15,11 +15,12 @@ from .policy import (
     validate_custom_policy,
     validate_policies,
 )
+from .policy_paths import MAX_POLICY_FILE_SIZE, discover_policy_path
 from .reachability import detect_reachable_capability_hits, infer_reachable_capabilities
 from .risk import score_repository_risk, score_risks
 
 
-MAX_FILE_SIZE = 1_000_000
+MAX_FILE_SIZE = MAX_POLICY_FILE_SIZE
 IGNORE_DIRS = {
     ".git",
     "node_modules",
@@ -128,9 +129,9 @@ def scan_path(
     bom["policy_findings"] = validate_policies(
         bom["prompts"], bom["capabilities"], bom["mcp_servers"], has_policy  # type: ignore[arg-type]
     )
-    policy_file = Path(policy_path) if policy_path is not None else None
+    policy_file = discover_policy_path(root, policy_path, max_file_size=MAX_FILE_SIZE)
     if policy_file is not None and policy_file.suffix.lower() != ".toml":
-        for finding in validate_custom_policy(policy_path, bom, has_human_approval):
+        for finding in validate_custom_policy(policy_file, bom, has_human_approval):
             _append_unique(bom["policy_findings"], finding)
     bom["repository_risk"] = score_repository_risk(
         bom["reachable_capabilities"],

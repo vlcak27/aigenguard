@@ -1,8 +1,12 @@
 # Report Guide
 
-AgentBOM reports are designed for mixed engineering, security, and governance
+AigenGuard reports are designed for mixed engineering, security, and governance
 reviews. The scanner does not execute code and does not claim exploitability.
 It records static evidence, source paths, confidence, and rationale.
+
+## Migration note
+
+AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
 
 ## Read order
 
@@ -10,10 +14,10 @@ It records static evidence, source paths, confidence, and rationale.
 2. Review priorities: the shortest queue of findings to triage first.
 3. Reachable capabilities: AI actors connected to sensitive actions.
 4. Policy findings: controls that appear missing or violated.
-5. Policy review: the result of an optional `agentbom.toml` policy evaluation.
+5. Policy review: the result of an optional `aigenguard.toml` policy evaluation.
 6. Component sections: providers, models, frameworks, MCP security analysis,
    prompts, dependencies, secret references, and secret leak findings.
-7. Policy Workbench: an HTML-only builder for creating `agentbom.toml` from
+7. Policy Workbench: an HTML-only builder for creating `aigenguard.toml` from
    the current scan findings.
 
 ## Terms
@@ -25,7 +29,7 @@ It records static evidence, source paths, confidence, and rationale.
   `openrouter/openai/gpt-5.1`.
 - Framework: agent orchestration library such as LangChain or CrewAI.
 - MCP server: a Model Context Protocol server definition found in JSON config.
-  AgentBOM records server metadata and env variable names only.
+  AigenGuard records server metadata and env variable names only.
 - MCP risk category: deterministic classification for server definitions that
   appear to expose filesystem, shell/process, browser/network, database, cloud,
   secrets/env, or unknown/custom capabilities.
@@ -33,7 +37,7 @@ It records static evidence, source paths, confidence, and rationale.
 - Reachable capability: an inferred relationship from an AI actor to a
   capability.
 - Policy finding: a missing control or custom policy violation.
-- Policy review: advisory or enforced evaluation of `agentbom.toml`. Advisory
+- Policy review: advisory or enforced evaluation of `aigenguard.toml`. Advisory
   review never fails the scan by itself.
 - Secret leak finding: a likely AI/API credential value detected by static
   pattern matching. Values are always redacted.
@@ -54,7 +58,7 @@ provider at runtime.
 ## MCP security analysis
 
 The MCP Security Analysis section lists each detected MCP config file or parsed
-server definition. AgentBOM currently parses JSON only, including `mcp.json`,
+server definition. AigenGuard currently parses JSON only, including `mcp.json`,
 `.mcp.json`, `claude_desktop_config.json`, and common nested Cursor or Claude
 paths. Invalid JSON is reported as a low-confidence review signal instead of
 failing the scan.
@@ -68,11 +72,11 @@ For parsed servers, review:
 - `rationale`: the simple pattern match that caused the category.
 
 If an agent framework or prompt configuration exists with an MCP config,
-AgentBOM adds reachable `mcp_tool_invocation` entries. Those entries identify
+AigenGuard adds reachable `mcp_tool_invocation` entries. Those entries identify
 the MCP server, risk categories, and rationale so reviewers can decide whether
 the tool exposure is expected, sandboxed, or policy-approved.
 
-AgentBOM TOML policy can deny MCP server names:
+AigenGuard TOML policy can deny MCP server names:
 
 ```toml
 [mcp]
@@ -86,7 +90,7 @@ source path easy to review. For unexpected capabilities, remove the code path,
 isolate it behind a sandbox or approval boundary, or make the repository policy
 explicit about why it exists.
 
-Secret reference findings require credential hygiene review only. AgentBOM
+Secret reference findings require credential hygiene review only. AigenGuard
 records names such as `OPENAI_API_KEY`.
 
 Secret leak findings indicate likely AI/API credential values for providers
@@ -106,7 +110,7 @@ The HTML report always includes a Policy Workbench. It lists detected providers,
 model identifiers, frameworks, reachable capabilities, MCP servers, secret
 reference names, and policy gaps from the current scan. Choose allow, deny,
 warn, or ignore for each item, then copy or download the generated
-`agentbom.toml`.
+`aigenguard.toml`.
 
 The builder runs offline with inline JavaScript only. It does not make network
 calls and does not include secret values.
@@ -114,11 +118,11 @@ calls and does not include secret values.
 Run the generated policy in advisory mode first:
 
 ```bash
-agentbom scan . --policy agentbom.toml --pretty
+aigenguard scan . --policy aigenguard.toml --pretty
 ```
 
 Only use enforcement once expected findings are reviewed:
 
 ```bash
-agentbom scan . --policy agentbom.toml --enforce-policy
+aigenguard scan . --policy aigenguard.toml --enforce-policy
 ```

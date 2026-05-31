@@ -1,6 +1,17 @@
 # Changelog
 
-All notable changes to AgentBOM are documented here.
+All notable changes to AigenGuard, previously AgentBOM, are documented here.
+
+## Unreleased
+
+### Migration
+
+- AgentBOM is now AigenGuard.
+- The `agentbom` CLI and `agentbom.toml` remain supported during migration.
+- New projects should use `aigenguard` and `aigenguard.toml`.
+- Policy discovery prefers an explicit `--policy` path, then
+  `aigenguard.toml`, then the `agentbom.toml` compatibility fallback.
+- The PyPI package name and Python module remain unchanged for now.
 
 ## v0.8.0
 

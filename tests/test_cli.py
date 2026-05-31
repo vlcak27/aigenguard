@@ -11,6 +11,7 @@ import pytest
 from agentbom.cli import main
 from agentbom.github_summary import render_github_step_summary, write_github_step_summary
 from agentbom.html_report import _table, render_html
+from agentbom.scanner import MAX_FILE_SIZE, scan_path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,7 @@ def test_cli_version(capsys):
         main(["--version"])
 
     assert exc.value.code == 0
-    assert "agentbom 0.8.0" in capsys.readouterr().out
+    assert "aigenguard 0.8.0" in capsys.readouterr().out
 
 
 def test_cli_help_mentions_core_workflows(capsys):
@@ -62,25 +63,25 @@ def test_cli_top_level_help_mentions_init(capsys):
     assert "run" in help_text
     assert "guard" in help_text
     assert "Recommended workflow" in help_text
-    assert "agentbom activate" in help_text
+    assert "aigenguard activate" in help_text
     assert "git commit" in help_text
-    assert "agentbom run" in help_text
-    assert "agentbom scan . --policy agentbom.toml --html --open" in help_text
+    assert "aigenguard scan . --policy aigenguard.toml --html --open" in help_text
 
 
 def test_project_script_uses_modern_cli_entrypoint():
     pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert pyproject["project"]["scripts"]["agentbom"] == "agentbom.cli:cli"
+    assert pyproject["project"]["scripts"]["aigenguard"] == "agentbom.cli:main"
+    assert pyproject["project"]["scripts"]["agentbom"] == "agentbom.cli:main"
 
 
-def test_installed_console_script_help_matches_module_help():
-    script = Path(sys.executable).with_name("agentbom")
+@pytest.mark.parametrize("command", ["aigenguard", "agentbom"])
+def test_installed_console_script_help_matches_module_help(command):
+    script = Path(sys.executable).with_name(command)
     if not script.exists():
         script = script.with_suffix(".exe")
     if not script.exists():
-        pytest.skip("agentbom console script is not installed for this interpreter")
-
+        pytest.skip(f"{command} console script is not installed for this interpreter")
     module = subprocess.run(
         [sys.executable, "-m", "agentbom.cli", "--help"],
         check=True,
@@ -94,9 +95,86 @@ def test_installed_console_script_help_matches_module_help():
         text=True,
     )
 
-    assert console.stdout == module.stdout
+    assert "Local-first pre-commit policy guard" in module.stdout
+    assert "Local-first pre-commit policy guard" in console.stdout
     for command in ("init", "scan", "activate", "run", "status", "deactivate", "guard"):
         assert command in console.stdout
+
+
+def test_scan_discovers_aigenguard_policy_before_agentbom_fallback(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("MODEL = 'gpt-5.1'\n", encoding="utf-8")
+    (project / "aigenguard.toml").write_text('[models]\ndeny = ["gpt-5.1"]\n', encoding="utf-8")
+    (project / "agentbom.toml").write_text('[models]\ndeny = ["other-model"]\n', encoding="utf-8")
+
+    data = scan_path(project)
+
+    assert data["policy_review"]["policy_file"] == str(project / "aigenguard.toml")
+    assert data["policy_review"]["violations"]
+
+
+def test_scan_discovers_agentbom_policy_as_compatibility_fallback(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("MODEL = 'gpt-5.1'\n", encoding="utf-8")
+    (project / "agentbom.toml").write_text('[models]\ndeny = ["gpt-5.1"]\n', encoding="utf-8")
+
+    data = scan_path(project)
+
+    assert data["policy_review"]["policy_file"] == str(project / "agentbom.toml")
+    assert data["policy_review"]["violations"]
+
+
+def test_scan_explicit_policy_overrides_both_discovered_names(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("MODEL = 'gpt-5.1'\n", encoding="utf-8")
+    (project / "aigenguard.toml").write_text('[models]\ndeny = ["other-model"]\n', encoding="utf-8")
+    (project / "agentbom.toml").write_text('[models]\ndeny = ["other-model"]\n', encoding="utf-8")
+    explicit = tmp_path / "explicit.toml"
+    explicit.write_text('[models]\ndeny = ["gpt-5.1"]\n', encoding="utf-8")
+
+    data = scan_path(project, policy_path=explicit)
+
+    assert data["policy_review"]["policy_file"] == str(explicit)
+    assert data["policy_review"]["violations"]
+
+
+@pytest.mark.parametrize("name", ["aigenguard.toml", "agentbom.toml"])
+def test_scan_ignores_auto_discovered_policy_symlink(tmp_path, name):
+    project = tmp_path / "agent"
+    project.mkdir()
+    outside_policy = tmp_path / "outside.toml"
+    outside_policy.write_text('[models]\ndeny = ["gpt-5.1"]\n', encoding="utf-8")
+    (project / name).symlink_to(outside_policy)
+
+    data = scan_path(project)
+
+    assert "policy_review" not in data
+
+
+def test_scan_ignores_auto_discovered_oversized_policy(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "aigenguard.toml").write_bytes(b"#" * (MAX_FILE_SIZE + 1))
+
+    data = scan_path(project)
+
+    assert "policy_review" not in data
+
+
+def test_scan_loads_safe_auto_discovered_aigenguard_policy(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("MODEL = 'gpt-5.1'\n", encoding="utf-8")
+    policy = project / "aigenguard.toml"
+    policy.write_text('[models]\ndeny = ["gpt-5.1"]\n', encoding="utf-8")
+
+    data = scan_path(project)
+
+    assert data["policy_review"]["policy_file"] == str(policy)
+    assert data["policy_review"]["violations"]
 
 
 def test_cli_fail_on_new_error_mentions_required_baseline(capsys):
@@ -228,7 +306,7 @@ def test_cli_scan_prints_report_path_and_no_policy_next_steps(tmp_path, capsys):
     assert "Next:" in captured.out
     assert "Open HTML report:" in captured.out
     assert "Start policy review:" in captured.out
-    assert "agentbom init" in captured.out
+    assert "aigenguard init" in captured.out
     assert "--enforce-policy" not in captured.out
 
 
@@ -283,22 +361,22 @@ def test_cli_init_writes_starter_policy(tmp_path, monkeypatch, capsys):
     result = main(["init"])
 
     assert result == 0
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     text = policy.read_text(encoding="utf-8")
     captured = capsys.readouterr()
     assert policy.exists()
     assert "[risk]" in text
     assert 'warn_on = "high"' in text
     assert "require_policy_for_risky_servers = false" in text
-    assert "Created agentbom.toml" in captured.out
-    assert "agentbom scan . --policy agentbom.toml --pretty" in captured.out
-    assert "agentbom scan . --policy agentbom.toml --html --open" in captured.out
-    assert "agentbom scan . --policy agentbom.toml --enforce-policy" in captured.out
+    assert "Created aigenguard.toml" in captured.out
+    assert "aigenguard scan . --policy aigenguard.toml --pretty" in captured.out
+    assert "aigenguard scan . --policy aigenguard.toml --html --open" in captured.out
+    assert "aigenguard scan . --policy aigenguard.toml --enforce-policy" in captured.out
 
 
 def test_cli_init_does_not_overwrite_existing_policy(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("existing\n", encoding="utf-8")
 
     result = main(["init"])
@@ -313,7 +391,7 @@ def test_cli_init_does_not_overwrite_existing_policy(tmp_path, monkeypatch, caps
 
 def test_cli_init_force_overwrites_existing_policy(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("existing\n", encoding="utf-8")
 
     result = main(["init", "--force"])
@@ -328,7 +406,7 @@ def test_cli_init_strict_writes_stricter_policy(tmp_path, monkeypatch, capsys):
     result = main(["init", "--strict"])
 
     assert result == 0
-    text = (tmp_path / "agentbom.toml").read_text(encoding="utf-8")
+    text = (tmp_path / "aigenguard.toml").read_text(encoding="utf-8")
     assert '"shell_execution"' in text
     assert '"code_execution"' in text
     assert "require_policy_for_risky_servers = true" in text
@@ -387,8 +465,8 @@ def test_cli_suggest_policy_writes_policy_and_scan_outputs(tmp_path, capsys):
     assert '"code_execution"' in text
     assert "do-not-store" not in text
     assert "Suggested policy written to" in captured.out
-    assert f"agentbom scan . --policy {policy.as_posix()} --pretty" in captured.out
-    assert f"agentbom scan . --policy {policy.as_posix()} --html --open" in captured.out
+    assert f"aigenguard scan . --policy {policy.as_posix()} --pretty" in captured.out
+    assert f"aigenguard scan . --policy {policy.as_posix()} --html --open" in captured.out
 
 
 def test_cli_suggest_policy_does_not_overwrite_without_force(tmp_path, capsys):
