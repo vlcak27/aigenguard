@@ -209,9 +209,9 @@ def write_policy_file(path: str | Path, text: str, *, force: bool = False) -> Pa
 def next_steps(policy_path: str | Path) -> list[str]:
     policy = Path(policy_path).as_posix()
     return [
-        f"agentbom scan . --policy {policy} --pretty",
-        f"agentbom scan . --policy {policy} --html --open",
-        f"agentbom scan . --policy {policy} --enforce-policy",
+        f"aigenguard scan . --policy {policy} --pretty",
+        f"aigenguard scan . --policy {policy} --html --open",
+        f"aigenguard scan . --policy {policy} --enforce-policy",
     ]
 
 

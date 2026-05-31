@@ -5,7 +5,8 @@ import io
 import pytest
 
 from agentbom.cli import main
-from agentbom.local_guard import run_guard
+from agentbom.local_guard import local_guard_status, run_guard
+from agentbom.policy_paths import MAX_POLICY_FILE_SIZE, preferred_policy_path
 
 
 class TtyBuffer(io.StringIO):
@@ -35,19 +36,19 @@ def test_activate_creates_policy_and_installs_confirm_hook(tmp_path, monkeypatch
     captured = capsys.readouterr()
     hook = repo / ".git" / "hooks" / "pre-commit"
     assert result == 0
-    assert (repo / "agentbom.toml").exists()
+    assert (repo / "aigenguard.toml").exists()
     assert hook.exists()
-    policy_text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    policy_text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     assert '"shell_execution"' in policy_text
     assert '"code_execution"' in policy_text
     assert "block_leaks = true" in policy_text
     hook_text = hook.read_text(encoding="utf-8")
     assert '--mode "confirm"' in hook_text
-    assert "agentbom guard ." in hook_text
+    assert "aigenguard guard ." in hook_text
     assert "agentbom run" not in hook_text
     assert "runbom" not in hook_text.lower()
     assert "AgentBOM activated" in captured.out
-    assert "Policy: agentbom.toml" in captured.out
+    assert "Policy: aigenguard.toml" in captured.out
     assert "Preset: safe" in captured.out
     assert "Guard mode: confirm" in captured.out
     assert "Protected:" in captured.out
@@ -56,8 +57,8 @@ def test_activate_creates_policy_and_installs_confirm_hook(tmp_path, monkeypatch
     assert "- MCP server policy" in captured.out
     assert "- risky reachable capability policy" in captured.out
     assert "git commit" in captured.out
-    assert "agentbom status" in captured.out
-    assert "agentbom scan . --policy agentbom.toml --html --open" in captured.out
+    assert "aigenguard status" in captured.out
+    assert "aigenguard scan . --policy aigenguard.toml --html --open" in captured.out
     assert not (repo / ".git" / "config").exists()
 
 
@@ -67,7 +68,7 @@ def test_activate_audit_preset_creates_warn_only_policy(tmp_path, monkeypatch, c
 
     result = main(["activate", "--preset", "audit"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     captured = capsys.readouterr()
     assert result == 0
     assert "Preset: audit" in captured.out
@@ -83,7 +84,7 @@ def test_activate_safe_preset_creates_safe_policy(tmp_path, monkeypatch, capsys)
 
     result = main(["activate", "--preset", "safe"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     captured = capsys.readouterr()
     assert result == 0
     assert "Preset: safe" in captured.out
@@ -100,7 +101,7 @@ def test_activate_strict_preset_creates_strict_policy(tmp_path, monkeypatch, cap
 
     result = main(["activate", "--preset", "strict"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     captured = capsys.readouterr()
     assert result == 0
     assert "Preset: strict" in captured.out
@@ -113,7 +114,7 @@ def test_activate_strict_preset_creates_strict_policy(tmp_path, monkeypatch, cap
 
 def test_activate_force_overwrites_existing_policy(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
-    policy = repo / "agentbom.toml"
+    policy = repo / "aigenguard.toml"
     policy.write_text("# existing policy\n", encoding="utf-8")
     monkeypatch.chdir(repo)
 
@@ -124,6 +125,62 @@ def test_activate_force_overwrites_existing_policy(tmp_path, monkeypatch):
     assert "# existing policy" not in text
     assert '"mcp_tool_invocation"' in text
     assert "block_leaks = true" in text
+
+
+def test_activate_reuses_legacy_agentbom_policy_as_fallback(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    policy = repo / "agentbom.toml"
+    policy.write_text("# legacy policy\n", encoding="utf-8")
+    monkeypatch.chdir(repo)
+
+    result = main(["activate", "--no-runbom"])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert policy.read_text(encoding="utf-8") == "# legacy policy\n"
+    assert not (repo / "aigenguard.toml").exists()
+    assert "Policy: agentbom.toml" in captured.out
+
+
+@pytest.mark.parametrize("name", ["aigenguard.toml", "agentbom.toml"])
+def test_preferred_policy_path_rejects_unsafe_existing_symlink(tmp_path, name):
+    outside_policy = tmp_path / "outside.toml"
+    outside_policy.write_text("# outside\n", encoding="utf-8")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / name).symlink_to(outside_policy)
+
+    with pytest.raises(ValueError, match="unsafe repository policy file"):
+        preferred_policy_path(repo)
+
+
+def test_activate_fails_for_unsafe_aigenguard_policy_symlink(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    outside_policy = tmp_path / "outside.toml"
+    outside_policy.write_text("# outside\n", encoding="utf-8")
+    (repo / "aigenguard.toml").symlink_to(outside_policy)
+    monkeypatch.chdir(repo)
+
+    result = main(["activate"])
+
+    assert result == 1
+    assert outside_policy.read_text(encoding="utf-8") == "# outside\n"
+    assert "unsafe repository policy file" in capsys.readouterr().err
+    assert not (repo / ".git" / "hooks" / "pre-commit").exists()
+
+
+def test_activate_fails_for_oversized_aigenguard_policy(tmp_path, monkeypatch, capsys):
+    repo = _git_repo(tmp_path)
+    policy = repo / "aigenguard.toml"
+    policy.write_bytes(b"#" * (MAX_POLICY_FILE_SIZE + 1))
+    monkeypatch.chdir(repo)
+
+    result = main(["activate"])
+
+    assert result == 1
+    assert policy.stat().st_size == MAX_POLICY_FILE_SIZE + 1
+    assert "unsafe repository policy file" in capsys.readouterr().err
+    assert not (repo / ".git" / "hooks" / "pre-commit").exists()
 
 
 @pytest.mark.parametrize("mode", ["advisory", "enforce"])
@@ -144,7 +201,7 @@ def test_activate_strict_creates_strict_policy_when_missing(tmp_path, monkeypatc
 
     result = main(["activate", "--strict"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     assert result == 0
     assert '"shell_execution"' in text
     assert '"code_execution"' in text
@@ -160,7 +217,7 @@ def test_activate_strict_rejects_conflicting_preset(tmp_path, monkeypatch, capsy
 
     assert result == 1
     assert "--strict cannot be combined" in capsys.readouterr().err
-    assert not (repo / "agentbom.toml").exists()
+    assert not (repo / "aigenguard.toml").exists()
 
 
 def test_activate_output_does_not_print_secret_values(tmp_path, monkeypatch, capsys):
@@ -184,7 +241,7 @@ def test_activate_custom_policy_and_agentbom_command(tmp_path, monkeypatch):
         [
             "activate",
             "--policy",
-            "security/agentbom.toml",
+            "security/aigenguard.toml",
             "--agentbom-command",
             ".venv/bin/agentbom",
         ]
@@ -192,8 +249,8 @@ def test_activate_custom_policy_and_agentbom_command(tmp_path, monkeypatch):
 
     hook_text = (repo / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
     assert result == 0
-    assert (repo / "security" / "agentbom.toml").exists()
-    assert '--policy "security/agentbom.toml"' in hook_text
+    assert (repo / "security" / "aigenguard.toml").exists()
+    assert '--policy "security/aigenguard.toml"' in hook_text
     assert ".venv/bin/agentbom guard ." in hook_text
 
 
@@ -208,10 +265,10 @@ def test_activate_existing_non_agentbom_hook_fails_by_default(tmp_path, monkeypa
     captured = capsys.readouterr()
     assert result == 1
     assert "existing non-AgentBOM pre-commit hook found" in captured.err
-    assert "agentbom install-hook --append --policy agentbom.toml --mode confirm" in captured.err
-    assert "agentbom activate --append" in captured.err
+    assert "aigenguard install-hook --append --policy aigenguard.toml --mode confirm" in captured.err
+    assert "aigenguard activate --append" in captured.err
     assert hook.read_text(encoding="utf-8") == "#!/bin/sh\necho existing\n"
-    assert not (repo / "agentbom.toml").exists()
+    assert not (repo / "aigenguard.toml").exists()
 
 
 def test_activate_append_works_with_existing_hook(tmp_path, monkeypatch):
@@ -250,7 +307,7 @@ def test_install_hook_append_works_with_existing_hook(tmp_path, monkeypatch):
     hook.write_text("#!/bin/sh\necho existing\n", encoding="utf-8")
     monkeypatch.chdir(repo)
 
-    result = main(["install-hook", "--append", "--policy", "agentbom.toml", "--mode", "confirm"])
+    result = main(["install-hook", "--append", "--policy", "aigenguard.toml", "--mode", "confirm"])
 
     text = hook.read_text(encoding="utf-8")
     assert result == 0
@@ -281,7 +338,37 @@ def test_status_inside_repo_without_guard_suggests_activate(tmp_path, monkeypatc
     assert "Repository: detected" in captured.out
     assert "Policy: missing" in captured.out
     assert "Local guard: not installed" in captured.out
-    assert "agentbom activate" in captured.out
+    assert "aigenguard activate" in captured.out
+
+
+@pytest.mark.parametrize("unsafe_kind", ["symlink", "oversized"])
+def test_status_rejects_unsafe_aigenguard_policy_without_traceback(
+    tmp_path, monkeypatch, capsys, unsafe_kind
+):
+    repo = _git_repo(tmp_path)
+    _write_unsafe_aigenguard_policy(repo, tmp_path, unsafe_kind)
+    monkeypatch.chdir(repo)
+
+    result = main(["status"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "unsafe repository policy file" in captured.err
+    assert "aigenguard.toml" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_local_guard_status_honors_explicit_policy_without_managed_hook(tmp_path):
+    repo = _git_repo(tmp_path)
+    custom_policy = repo / "security" / "custom.toml"
+    custom_policy.parent.mkdir()
+    custom_policy.write_text("[risk]\n", encoding="utf-8")
+    (repo / "aigenguard.toml").write_text("[risk]\n", encoding="utf-8")
+
+    status = local_guard_status(policy_path="security/custom.toml", cwd=repo)
+
+    assert status.policy == "security/custom.toml"
+    assert status.policy_exists is True
 
 
 def test_status_reports_active_guard_and_mode(tmp_path, monkeypatch, capsys):
@@ -295,7 +382,7 @@ def test_status_reports_active_guard_and_mode(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "Repository: detected" in captured.out
-    assert "Policy: agentbom.toml" in captured.out
+    assert "Policy: aigenguard.toml" in captured.out
     assert "Local guard: active" in captured.out
     assert "Mode: enforce" in captured.out
     assert "Hook: .git/hooks/pre-commit" in captured.out
@@ -312,7 +399,7 @@ def test_deactivate_removes_hook_block_and_keeps_policy(tmp_path, monkeypatch, c
     captured = capsys.readouterr()
     assert result == 0
     assert "AgentBOM deactivated for this repository." in captured.out
-    assert (repo / "agentbom.toml").exists()
+    assert (repo / "aigenguard.toml").exists()
     assert not (repo / ".git" / "hooks" / "pre-commit").exists()
 
 
@@ -329,14 +416,14 @@ def test_deactivate_removes_only_agentbom_block(tmp_path, monkeypatch):
     assert result == 0
     assert "echo existing" in text
     assert "# BEGIN AgentBOM managed block" not in text
-    assert (repo / "agentbom.toml").exists()
+    assert (repo / "aigenguard.toml").exists()
 
 
 def test_default_install_hook_uses_advisory_mode(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
     monkeypatch.chdir(repo)
 
-    result = main(["install-hook", "--policy", "agentbom.toml"])
+    result = main(["install-hook", "--policy", "aigenguard.toml"])
 
     hook = repo / ".git" / "hooks" / "pre-commit"
     text = hook.read_text(encoding="utf-8")
@@ -345,7 +432,7 @@ def test_default_install_hook_uses_advisory_mode(tmp_path, monkeypatch):
     assert hook.parent == repo / ".git" / "hooks"
     assert '--mode "advisory"' in text
     assert "AGENTBOM_SKIP_HOOK" in text
-    assert "agentbom guard . --policy" in text
+    assert "aigenguard guard . --policy" in text
     assert "--html" not in text
     assert "agentbom.json" not in text
     assert "agentbom.md" not in text
@@ -364,7 +451,7 @@ def test_install_hook_writes_selected_mode(tmp_path, monkeypatch, args, mode):
     repo = _git_repo(tmp_path)
     monkeypatch.chdir(repo)
 
-    result = main(["install-hook", "--policy", "agentbom.toml", *args])
+    result = main(["install-hook", "--policy", "aigenguard.toml", *args])
 
     text = (repo / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
     assert result == 0
@@ -380,7 +467,7 @@ def test_install_hook_rejects_mode_and_enforce_policy(tmp_path, monkeypatch, cap
             [
                 "install-hook",
                 "--policy",
-                "agentbom.toml",
+                "aigenguard.toml",
                 "--mode",
                 "confirm",
                 "--enforce-policy",
@@ -603,7 +690,7 @@ def test_guard_blocked_shell_capability_output_explains_static_evidence(tmp_path
     assert "HIGH Shell execution capability" in output
     assert "agent.py" in output
     assert "static evidence shows the agent appears capable of executing shell commands" in output
-    assert "remove shell access or document and allow it explicitly in agentbom.toml" in output
+    assert "remove shell access or document and allow it explicitly in aigenguard.toml" in output
 
 
 def test_guard_blocked_mcp_exposure_output_explains_policy_fix(tmp_path):
@@ -617,7 +704,7 @@ def test_guard_blocked_mcp_exposure_output_explains_policy_fix(tmp_path):
     assert "HIGH MCP filesystem server exposure" in output
     assert ".cursor/mcp.json" in output
     assert "MCP config appears to expose filesystem access." in output
-    assert "restrict allowed MCP servers or document the exception in agentbom.toml" in output
+    assert "restrict allowed MCP servers or document the exception in aigenguard.toml" in output
 
 
 def test_guard_secret_reference_output_does_not_call_reference_a_leak(tmp_path):
@@ -661,7 +748,7 @@ def test_guard_blocked_output_truncates_to_top_five_findings(tmp_path):
     assert "7 blocking finding(s)" in output
     assert len(finding_lines) == 5
     assert "Showing top 5 blocking findings." in output
-    assert "Run: agentbom scan . --policy agentbom.toml --pretty" in output
+    assert "Run: aigenguard scan . --policy aigenguard.toml --pretty" in output
 
 
 def test_guard_blocked_no_color_respects_no_color(tmp_path):
@@ -693,7 +780,7 @@ def _project_with_model_violation(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "agent.py").write_text("model = 'gpt-4o'\n", encoding="utf-8")
-    policy = project / "agentbom.toml"
+    policy = project / "aigenguard.toml"
     policy.write_text("[models]\ndeny = [\"gpt-4o\"]\n", encoding="utf-8")
     return project, policy
 
@@ -702,7 +789,7 @@ def _project_without_policy_items(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "agent.py").write_text("from openai import OpenAI\n", encoding="utf-8")
-    policy = project / "agentbom.toml"
+    policy = project / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -724,7 +811,7 @@ def _project_with_secret_reference_warning(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "agent.py").write_text("OPENAI_API_KEY = 'do-not-store'\n", encoding="utf-8")
-    policy = project / "agentbom.toml"
+    policy = project / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -745,7 +832,7 @@ def _project_with_secret_leak(tmp_path):
     project.mkdir()
     secret_value = "sk-proj-GUARDSECRET0000000000000000000001"
     (project / ".env").write_text(f"OPENAI_API_KEY={secret_value}\n", encoding="utf-8")
-    policy = project / "agentbom.toml"
+    policy = project / "aigenguard.toml"
     policy.write_text(
         "[secrets]\nwarn_on_detected = true\nblock_leaks = true\n",
         encoding="utf-8",
@@ -766,7 +853,7 @@ def _project_with_shell_capability_violation(tmp_path):
         ),
         encoding="utf-8",
     )
-    policy = project / "agentbom.toml"
+    policy = project / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -800,7 +887,7 @@ def _project_with_mcp_exposure_violation(tmp_path):
         """,
         encoding="utf-8",
     )
-    policy = project / "agentbom.toml"
+    policy = project / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -824,7 +911,7 @@ def _project_with_policy_gap_warning(tmp_path):
         "import subprocess\nsubprocess.run('echo hello', shell=True)\n",
         encoding="utf-8",
     )
-    policy = project / "agentbom.toml"
+    policy = project / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -850,7 +937,7 @@ def _project_with_many_model_violations(tmp_path):
             f"model = 'gpt-4o'  # model {index}\n",
             encoding="utf-8",
         )
-    policy = project / "agentbom.toml"
+    policy = project / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -866,3 +953,13 @@ def _project_with_many_model_violations(tmp_path):
         encoding="utf-8",
     )
     return project, policy
+
+
+def _write_unsafe_aigenguard_policy(repo, tmp_path, unsafe_kind):
+    policy = repo / "aigenguard.toml"
+    if unsafe_kind == "symlink":
+        outside_policy = tmp_path / "outside.toml"
+        outside_policy.write_text("# outside\n", encoding="utf-8")
+        policy.symlink_to(outside_policy)
+        return
+    policy.write_bytes(b"#" * (MAX_POLICY_FILE_SIZE + 1))

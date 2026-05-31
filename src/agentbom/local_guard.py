@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Callable, Mapping, TextIO
 
 from .report import write_reports
+from .policy_paths import preferred_policy_path
 from .scanner import scan_path
 
 
@@ -102,7 +103,7 @@ def run_guard(
         print("Commit allowed because guard mode is advisory.", file=out)
         print("", file=out)
         print("To block commits, run:", file=out)
-        print("  agentbom install-hook --policy agentbom.toml --mode enforce", file=out)
+        print("  aigenguard install-hook --policy aigenguard.toml --mode enforce", file=out)
         return 0
 
     if guard_mode == "confirm":
@@ -190,7 +191,7 @@ def uninstall_hook(*, cwd: str | Path | None = None) -> Path | None:
 
 def local_guard_status(
     *,
-    policy_path: str | Path = "agentbom.toml",
+    policy_path: str | Path | None = None,
     cwd: str | Path | None = None,
 ) -> LocalGuardStatus:
     try:
@@ -222,7 +223,11 @@ def local_guard_status(
                 hook_policy = metadata.get("policy")
                 mode = metadata.get("mode")
 
-    policy = hook_policy or str(policy_path)
+    policy = hook_policy
+    if policy is None and policy_path is not None:
+        policy = str(policy_path)
+    if policy is None:
+        policy = _display_repo_policy(preferred_policy_path(repo_root), repo_root)
     policy_file = Path(policy)
     if not policy_file.is_absolute():
         policy_file = repo_root / policy_file
@@ -236,6 +241,13 @@ def local_guard_status(
         hook_installed=hook_installed,
         mode=mode,
     )
+
+
+def _display_repo_policy(policy_path: Path, repo_root: Path) -> str:
+    try:
+        return policy_path.relative_to(repo_root).as_posix()
+    except ValueError:
+        return policy_path.as_posix()
 
 
 def has_unmanaged_hook(*, cwd: str | Path | None = None) -> bool:
@@ -430,7 +442,7 @@ def _print_policy_items(
 def format_blocking_findings(
     items: list[dict[str, object]],
     *,
-    policy_path: str | Path = "agentbom.toml",
+    policy_path: str | Path = "aigenguard.toml",
     severity_formatter: Callable[[str], str] | None = None,
 ) -> str:
     """Format concise pre-commit blocker details."""
@@ -452,7 +464,7 @@ def format_blocking_findings(
             [
                 "",
                 "Showing top 5 blocking findings.",
-                f"Run: agentbom scan . --policy {policy_path} --pretty",
+                f"Run: aigenguard scan . --policy {policy_path} --pretty",
             ]
         )
     return "\n".join(lines)
@@ -496,7 +508,7 @@ def explain_static_finding(item: dict[str, object]) -> StaticFindingExplanation:
                 "static evidence shows the agent appears capable of executing shell "
                 "commands."
             ),
-            fix="remove shell access or document and allow it explicitly in agentbom.toml.",
+            fix="remove shell access or document and allow it explicitly in aigenguard.toml.",
         )
     if rule == "capabilities.deny" and capability == "code_execution":
         return StaticFindingExplanation(
@@ -506,7 +518,7 @@ def explain_static_finding(item: dict[str, object]) -> StaticFindingExplanation:
             ),
             fix=(
                 "remove dynamic code execution or document and allow it explicitly "
-                "in agentbom.toml."
+                "in aigenguard.toml."
             ),
         )
     if rule == "capabilities.deny":
@@ -526,7 +538,7 @@ def explain_static_finding(item: dict[str, object]) -> StaticFindingExplanation:
         if _mcp_name_from_message(message) == "filesystem":
             return StaticFindingExplanation(
                 why="MCP config appears to expose filesystem access.",
-                fix="restrict allowed MCP servers or document the exception in agentbom.toml.",
+                fix="restrict allowed MCP servers or document the exception in aigenguard.toml.",
             )
         return StaticFindingExplanation(
             why="MCP config appears to expose high-risk server access.",
@@ -535,17 +547,17 @@ def explain_static_finding(item: dict[str, object]) -> StaticFindingExplanation:
     if rule in {"providers.allow", "providers.deny"}:
         return StaticFindingExplanation(
             why="policy finding: detected provider is outside the configured policy.",
-            fix=remediation or "remove the provider or update agentbom.toml after review.",
+            fix=remediation or "remove the provider or update aigenguard.toml after review.",
         )
     if rule in {"models.allow", "models.deny"}:
         return StaticFindingExplanation(
             why="policy finding: detected model is outside the configured policy.",
-            fix=remediation or "remove the model or update agentbom.toml after review.",
+            fix=remediation or "remove the model or update aigenguard.toml after review.",
         )
     if rule in {"frameworks.allow", "frameworks.deny"}:
         return StaticFindingExplanation(
             why="policy finding: detected framework is outside the configured policy.",
-            fix=remediation or "remove the framework or update agentbom.toml after review.",
+            fix=remediation or "remove the framework or update aigenguard.toml after review.",
         )
     if rule == "policy_gaps.warn_on":
         return StaticFindingExplanation(
@@ -553,7 +565,7 @@ def explain_static_finding(item: dict[str, object]) -> StaticFindingExplanation:
                 "policy finding and review signal: static evidence found risky agent "
                 "behavior without matching policy documentation."
             ),
-            fix="document the intended behavior in agentbom.toml or remove the risky capability.",
+            fix="document the intended behavior in aigenguard.toml or remove the risky capability.",
         )
     if rule == "risk.warn_on":
         return StaticFindingExplanation(
@@ -705,7 +717,7 @@ def _redact_static_text(text: str) -> str:
 
 def _guard_scan_policy_arg(policy_path: str | Path) -> str:
     path = Path(policy_path)
-    if path.is_absolute() and path.name == "agentbom.toml":
+    if path.is_absolute() and path.name in {"aigenguard.toml", "agentbom.toml"}:
         return path.name
     return str(policy_path)
 

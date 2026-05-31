@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from agentbom.cli import main
+from agentbom.policy_paths import MAX_POLICY_FILE_SIZE
 from agentbom.runbom import (
     build_runbom_summary,
     format_runbom_terminal_summary,
@@ -23,12 +24,36 @@ def test_run_help_explains_direct_commands_without_shell(capsys):
     assert exc.value.code == 0
     help_text = capsys.readouterr().out
     assert "without a shell" in help_text
-    assert "pytest, python -m pytest, or npm test" in help_text
+    assert "pytest, python" in help_text
+    assert "-m pytest, or npm test" in help_text
+
+
+@pytest.mark.parametrize("unsafe_kind", ["symlink", "oversized"])
+def test_run_rejects_unsafe_aigenguard_policy_without_traceback(
+    tmp_path, monkeypatch, capsys, unsafe_kind
+):
+    repo = _git_repo(tmp_path)
+    policy = repo / "aigenguard.toml"
+    if unsafe_kind == "symlink":
+        outside_policy = tmp_path / "outside.toml"
+        outside_policy.write_text("# outside\n", encoding="utf-8")
+        policy.symlink_to(outside_policy)
+    else:
+        policy.write_bytes(b"#" * (MAX_POLICY_FILE_SIZE + 1))
+    monkeypatch.chdir(repo)
+
+    result = main(["run"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "unsafe repository policy file" in captured.err
+    assert "aigenguard.toml" in captured.err
+    assert "Traceback" not in captured.err
 
 
 def test_activate_reuses_existing_policy_and_adds_runbom(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
-    policy = repo / "agentbom.toml"
+    policy = repo / "aigenguard.toml"
     policy.write_text("[risk]\nwarn_on = \"medium\"\n", encoding="utf-8")
     monkeypatch.chdir(repo)
 
@@ -43,7 +68,7 @@ def test_activate_reuses_existing_policy_and_adds_runbom(tmp_path, monkeypatch):
 
 def test_activate_no_runbom_preserves_existing_policy_exactly(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
-    policy = repo / "agentbom.toml"
+    policy = repo / "aigenguard.toml"
     policy.write_text("# existing policy\n", encoding="utf-8")
     monkeypatch.chdir(repo)
 
@@ -59,7 +84,7 @@ def test_activate_preserves_explicit_runbom_command(tmp_path, monkeypatch):
 
     result = main(["activate", "--command", "pytest tests/agent_runtime"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     assert result == 0
     assert "[runbom]" in text
     assert "enabled = true" in text
@@ -74,7 +99,7 @@ def test_activate_autodetects_pytest_when_project_has_pytest_signal(tmp_path, mo
 
     result = main(["activate"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     assert result == 0
     assert "enabled = true" in text
     assert 'command = "python -m pytest"' in text
@@ -87,7 +112,7 @@ def test_activate_autodetects_agent_runtime_pytest(tmp_path, monkeypatch):
 
     result = main(["activate"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     assert result == 0
     assert "enabled = true" in text
     assert 'command = "python -m pytest tests/agent_runtime"' in text
@@ -100,7 +125,7 @@ def test_activate_autodetects_runbom_pytest(tmp_path, monkeypatch):
 
     result = main(["activate"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     assert result == 0
     assert "enabled = true" in text
     assert 'command = "python -m pytest tests/runbom"' in text
@@ -112,7 +137,7 @@ def test_activate_writes_disabled_runbom_when_no_command_detected(tmp_path, monk
 
     result = main(["activate"])
 
-    text = (repo / "agentbom.toml").read_text(encoding="utf-8")
+    text = (repo / "aigenguard.toml").read_text(encoding="utf-8")
     assert result == 0
     assert "[runbom]" in text
     assert "enabled = false" in text
@@ -123,7 +148,7 @@ def test_activate_does_not_overwrite_existing_runbom_command_without_force(
     tmp_path, monkeypatch
 ):
     repo = _git_repo(tmp_path)
-    policy = repo / "agentbom.toml"
+    policy = repo / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -151,7 +176,7 @@ def test_activate_does_not_overwrite_existing_runbom_command_without_force(
 
 def test_activate_preserves_static_policy_sections_when_adding_runbom(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
-    policy = repo / "agentbom.toml"
+    policy = repo / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -482,7 +507,7 @@ def test_runbom_uses_autodetected_command_when_config_command_is_empty(
     runtime_tests = repo / "tests" / "agent_runtime"
     runtime_tests.mkdir(parents=True)
     (runtime_tests / "test_runtime.py").write_text("def test_runtime():\n    assert True\n")
-    (repo / "agentbom.toml").write_text(
+    (repo / "aigenguard.toml").write_text(
         "[runbom]\nenabled = true\ncommand = \"\"\n",
         encoding="utf-8",
     )
@@ -508,7 +533,7 @@ def test_activate_pre_commit_hook_stays_static_only(tmp_path, monkeypatch):
 
     hook_text = (repo / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
     assert result == 0
-    assert "agentbom guard ." in hook_text
+    assert "aigenguard guard ." in hook_text
     assert "agentbom run" not in hook_text
     assert "runbom" not in hook_text.lower()
 
@@ -565,7 +590,7 @@ def test_runbom_missing_config_gives_helpful_error(tmp_path, monkeypatch, capsys
 
 def test_runbom_disabled_config_gives_helpful_error(tmp_path, monkeypatch, capsys):
     repo = _git_repo(tmp_path)
-    (repo / "agentbom.toml").write_text(
+    (repo / "aigenguard.toml").write_text(
         "[runbom]\nenabled = false\ncommand = \"\"\n",
         encoding="utf-8",
     )
@@ -579,7 +604,7 @@ def test_runbom_disabled_config_gives_helpful_error(tmp_path, monkeypatch, capsy
 
 def test_runbom_empty_command_gives_helpful_error(tmp_path, monkeypatch, capsys):
     repo = _git_repo(tmp_path)
-    (repo / "agentbom.toml").write_text(
+    (repo / "aigenguard.toml").write_text(
         "[runbom]\nenabled = true\ncommand = \"\"\n",
         encoding="utf-8",
     )
@@ -693,7 +718,7 @@ def test_runbom_summary_dedupes_duplicate_env_reads():
 
 
 def _write_runbom_config(repo, command: str) -> None:
-    (repo / "agentbom.toml").write_text(
+    (repo / "aigenguard.toml").write_text(
         "\n".join(
             [
                 "[runbom]",
@@ -730,11 +755,11 @@ def _setup_message() -> str:
             "RunBOM is not configured yet.",
             "",
             "Run one of:",
-            "  agentbom activate",
-            '  agentbom activate --command "python -m pytest"',
+            "  aigenguard activate",
+            '  aigenguard activate --command "python -m pytest"',
             "",
             "Recommended:",
-            "  create tests/agent_runtime/ and run agentbom activate again",
+            "  create tests/agent_runtime/ and run aigenguard activate again",
         ]
     )
 

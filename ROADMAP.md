@@ -1,12 +1,16 @@
-# AgentBOM Roadmap
+# AigenGuard Roadmap
 
-AgentBOM has the core public adoption surface in place: PyPI package, HTML
+AigenGuard has the core public adoption surface in place: PyPI package, HTML
 reports, Mermaid export, SARIF integration, CycloneDX export, GitHub Action,
 realistic examples, and onboarding documentation.
 
-The roadmap below is intentionally conservative. AgentBOM should remain
+The roadmap below is intentionally conservative. AigenGuard should remain
 offline-first, deterministic, dependency-light, and safe to run on untrusted
 repositories.
+
+## Migration
+
+AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
 
 ## Current Focus
 

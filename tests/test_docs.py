@@ -27,6 +27,22 @@ def test_readme_links_to_troubleshooting_doc():
     assert "[Troubleshooting](docs/troubleshooting.md)" in text
 
 
+def test_rename_docs_explain_agentbom_backward_compatibility():
+    paths = [
+        ROOT / "README.md",
+        ROOT / "docs" / "policy.md",
+        ROOT / "docs" / "report-guide.md",
+        ROOT / "ROADMAP.md",
+        ROOT / "CHANGELOG.md",
+    ]
+
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert "AgentBOM is now AigenGuard." in text
+        assert "`agentbom` CLI and `agentbom.toml` remain supported during migration." in text
+        assert "New projects should use `aigenguard` and `aigenguard.toml`." in text
+
+
 def test_github_action_installs_checked_out_action_code():
     text = (ROOT / "action.yml").read_text(encoding="utf-8")
 
@@ -38,32 +54,32 @@ def test_readme_includes_recommended_workflow_and_local_guard_example():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "## Recommended Workflow" in readme
-    assert "agentbom activate" in readme
+    assert "aigenguard activate" in readme
     assert "git commit" in readme
-    assert "creates or reuses `agentbom.toml`" in readme
+    assert "creates or reuses `aigenguard.toml`" in readme
     assert "repo-local" in readme
     assert "default mode is `confirm`" in readme
     assert "AgentBOM OK" in readme
-    assert "agentbom scan . --policy agentbom.toml --html --open" in readme
+    assert "aigenguard scan . --policy aigenguard.toml --html --open" in readme
     assert "advisory" in readme
     assert "confirm" in readme
     assert "enforce" in readme
-    assert "agentbom deactivate" in readme
+    assert "aigenguard deactivate" in readme
 
 
 def test_policy_docs_explain_local_guard_modes_and_bypass():
     policy_docs = (ROOT / "docs" / "policy.md").read_text(encoding="utf-8")
 
-    assert "## Activate AgentBOM in a Repository" in policy_docs
-    assert "agentbom activate" in policy_docs
-    assert "agentbom status" in policy_docs
+    assert "## Activate AigenGuard in a Repository" in policy_docs
+    assert "aigenguard activate" in policy_docs
+    assert "aigenguard status" in policy_docs
     assert "global Git" in policy_docs
     assert "config" in policy_docs
-    assert "agentbom deactivate" in policy_docs
+    assert "aigenguard deactivate" in policy_docs
     assert "## Local Guard" in policy_docs
-    assert "agentbom guard . --policy agentbom.toml --mode advisory" in policy_docs
-    assert "agentbom guard . --policy agentbom.toml --mode confirm" in policy_docs
-    assert "agentbom guard . --policy agentbom.toml --mode enforce" in policy_docs
+    assert "aigenguard guard . --policy aigenguard.toml --mode advisory" in policy_docs
+    assert "aigenguard guard . --policy aigenguard.toml --mode confirm" in policy_docs
+    assert "aigenguard guard . --policy aigenguard.toml --mode enforce" in policy_docs
     assert "AgentBOM OK" in policy_docs
     assert "AGENTBOM_SKIP_HOOK=1 git commit" in policy_docs
     assert "git commit --no-verify" in policy_docs

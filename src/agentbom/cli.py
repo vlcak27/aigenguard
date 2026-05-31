@@ -31,6 +31,7 @@ from .policy_onboarding import (
     suggested_policy_toml,
     write_policy_file,
 )
+from .policy_paths import DEFAULT_POLICY_NAME, discover_policy_path, preferred_policy_path
 from .report import write_reports
 from .runbom import configure_runbom, detect_runbom_command, run_runbom
 from .sarif import write_sarif_report
@@ -39,31 +40,29 @@ from .scanner import scan_path
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentbom",
         description=(
-            "Generate offline bill-of-materials and attack-surface reports "
-            "for AI-agent repositories."
+            "Local-first pre-commit policy guard for AI-agent repositories. "
+            "Previously AgentBOM."
         ),
         epilog=(
             "Recommended workflow:\n"
-            "  agentbom activate\n"
+            "  aigenguard activate\n"
             "  git commit\n"
-            "  agentbom run\n"
-            "  agentbom scan . --policy agentbom.toml --html --open\n"
+            "  aigenguard scan . --policy aigenguard.toml --html --open\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--version", action="version", version=f"agentbom {__version__}")
+    parser.add_argument("--version", action="version", version=f"aigenguard {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="command", required=True)
 
     init_parser = subparsers.add_parser(
         "init",
-        help="create a starter agentbom.toml policy",
-        description="Create a starter AgentBOM TOML policy in the current directory.",
+        help="create a starter aigenguard.toml policy",
+        description="Create a starter AigenGuard TOML policy in the current directory.",
         epilog=(
             "Examples:\n"
-            "  agentbom init\n"
-            "  agentbom init --output agentbom-starter.toml"
+            "  aigenguard init\n"
+            "  aigenguard init --output aigenguard-starter.toml"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -74,8 +73,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     init_parser.add_argument(
         "--output",
-        default="agentbom.toml",
-        help="policy path to write (default: agentbom.toml)",
+        default=DEFAULT_POLICY_NAME,
+        help=f"policy path to write (default: {DEFAULT_POLICY_NAME})",
     )
     init_parser.add_argument(
         "--force",
@@ -93,11 +92,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Common workflows:\n"
-            "  agentbom scan . --pretty\n"
-            "  agentbom init\n"
-            "  agentbom scan . --policy agentbom.toml --html --open\n"
-            "  agentbom scan . --suggest-policy agentbom.toml\n"
-            "  agentbom scan . --policy agentbom.toml --enforce-policy\n"
+            "  aigenguard scan . --pretty\n"
+            "  aigenguard init\n"
+            "  aigenguard scan . --policy aigenguard.toml --html --open\n"
+            "  aigenguard scan . --suggest-policy aigenguard.toml\n"
+            "  aigenguard scan . --policy aigenguard.toml --enforce-policy\n"
             "\n"
             "Policy review is advisory by default. Add --enforce-policy only after review.\n"
             "--open opens the generated HTML report. --suggest-policy writes a starter\n"
@@ -113,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan_parser.add_argument(
         "--policy",
-        help="evaluate an AgentBOM TOML policy file in advisory mode by default",
+        help="evaluate a TOML policy file in advisory mode by default",
     )
     scan_parser.add_argument(
         "--enforce-policy",
@@ -163,9 +162,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     activate_parser = subparsers.add_parser(
         "activate",
-        help="activate the repo-local AgentBOM guard",
+        help="activate the repo-local AigenGuard policy guard",
         description=(
-            "Create or reuse agentbom.toml and install a repo-local pre-commit "
+            "Create or reuse aigenguard.toml, with agentbom.toml fallback, and install a repo-local pre-commit "
             "guard. Configure RunBOM when possible. Default mode is confirm."
         ),
     )
@@ -177,14 +176,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     activate_parser.add_argument(
         "--policy",
-        default="agentbom.toml",
-        help="AgentBOM TOML policy file relative to the repository root (default: agentbom.toml)",
+        default=None,
+        help="policy file relative to the repository root (default: discover aigenguard.toml, then agentbom.toml)",
     )
     activate_parser.add_argument(
         "--preset",
         choices=POLICY_PRESETS,
         default=None,
-        help="policy preset when creating agentbom.toml (default: safe)",
+        help="policy preset when creating aigenguard.toml (default: safe)",
     )
     activate_parser.add_argument(
         "--strict",
@@ -203,8 +202,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     activate_parser.add_argument(
         "--agentbom-command",
-        default="agentbom",
-        help="agentbom executable path for the hook to call (default: agentbom)",
+        default="aigenguard",
+        help="AigenGuard executable path for the hook to call (default: aigenguard)",
     )
     activate_parser.add_argument(
         "--command",
@@ -224,22 +223,22 @@ def build_parser() -> argparse.ArgumentParser:
         "run",
         help="run RunBOM runtime verification",
         description=(
-            "Run the configured RunBOM runtime command from agentbom.toml without a shell. "
+            "Run the configured RunBOM runtime command from aigenguard.toml or agentbom.toml without a shell. "
             "Configure a direct command like: pytest, python -m pytest, or npm test."
         ),
     )
 
     subparsers.add_parser(
         "status",
-        help="show repo-local AgentBOM guard status",
-        description="Show whether the current repository has an AgentBOM local guard installed.",
+        help="show repo-local AigenGuard policy guard status",
+        description="Show whether the current repository has an AigenGuard local guard installed.",
     )
 
     subparsers.add_parser(
         "deactivate",
-        help="deactivate the repo-local AgentBOM guard",
+        help="deactivate the repo-local AigenGuard policy guard",
         description=(
-            "Remove the AgentBOM managed block from .git/hooks/pre-commit. "
+            "Remove the AigenGuard managed block from .git/hooks/pre-commit. "
             "The policy file is kept."
         ),
     )
@@ -248,7 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
         "guard",
         help="run the local policy guard used by pre-commit hooks",
         description=(
-            "Run an AgentBOM policy guard without writing reports into the repository. "
+            "Run an AigenGuard policy guard without writing reports into the repository. "
             "Modes: advisory warns and allows, confirm asks before committing, "
             "enforce blocks policy violations."
         ),
@@ -273,15 +272,15 @@ def build_parser() -> argparse.ArgumentParser:
         "install-hook",
         help="install a repo-local pre-commit policy guard",
         description=(
-            "Install an AgentBOM managed block in .git/hooks/pre-commit. "
+            "Install an AigenGuard managed block in .git/hooks/pre-commit. "
             "Modes: advisory warns and allows, confirm asks before committing, "
             "enforce blocks policy violations."
         ),
     )
     install_parser.add_argument(
         "--policy",
-        default="agentbom.toml",
-        help="AgentBOM TOML policy file relative to the repository root (default: agentbom.toml)",
+        default=DEFAULT_POLICY_NAME,
+        help=f"policy file relative to the repository root (default: {DEFAULT_POLICY_NAME})",
     )
     install_parser.add_argument(
         "--mode",
@@ -308,14 +307,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     install_parser.add_argument(
         "--agentbom-command",
-        default="agentbom",
-        help="agentbom executable path for the hook to call (default: agentbom)",
+        default="aigenguard",
+        help="AigenGuard executable path for the hook to call (default: aigenguard)",
     )
 
     subparsers.add_parser(
         "uninstall-hook",
-        help="remove the AgentBOM managed pre-commit hook block",
-        description="Remove the AgentBOM managed block from .git/hooks/pre-commit.",
+        help="remove the AigenGuard managed pre-commit hook block",
+        description="Remove the AigenGuard managed block from .git/hooks/pre-commit.",
     )
     return parser
 
@@ -527,6 +526,7 @@ def _activate(args: argparse.Namespace) -> int:
         return 1
     try:
         repo_root, _git_dir = find_git_root()
+        args.policy = _activation_policy(repo_root, args.policy)
         if has_unmanaged_hook(cwd=repo_root) and not args.append and not args.force:
             print(
                 "agentbom: existing non-AgentBOM pre-commit hook found: "
@@ -535,10 +535,10 @@ def _activate(args: argparse.Namespace) -> int:
             )
             print("Use one of:", file=sys.stderr)
             print(
-                f"  agentbom install-hook --append --policy {args.policy} --mode {args.mode}",
+                f"  aigenguard install-hook --append --policy {args.policy} --mode {args.mode}",
                 file=sys.stderr,
             )
-            print("  agentbom activate --append", file=sys.stderr)
+            print("  aigenguard activate --append", file=sys.stderr)
             return 1
 
         policy_file = _repo_policy_path(repo_root, args.policy)
@@ -561,7 +561,7 @@ def _activate(args: argparse.Namespace) -> int:
         )
     except ExistingHookError as exc:
         print(f"agentbom: {exc}", file=sys.stderr)
-        print("Use agentbom activate --append to keep existing hook content.", file=sys.stderr)
+        print("Use aigenguard activate --append to keep existing hook content.", file=sys.stderr)
         return 1
     except (FileExistsError, FileNotFoundError, PermissionError, ValueError, OSError) as exc:
         print(f"agentbom: {exc}", file=sys.stderr)
@@ -581,9 +581,9 @@ def _activate(args: argparse.Namespace) -> int:
     print("")
     print("Next:")
     print("  git commit")
-    print("  agentbom run")
-    print("  agentbom status")
-    print(f"  agentbom scan . --policy {args.policy} --html --open")
+    print("  aigenguard run")
+    print("  aigenguard status")
+    print(f"  aigenguard scan . --policy {args.policy} --html --open")
     return 0
 
 
@@ -596,7 +596,11 @@ def _activation_preset(args: argparse.Namespace) -> str:
 
 
 def _print_status() -> int:
-    status = local_guard_status()
+    try:
+        status = local_guard_status()
+    except ValueError as exc:
+        print(f"aigenguard: {exc}", file=sys.stderr)
+        return 1
     print("AgentBOM status")
     print("")
     if not status.repository_detected:
@@ -606,7 +610,7 @@ def _print_status() -> int:
         print("")
         print("Next:")
         print("  cd path/to/your-agent-repo")
-        print("  agentbom activate")
+        print("  aigenguard activate")
         return 0
 
     print("Repository: detected")
@@ -626,7 +630,7 @@ def _print_status() -> int:
         print("Local guard: not installed")
         print("")
         print("Next:")
-        print("  agentbom activate")
+        print("  aigenguard activate")
     return 0
 
 
@@ -666,6 +670,11 @@ def _repo_policy_path(repo_root: Path, policy: str) -> Path:
     if policy_path.is_absolute():
         return policy_path
     return repo_root / policy_path
+
+
+def _activation_policy(repo_root: Path, policy: str | None) -> str:
+    policy_path = preferred_policy_path(repo_root) if policy is None else Path(policy)
+    return _display_path(policy_path, repo_root)
 
 
 def _display_path(path: Path, repo_root: Path) -> str:
@@ -713,23 +722,23 @@ def _print_scan_next_steps(
 
 
 def _print_no_policy_next_steps(args: argparse.Namespace) -> None:
-    policy_path = Path(args.path) / "agentbom.toml"
+    policy_path = discover_policy_path(args.path)
     print("")
     print("Next:")
     if not args.html:
         print("  Open HTML report:")
         print(f"    {_scan_command(args, html=True, open_report=True)}")
         print("")
-    if policy_path.exists():
+    if policy_path is not None:
         print("  Use existing policy:")
         print(
             f"    {_scan_command(args, policy=policy_path, html=True, open_report=True)}"
         )
     else:
         print("  Start policy review:")
-        print("    agentbom init")
+        print("    aigenguard init")
         print(
-            f"    {_scan_command(args, policy=Path('agentbom.toml'), html=True, open_report=True)}"
+            f"    {_scan_command(args, policy=Path(DEFAULT_POLICY_NAME), html=True, open_report=True)}"
         )
 
 
@@ -762,7 +771,7 @@ def _scan_command(
     open_report: bool = False,
     enforce_policy: bool = False,
 ) -> str:
-    parts = ["agentbom", "scan", str(args.path)]
+    parts = ["aigenguard", "scan", str(args.path)]
     if args.output_dir != ".":
         parts.extend(["--output-dir", str(args.output_dir)])
     if policy is not None:

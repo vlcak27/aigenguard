@@ -1,35 +1,43 @@
-# Policy Review
+# AigenGuard Policy Review
 
-AgentBOM policy review evaluates a local `agentbom.toml` against the scan
+AigenGuard policy review evaluates a local `aigenguard.toml` against the scan
 result. It is advisory by default: policy violations are reported in CLI,
 JSON, Markdown, HTML, and GitHub Actions summary output, but the scan exits
 zero unless `--enforce-policy` is used.
 
-AgentBOM remains a static offline scanner. It does not execute scanned code,
+AigenGuard remains a static offline scanner. It does not execute scanned code,
 import scanned modules, run MCP servers, call networks, add telemetry, or print
 secret values. Likely AI/API credential leak findings are reported with
 redacted metadata only.
 
-## Activate AgentBOM in a Repository
+## Migration from AgentBOM
+
+AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
+
+Without `--policy`, AigenGuard prefers `aigenguard.toml` and falls back to
+`agentbom.toml`. An explicit `--policy` path always wins.
+
+## Activate AigenGuard in a Repository
 
 From a Git repository root or subdirectory:
 
 ```bash
-agentbom activate
+aigenguard activate
 ```
 
-Activation creates or reuses `agentbom.toml` and installs a repo-local
+Activation creates or reuses `aigenguard.toml`, falls back to an existing
+`agentbom.toml`, and installs a repo-local
 pre-commit hook under `.git/hooks/pre-commit`. It does not modify global Git
 config. The default guard mode is `confirm`. A new policy uses the `safe`
-preset by default; an existing `agentbom.toml` is not overwritten unless
+preset by default; an existing `aigenguard.toml` is not overwritten unless
 `--force` is passed.
 
-Choose a policy preset when creating or overwriting `agentbom.toml`:
+Choose a policy preset when creating or overwriting `aigenguard.toml`:
 
 ```bash
-agentbom activate --preset audit
-agentbom activate --preset safe
-agentbom activate --preset strict
+aigenguard activate --preset audit
+aigenguard activate --preset safe
+aigenguard activate --preset strict
 ```
 
 Presets:
@@ -41,15 +49,15 @@ Presets:
 Compatibility:
 
 ```bash
-agentbom activate --strict
+aigenguard activate --strict
 ```
 
-This is the same as `agentbom activate --preset strict`.
+This is the same as `aigenguard activate --preset strict`.
 
 Check local setup with:
 
 ```bash
-agentbom status
+aigenguard status
 ```
 
 Modes:
@@ -61,7 +69,7 @@ Modes:
 Deactivate the local guard with:
 
 ```bash
-agentbom deactivate
+aigenguard deactivate
 ```
 
 Bypass a local hook only when intentional:
@@ -78,13 +86,13 @@ git commit --no-verify
 Create a safe advisory starter policy:
 
 ```bash
-agentbom init
+aigenguard init
 ```
 
 Then scan with policy review:
 
 ```bash
-agentbom scan . --policy agentbom.toml --html --open
+aigenguard scan . --policy aigenguard.toml --html --open
 ```
 
 ### 2. Suggested policy from findings
@@ -92,7 +100,7 @@ agentbom scan . --policy agentbom.toml --html --open
 Generate a starter policy from the current repository findings:
 
 ```bash
-agentbom scan . --suggest-policy agentbom.toml
+aigenguard scan . --suggest-policy aigenguard.toml
 ```
 
 The suggested policy is meant to start review. It avoids strict provider,
@@ -103,38 +111,38 @@ model, and framework allow lists by default.
 Generate and open the offline HTML report:
 
 ```bash
-agentbom scan . --html --open
+aigenguard scan . --html --open
 ```
 
 Use the Policy Workbench to review detected providers, models, frameworks,
 reachable capabilities, MCP servers, secret references, and policy gaps. Copy
-or download the generated `agentbom.toml`.
+or download the generated `aigenguard.toml`.
 
 ## Advisory-First Workflow
 
 Start with advisory mode:
 
 ```bash
-agentbom scan . --policy agentbom.toml --pretty
+aigenguard scan . --policy aigenguard.toml --pretty
 ```
 
 Review violations and warnings in CLI, JSON, Markdown, HTML, or GitHub Actions
-summary output. Update `agentbom.toml` until advisory results match
+summary output. Update `aigenguard.toml` until advisory results match
 expectations.
 
 Only later add enforcement:
 
 ```bash
-agentbom scan . --policy agentbom.toml --enforce-policy
+aigenguard scan . --policy aigenguard.toml --enforce-policy
 ```
 
 ## Local Guard
 
-AgentBOM can install a repo-local pre-commit guard under
+AigenGuard can install a repo-local pre-commit guard under
 `.git/hooks/pre-commit`:
 
 ```bash
-agentbom install-hook --policy agentbom.toml --mode confirm
+aigenguard install-hook --policy aigenguard.toml --mode confirm
 ```
 
 Modes:
@@ -146,7 +154,7 @@ Modes:
 Compatibility:
 
 ```bash
-agentbom install-hook --policy agentbom.toml --enforce-policy
+aigenguard install-hook --policy aigenguard.toml --enforce-policy
 ```
 
 This installs the same behavior as `--mode enforce`. Do not pass
@@ -155,12 +163,12 @@ This installs the same behavior as `--mode enforce`. Do not pass
 The hook calls the guard command:
 
 ```bash
-agentbom guard . --policy agentbom.toml --mode advisory
-agentbom guard . --policy agentbom.toml --mode confirm
-agentbom guard . --policy agentbom.toml --mode enforce
+aigenguard guard . --policy aigenguard.toml --mode advisory
+aigenguard guard . --policy aigenguard.toml --mode confirm
+aigenguard guard . --policy aigenguard.toml --mode enforce
 ```
 
-`agentbom guard` runs the scan with temporary report output outside the
+`aigenguard guard` runs the scan with temporary report output outside the
 repository and prints concise commit-time status. Passing policy prints
 `AgentBOM OK` in green when stdout is a TTY and `NO_COLOR` is not set; otherwise
 it prints plain text.
@@ -175,7 +183,7 @@ git commit --no-verify
 Remove the repo-local hook block with:
 
 ```bash
-agentbom deactivate
+aigenguard deactivate
 ```
 
 ## Format
@@ -227,7 +235,7 @@ path, line number when available, redacted evidence, and suggested action. The
 matched value is not stored or printed in JSON, Markdown, HTML, SARIF, CLI, or
 GitHub summary output.
 
-AgentBOM's credential leak checks are AI-agent focused review signals. They are
+AigenGuard's credential leak checks are AI-agent focused review signals. They are
 not a replacement for full secret scanners such as Gitleaks or TruffleHog.
 
 Severity thresholds accept `low`, `medium`, `high`, and `critical`.
@@ -244,7 +252,7 @@ Use advisory mode first:
     fail-on: none
     sarif-upload: false
     html: true
-    policy: agentbom.toml
+    policy: aigenguard.toml
     output-dir: agentbom-report
 ```
 
@@ -258,10 +266,10 @@ Then opt into policy enforcement:
     fail-on: none
     sarif-upload: false
     html: true
-    policy: agentbom.toml
+    policy: aigenguard.toml
     enforce-policy: true
     output-dir: agentbom-report
 ```
 
 `fail-on` still controls repository risk threshold enforcement. `enforce-policy`
-controls only `agentbom.toml` policy violations.
+controls only `aigenguard.toml` policy violations.

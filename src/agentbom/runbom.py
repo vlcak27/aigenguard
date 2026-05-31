@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO
 
+from .policy_paths import preferred_policy_path
+
 
 RUNBOM_BASELINE = ".agentbom/runbom-baseline.json"
 RUNBOM_LOG = ".agentbom/runbom.jsonl"
@@ -110,8 +112,14 @@ def explain_runbom_command_detection(detected: RunbomDetectedCommand | None) -> 
     return f"RunBOM detected command: {detected.command}"
 
 
-def run_runbom(config_path: Path = Path("agentbom.toml")) -> int:
+def run_runbom(config_path: Path | None = None) -> int:
     """Run the configured RunBOM command and write minimal JSONL lifecycle events."""
+    if config_path is None:
+        try:
+            config_path = preferred_policy_path(Path.cwd())
+        except ValueError as exc:
+            print(f"aigenguard: {exc}", file=sys.stderr)
+            return 1
     repo_root = config_path.parent.resolve()
     command, detected, config_error = _resolve_runbom_command(config_path, repo_root)
     if config_error:
@@ -133,7 +141,7 @@ def run_runbom(config_path: Path = Path("agentbom.toml")) -> int:
         return 1
     if not argv:
         print(
-            'RunBOM has no runtime command configured. Run: agentbom activate --command "pytest"',
+            'RunBOM has no runtime command configured. Run: aigenguard activate --command "pytest"',
             file=sys.stderr,
         )
         return 1
@@ -580,11 +588,11 @@ def _runbom_setup_message() -> str:
             "RunBOM is not configured yet.",
             "",
             "Run one of:",
-            "  agentbom activate",
-            '  agentbom activate --command "python -m pytest"',
+            "  aigenguard activate",
+            '  aigenguard activate --command "python -m pytest"',
             "",
             "Recommended:",
-            "  create tests/agent_runtime/ and run agentbom activate again",
+            "  create tests/agent_runtime/ and run aigenguard activate again",
         ]
     )
 
