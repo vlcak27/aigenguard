@@ -446,11 +446,11 @@ def test_cli_init_strict_writes_stricter_policy(tmp_path, monkeypatch, capsys):
 def test_cli_init_output_custom_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    result = main(["init", "--output", "policies/agentbom.toml"])
+    result = main(["init", "--output", "policies/aigenguard-custom.toml"])
 
     assert result == 0
-    assert (tmp_path / "policies" / "agentbom.toml").exists()
-    assert not (tmp_path / "agentbom.toml").exists()
+    assert (tmp_path / "policies" / "aigenguard-custom.toml").exists()
+    assert not (tmp_path / "aigenguard.toml").exists()
 
 
 def test_cli_suggest_policy_writes_policy_and_scan_outputs(tmp_path, capsys):
@@ -469,7 +469,7 @@ def test_cli_suggest_policy_writes_policy_and_scan_outputs(tmp_path, capsys):
         encoding="utf-8",
     )
     output_dir = tmp_path / "out"
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
 
     result = main(
         [
@@ -502,7 +502,7 @@ def test_cli_suggest_policy_writes_policy_and_scan_outputs(tmp_path, capsys):
 def test_cli_suggest_policy_does_not_overwrite_without_force(tmp_path, capsys):
     project = tmp_path / "agent"
     project.mkdir()
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("existing\n", encoding="utf-8")
 
     result = main(["scan", str(project), "--suggest-policy", str(policy)])
@@ -517,7 +517,7 @@ def test_cli_suggest_policy_does_not_overwrite_without_force(tmp_path, capsys):
 def test_cli_suggest_policy_force_overwrites_existing_file(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("existing\n", encoding="utf-8")
 
     result = main(["scan", str(project), "--suggest-policy", str(policy), "--force"])
@@ -785,7 +785,7 @@ def test_html_report_escapes_bom_values():
         {
             "schema_version": "0.1.0",
             "repository": "<unsafe>",
-            "generated_by": "agentbom",
+            "generated_by": "aigenguard",
             "providers": [
                 {"name": "<openai>", "path": "agent.py", "confidence": "high"}
             ],
@@ -847,7 +847,7 @@ def test_html_report_escapes_xss_payloads_in_report_fields():
         {
             "schema_version": "0.1.0",
             "repository": "repo",
-            "generated_by": "agentbom",
+            "generated_by": "aigenguard",
             "providers": [
                 {"name": image_payload, "path": svg_payload, "confidence": "high"}
             ],
@@ -1202,7 +1202,7 @@ def test_cli_policy_is_advisory_by_default(tmp_path, capsys):
         "\n".join(["from openai import OpenAI", "model = 'gpt-4o'"]),
         encoding="utf-8",
     )
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("[models]\ndeny = [\"gpt-4o\"]\n", encoding="utf-8")
     output_dir = tmp_path / "out"
 
@@ -1226,7 +1226,7 @@ def test_cli_enforce_policy_exits_nonzero_for_violations(tmp_path, capsys):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "agent.py").write_text("model = 'gpt-4o'\n", encoding="utf-8")
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("[models]\ndeny = [\"gpt-4o\"]\n", encoding="utf-8")
 
     result = main(
@@ -1251,7 +1251,7 @@ def test_cli_policy_pass_exits_zero(tmp_path, capsys):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "agent.py").write_text("from openai import OpenAI\n", encoding="utf-8")
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -1288,7 +1288,7 @@ def test_cli_policy_pass_exits_zero(tmp_path, capsys):
 def test_cli_invalid_policy_toml_exits_nonzero_with_clear_error(tmp_path, capsys):
     project = tmp_path / "agent"
     project.mkdir()
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("[risk\n", encoding="utf-8")
 
     result = main(["scan", str(project), "--output-dir", str(tmp_path / "out"), "--policy", str(policy)])
@@ -1300,7 +1300,7 @@ def test_cli_invalid_policy_toml_exits_nonzero_with_clear_error(tmp_path, capsys
 def test_cli_invalid_policy_severity_exits_nonzero_with_clear_error(tmp_path, capsys):
     project = tmp_path / "agent"
     project.mkdir()
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("[risk]\nwarn_on = \"urgent\"\n", encoding="utf-8")
 
     result = main(["scan", str(project), "--output-dir", str(tmp_path / "out"), "--policy", str(policy)])
@@ -1335,7 +1335,7 @@ def test_policy_reports_are_integrated_when_policy_is_used(tmp_path, monkeypatch
         ),
         encoding="utf-8",
     )
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -1398,7 +1398,7 @@ def test_policy_warnings_only_pass_with_warnings_and_enforcement_exits_zero(
         "OPENAI_API_KEY = 'do-not-store'\n",
         encoding="utf-8",
     )
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -1455,7 +1455,7 @@ def test_secret_leak_value_is_redacted_from_all_cli_reports(tmp_path, monkeypatc
     project.mkdir()
     secret_value = "sk-proj-CLIREDACTSECRET00000000000000000001"
     (project / ".env").write_text(f"OPENAI_API_KEY={secret_value}\n", encoding="utf-8")
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "[secrets]\nwarn_on_detected = true\nblock_leaks = true\n",
         encoding="utf-8",
@@ -1503,7 +1503,7 @@ def test_policy_builder_includes_detected_values_and_no_external_scripts():
         {
             "schema_version": "0.1.0",
             "repository": "repo",
-            "generated_by": "agentbom",
+            "generated_by": "aigenguard",
             "providers": [{"name": "openrouter", "path": "agent.py", "confidence": "high"}],
             "models": [
                 {
@@ -1571,7 +1571,7 @@ def test_html_enforced_policy_failure_shows_fix_guidance():
         {
             "schema_version": "0.1.0",
             "repository": "repo",
-            "generated_by": "agentbom",
+            "generated_by": "aigenguard",
             "providers": [],
             "models": [],
             "frameworks": [],
@@ -1608,7 +1608,7 @@ def test_html_report_keeps_scripts_inline_and_secret_values_out():
         {
             "schema_version": "0.1.0",
             "repository": "repo",
-            "generated_by": "agentbom",
+            "generated_by": "aigenguard",
             "providers": [],
             "models": [],
             "frameworks": [],

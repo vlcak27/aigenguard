@@ -45,7 +45,7 @@ def test_activate_creates_policy_and_installs_confirm_hook(tmp_path, monkeypatch
     hook_text = hook.read_text(encoding="utf-8")
     assert '--mode "confirm"' in hook_text
     assert "aigenguard guard ." in hook_text
-    assert "agentbom run" not in hook_text
+    assert "aigenguard run" not in hook_text
     assert "runbom" not in hook_text.lower()
     assert "AigenGuard activated" in captured.out
     assert "Policy: aigenguard.toml" in captured.out
@@ -254,7 +254,7 @@ def test_activate_custom_policy_and_agentbom_command(tmp_path, monkeypatch):
     assert ".venv/bin/agentbom guard ." in hook_text
 
 
-def test_activate_existing_non_agentbom_hook_fails_by_default(tmp_path, monkeypatch, capsys):
+def test_activate_existing_non_aigenguard_hook_fails_by_default(tmp_path, monkeypatch, capsys):
     repo = _git_repo(tmp_path)
     hook = repo / ".git" / "hooks" / "pre-commit"
     hook.write_text("#!/bin/sh\necho existing\n", encoding="utf-8")
@@ -282,7 +282,7 @@ def test_activate_append_works_with_existing_hook(tmp_path, monkeypatch):
     text = hook.read_text(encoding="utf-8")
     assert result == 0
     assert "echo existing" in text
-    assert "# BEGIN AgentBOM managed block" in text
+    assert "# BEGIN AigenGuard managed block" in text
     assert '--mode "confirm"' in text
 
 
@@ -297,7 +297,7 @@ def test_activate_force_overwrites_existing_hook(tmp_path, monkeypatch):
     text = hook.read_text(encoding="utf-8")
     assert result == 0
     assert "echo existing" not in text
-    assert "# BEGIN AgentBOM managed block" in text
+    assert "# BEGIN AigenGuard managed block" in text
     assert '--mode "confirm"' in text
 
 
@@ -312,7 +312,7 @@ def test_install_hook_append_works_with_existing_hook(tmp_path, monkeypatch):
     text = hook.read_text(encoding="utf-8")
     assert result == 0
     assert "echo existing" in text
-    assert "# BEGIN AgentBOM managed block" in text
+    assert "# BEGIN AigenGuard managed block" in text
 
 
 def test_status_outside_git_repo_reports_not_detected(tmp_path, monkeypatch, capsys):
@@ -403,7 +403,7 @@ def test_deactivate_removes_hook_block_and_keeps_policy(tmp_path, monkeypatch, c
     assert not (repo / ".git" / "hooks" / "pre-commit").exists()
 
 
-def test_deactivate_removes_only_agentbom_block(tmp_path, monkeypatch):
+def test_deactivate_removes_only_aigenguard_block(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
     hook = repo / ".git" / "hooks" / "pre-commit"
     hook.write_text("#!/bin/sh\necho existing\n", encoding="utf-8")
@@ -415,8 +415,51 @@ def test_deactivate_removes_only_agentbom_block(tmp_path, monkeypatch):
     text = hook.read_text(encoding="utf-8")
     assert result == 0
     assert "echo existing" in text
-    assert "# BEGIN AgentBOM managed block" not in text
+    assert "# BEGIN AigenGuard managed block" not in text
     assert (repo / "aigenguard.toml").exists()
+
+
+def test_status_detects_legacy_agentbom_hook_markers(tmp_path):
+    repo = _git_repo(tmp_path)
+    (repo / "agentbom.toml").write_text("[risk]\n", encoding="utf-8")
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text(_legacy_agentbom_hook_block(), encoding="utf-8")
+
+    status = local_guard_status(cwd=repo)
+
+    assert status.hook_installed is True
+    assert status.policy == "agentbom.toml"
+    assert status.mode == "advisory"
+
+
+def test_install_hook_replaces_legacy_agentbom_hook_markers(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text(_legacy_agentbom_hook_block(), encoding="utf-8")
+    monkeypatch.chdir(repo)
+
+    result = main(["install-hook", "--policy", "aigenguard.toml", "--mode", "confirm"])
+
+    text = hook.read_text(encoding="utf-8")
+    assert result == 0
+    assert "# BEGIN AgentBOM managed block" not in text
+    assert "# BEGIN AigenGuard managed block" in text
+    assert '--policy "aigenguard.toml"' in text
+    assert '--mode "confirm"' in text
+
+
+def test_uninstall_hook_removes_legacy_agentbom_hook_markers(tmp_path, monkeypatch):
+    repo = _git_repo(tmp_path)
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\necho existing\n\n" + _legacy_agentbom_hook_block(), encoding="utf-8")
+    monkeypatch.chdir(repo)
+
+    result = main(["uninstall-hook"])
+
+    text = hook.read_text(encoding="utf-8")
+    assert result == 0
+    assert "echo existing" in text
+    assert "# BEGIN AgentBOM managed block" not in text
 
 
 def test_default_install_hook_uses_advisory_mode(tmp_path, monkeypatch):
@@ -775,6 +818,17 @@ def _git_repo(tmp_path):
     repo = tmp_path / "repo"
     (repo / ".git" / "hooks").mkdir(parents=True)
     return repo
+
+
+def _legacy_agentbom_hook_block() -> str:
+    return "\n".join(
+        [
+            "# BEGIN AgentBOM managed block",
+            'aigenguard guard . --policy "agentbom.toml" --mode "advisory"',
+            "# END AgentBOM managed block",
+            "",
+        ]
+    )
 
 
 def _project_with_model_violation(tmp_path):

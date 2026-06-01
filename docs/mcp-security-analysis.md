@@ -103,7 +103,7 @@ Run the legacy policy demo:
 ```bash
 aigenguard scan examples/mcp-risky-agent \
   --policy examples/policies/mcp-policy.yaml \
-  --output-dir agentbom-report/mcp-policy \
+  --output-dir aigenguard-report/mcp-policy \
   --html --mermaid --sarif --pretty
 ```
 

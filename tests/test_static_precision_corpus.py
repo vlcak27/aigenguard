@@ -12,7 +12,7 @@ import pytest
 
 def load_precision_corpus_module() -> ModuleType:
     module_path = Path(__file__).resolve().parents[1] / "scripts" / "precision_corpus.py"
-    spec = importlib.util.spec_from_file_location("agentbom_precision_corpus", module_path)
+    spec = importlib.util.spec_from_file_location("aigenguard_precision_corpus", module_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"could not load precision corpus module from {module_path}")
     module = importlib.util.module_from_spec(spec)

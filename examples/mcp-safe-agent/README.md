@@ -19,14 +19,14 @@ Run:
 
 ```bash
 aigenguard scan examples/mcp-safe-agent \
-  --output-dir agentbom-report/mcp-safe \
+  --output-dir aigenguard-report/mcp-safe \
   --html --mermaid --sarif --pretty
 ```
 
 Review the HTML report:
 
 ```bash
-open agentbom-report/mcp-safe/agentbom.html
+open aigenguard-report/mcp-safe/agentbom.html
 ```
 
 Secret handling:

@@ -62,25 +62,25 @@ aigenguard scan . --pretty
 Generate reports:
 
 ```bash
-aigenguard scan . --output-dir agentbom-report --html --mermaid --sarif --pretty
+aigenguard scan . --output-dir aigenguard-report --html --mermaid --sarif --pretty
 ```
 
 MCP safe demo:
 
 ```bash
-aigenguard scan examples/mcp-safe-agent --output-dir agentbom-report/mcp-safe --html --mermaid --sarif --pretty
+aigenguard scan examples/mcp-safe-agent --output-dir aigenguard-report/mcp-safe --html --mermaid --sarif --pretty
 ```
 
 MCP risky demo:
 
 ```bash
-aigenguard scan examples/mcp-risky-agent --output-dir agentbom-report/mcp-risky --html --mermaid --sarif --pretty
+aigenguard scan examples/mcp-risky-agent --output-dir aigenguard-report/mcp-risky --html --mermaid --sarif --pretty
 ```
 
 MCP policy demo:
 
 ```bash
-aigenguard scan examples/mcp-risky-agent --policy examples/policies/mcp-policy.yaml --output-dir agentbom-report/mcp-policy --html --mermaid --sarif --pretty
+aigenguard scan examples/mcp-risky-agent --policy examples/policies/mcp-policy.yaml --output-dir aigenguard-report/mcp-policy --html --mermaid --sarif --pretty
 ```
 
 GitHub Action first-run mode:
@@ -91,7 +91,7 @@ with:
   fail-on: none
   sarif-upload: false
   html: true
-  output-dir: agentbom-report
+  output-dir: aigenguard-report
 ```
 
 ## Release Notes Template

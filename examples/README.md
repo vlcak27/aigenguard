@@ -14,7 +14,7 @@ value.
 
 ```bash
 aigenguard scan examples/customer-support-agent \
-  --output-dir agentbom-report/support \
+  --output-dir aigenguard-report/support \
   --html --mermaid --sarif --pretty
 ```
 
@@ -26,7 +26,7 @@ documented controls.
 
 ```bash
 aigenguard scan examples/mcp-safe-agent \
-  --output-dir agentbom-report/mcp-safe \
+  --output-dir aigenguard-report/mcp-safe \
   --html --mermaid --sarif --pretty
 ```
 
@@ -39,12 +39,12 @@ invocation and policy findings.
 
 ```bash
 aigenguard scan examples/mcp-risky-agent \
-  --output-dir agentbom-report/mcp-risky \
+  --output-dir aigenguard-report/mcp-risky \
   --html --mermaid --sarif --pretty
 
 aigenguard scan examples/mcp-risky-agent \
   --policy examples/policies/mcp-policy.yaml \
-  --output-dir agentbom-report/mcp-policy \
+  --output-dir aigenguard-report/mcp-policy \
   --html --mermaid --sarif --pretty
 ```
 
@@ -56,6 +56,6 @@ documentation. Use it to inspect review priorities and SARIF output.
 
 ```bash
 aigenguard scan examples/research-agent \
-  --output-dir agentbom-report/research \
+  --output-dir aigenguard-report/research \
   --html --mermaid --sarif --pretty
 ```

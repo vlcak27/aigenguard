@@ -18,8 +18,14 @@ from .scanner import scan_path
 
 
 GUARD_MODES = ("advisory", "confirm", "enforce")
-MANAGED_BEGIN = "# BEGIN AgentBOM managed block"
-MANAGED_END = "# END AgentBOM managed block"
+MANAGED_BEGIN = "# BEGIN AigenGuard managed block"
+MANAGED_END = "# END AigenGuard managed block"
+LEGACY_MANAGED_BEGIN = "# BEGIN AgentBOM managed block"
+LEGACY_MANAGED_END = "# END AgentBOM managed block"
+MANAGED_MARKERS = (
+    (MANAGED_BEGIN, MANAGED_END),
+    (LEGACY_MANAGED_BEGIN, LEGACY_MANAGED_END),
+)
 
 ConfirmReader = Callable[[str], bool | None]
 
@@ -146,7 +152,7 @@ def install_hook(
     policy_path: str | Path,
     mode: str,
     *,
-    agentbom_command: str = "aigenguard",
+    aigenguard_command: str = "aigenguard",
     append: bool = False,
     force: bool = False,
     cwd: str | Path | None = None,
@@ -161,7 +167,7 @@ def install_hook(
     block = render_hook_block(
         policy_path=policy_path,
         mode=guard_mode,
-        agentbom_command=agentbom_command,
+        aigenguard_command=aigenguard_command,
     )
     hook_path.write_text(
         _install_managed_block(existing, block, append=append, force=force),
@@ -260,11 +266,15 @@ def has_unmanaged_hook(*, cwd: str | Path | None = None) -> bool:
         text = hook_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return True
-    return bool(text.strip()) and MANAGED_BEGIN not in text and MANAGED_END not in text
+    return bool(text.strip()) and _managed_markers(text) is None
 
 
 def parse_managed_hook(text: str) -> dict[str, str] | None:
-    if MANAGED_BEGIN not in text or MANAGED_END not in text:
+    markers = _managed_markers(text)
+    if markers is None:
+        return None
+    begin, end = markers
+    if begin not in text or end not in text:
         return None
     for line in text.splitlines():
         if " guard " not in line or " --policy " not in line or " --mode " not in line:
@@ -287,7 +297,7 @@ def render_hook_block(
     *,
     policy_path: str | Path,
     mode: str,
-    agentbom_command: str = "aigenguard",
+    aigenguard_command: str = "aigenguard",
 ) -> str:
     """Render the repo-local managed hook block."""
     guard_mode = normalize_guard_mode(mode)
@@ -295,7 +305,7 @@ def render_hook_block(
     policy_word = _shell_double_quote(policy)
     policy_message = _shell_double_quote_content(policy)
     mode_word = _shell_double_quote(guard_mode)
-    command_word = shlex.quote(agentbom_command)
+    command_word = shlex.quote(aigenguard_command)
     return "\n".join(
         [
             MANAGED_BEGIN,
@@ -376,17 +386,26 @@ def _install_managed_block(
 
 
 def _remove_managed_block(existing: str) -> str | None:
-    start = existing.find(MANAGED_BEGIN)
-    end = existing.find(MANAGED_END)
-    if start == -1 and end == -1:
+    markers = _managed_markers(existing)
+    if markers is None:
         return None
+    begin, end_marker = markers
+    start = existing.find(begin)
+    end = existing.find(end_marker)
     if start == -1 or end == -1 or end < start:
         raise ValueError("found an incomplete AigenGuard managed hook block")
-    end += len(MANAGED_END)
+    end += len(end_marker)
     if end < len(existing) and existing[end] == "\n":
         end += 1
     updated = existing[:start].rstrip() + "\n\n" + existing[end:].lstrip("\n")
     return updated.rstrip() + "\n" if updated.strip() else ""
+
+
+def _managed_markers(text: str) -> tuple[str, str] | None:
+    for begin, end in MANAGED_MARKERS:
+        if begin in text or end in text:
+            return begin, end
+    return None
 
 
 def _read_confirmation_from_tty(prompt: str) -> bool | None:

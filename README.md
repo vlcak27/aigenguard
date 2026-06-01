@@ -244,7 +244,7 @@ mitigation signals where static evidence is available.
 Generate review artifacts:
 
 ```bash
-aigenguard scan . --output-dir agentbom-report --html --mermaid --sarif --pretty
+aigenguard scan . --output-dir aigenguard-report --html --mermaid --sarif --pretty
 ```
 
 Diff-aware scans compare the current report with a baseline JSON report:
@@ -290,13 +290,13 @@ jobs:
           fail-on: none
           sarif-upload: false
           html: true
-          output-dir: agentbom-report
+          output-dir: aigenguard-report
 
       - name: Upload AigenGuard reports
         uses: actions/upload-artifact@v4
         with:
-          name: agentbom-report
-          path: agentbom-report/
+          name: aigenguard-report
+          path: aigenguard-report/
 ```
 
 Enable SARIF upload only when you want GitHub code scanning alerts:

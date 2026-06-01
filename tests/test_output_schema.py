@@ -47,7 +47,7 @@ def test_policy_output_matches_output_schema(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "agent.py").write_text("model = 'gpt-4o'\n", encoding="utf-8")
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("[models]\ndeny = [\"gpt-4o\"]\n", encoding="utf-8")
 
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))

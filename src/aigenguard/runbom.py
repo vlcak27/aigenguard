@@ -178,8 +178,8 @@ def run_runbom(config_path: Path | None = None) -> int:
         if existing_pythonpath:
             pythonpath_parts.append(existing_pythonpath)
         env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
-        env["AGENTBOM_RUNBOM_EVENTS"] = str(jsonl_path)
-        env["AGENTBOM_REPO_ROOT"] = str(repo_root)
+        env["AIGENGUARD_RUNBOM_EVENTS"] = str(jsonl_path)
+        env["AIGENGUARD_REPO_ROOT"] = str(repo_root)
         try:
             completed = subprocess.run(
                 argv,
@@ -889,8 +889,8 @@ import threading
 import time
 
 
-_EVENTS_PATH = os.environ.get("AGENTBOM_RUNBOM_EVENTS")
-_REPO_ROOT = os.environ.get("AGENTBOM_REPO_ROOT") or os.getcwd()
+_EVENTS_PATH = os.environ.get("AIGENGUARD_RUNBOM_EVENTS")
+_REPO_ROOT = os.environ.get("AIGENGUARD_REPO_ROOT") or os.getcwd()
 _HOME = os.path.expanduser("~")
 _ORIGINAL_OPEN = builtins.open
 _ORIGINAL_PATH_READ_TEXT = pathlib.Path.read_text

@@ -104,7 +104,7 @@ should block without prompting.
 The report is still written. Open the printed HTML path manually, for example:
 
 ```text
-agentbom-report/agentbom.html
+aigenguard-report/agentbom.html
 ```
 
 ## No HTML report was generated
