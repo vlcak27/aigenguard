@@ -3,12 +3,12 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-agentbom"
+name = "aigenguard"
 version = "0.8.0"
 description = "Local-first pre-commit policy guard for AI-agent repositories"
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{ name = "AgentBOM contributors" }]
+authors = [{ name = "AigenGuard contributors" }]
 license = { text = "MIT" }
 dependencies = []
 keywords = ["ai", "agents", "security", "bom", "sast", "mcp", "sarif"]
@@ -26,9 +26,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/vlcak27/agentbom"
-Issues = "https://github.com/vlcak27/agentbom/issues"
-Repository = "https://github.com/vlcak27/agentbom"
+Homepage = "https://github.com/vlcak27/aigenguard"
+Issues = "https://github.com/vlcak27/aigenguard/issues"
+Repository = "https://github.com/vlcak27/aigenguard"
 
 [project.optional-dependencies]
 dev = [
@@ -39,8 +39,8 @@ dev = [
 ]
 
 [project.scripts]
-aigenguard = "agentbom.cli:main"
-agentbom = "agentbom.cli:main"
+aigenguard = "aigenguard.cli:main"
+agentbom = "aigenguard.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

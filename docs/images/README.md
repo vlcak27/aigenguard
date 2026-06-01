@@ -5,7 +5,7 @@ repositories, tokens, private paths, customer data, and secret values.
 
 Recommended files:
 
-- `terminal-quickstart.png`: installation command, `agentbom scan . --pretty`,
+- `terminal-quickstart.png`: installation command, `aigenguard scan . --pretty`,
   and generated report paths.
 - `html-report-summary.png`: the top of `agentbom.html` with repository risk,
   providers, frameworks, and reachable capabilities.

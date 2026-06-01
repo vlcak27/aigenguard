@@ -1,4 +1,4 @@
-name: AgentBOM Security Scan
+name: AigenGuard Security Scan
 
 on:
   push:
@@ -10,15 +10,15 @@ permissions:
   contents: read
 
 jobs:
-  agentbom:
+  aigenguard:
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Run AgentBOM
-        id: agentbom
+      - name: Run AigenGuard
+        id: aigenguard
         uses: ./
         with:
           path: .
@@ -33,7 +33,7 @@ jobs:
           # fail-on: high
           # fail-on: critical
 
-      - name: Upload AgentBOM reports
+      - name: Upload AigenGuard reports
         uses: actions/upload-artifact@v4
         with:
           name: agentbom-report

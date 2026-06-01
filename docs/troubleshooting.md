@@ -1,22 +1,23 @@
 # Troubleshooting
 
-## agentbom: command not found
+## aigenguard: command not found
 
-Check that the environment where you installed AgentBOM is active:
+Check that the environment where you installed AigenGuard is active:
 
 ```bash
-agentbom --version
+aigenguard --version
 ```
 
 If the command is still missing, install it from the active environment:
 
 ```bash
-python -m pip install ai-agentbom
-agentbom --version
+python -m pip install aigenguard
+aigenguard --version
 ```
 
-If needed, run the `agentbom` executable from that environment, such as
-`.venv/bin/agentbom` on macOS/Linux or `.\.venv\Scripts\agentbom.exe` on Windows.
+If needed, run the `aigenguard` executable from that environment, such as
+`.venv/bin/aigenguard` on macOS/Linux or `.\.venv\Scripts\aigenguard.exe` on Windows.
+The `agentbom` executable remains available as a compatibility alias.
 
 ## macOS / Linux virtualenv activation
 
@@ -24,7 +25,7 @@ If needed, run the `agentbom` executable from that environment, such as
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
-pip install ai-agentbom
+pip install aigenguard
 ```
 
 ## Windows 11 / PowerShell activation
@@ -33,7 +34,7 @@ pip install ai-agentbom
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip
-pip install ai-agentbom
+pip install aigenguard
 ```
 
 If PowerShell blocks activation, you can choose to allow local user scripts:
@@ -46,27 +47,27 @@ Only change execution policy if that matches your workstation policy.
 
 ## Activate Says This Is Not a Git Repository
 
-`agentbom activate` must run inside a Git repository because the guard is
+`aigenguard activate` must run inside a Git repository because the guard is
 installed under `.git/hooks/pre-commit`.
 
 ```bash
 cd path/to/your-agent-repo
-agentbom activate
+aigenguard activate
 ```
 
 ## Existing Hook Prevents Activation
 
 Activation fails rather than changing an unrelated pre-commit hook implicitly.
-Append the AgentBOM managed block when you want both hooks:
+Append the AigenGuard managed block when you want both hooks:
 
 ```bash
-agentbom activate --append
+aigenguard activate --append
 ```
 
 or use the lower-level hook command:
 
 ```bash
-agentbom install-hook --append --policy agentbom.toml --mode confirm
+aigenguard install-hook --append --policy aigenguard.toml --mode confirm
 ```
 
 ## Status Says Hook Not Installed
@@ -74,24 +75,24 @@ agentbom install-hook --append --policy agentbom.toml --mode confirm
 Check the current repository:
 
 ```bash
-agentbom status
+aigenguard status
 ```
 
 If `Local guard: not installed`, run:
 
 ```bash
-agentbom activate
+aigenguard activate
 ```
 
 ## Local Guard Cannot Prompt
 
 `confirm` mode needs an interactive terminal. Git hooks may not have normal
-stdin, so AgentBOM reads confirmation from `/dev/tty` on POSIX systems.
+stdin, so AigenGuard reads confirmation from `/dev/tty` on POSIX systems.
 
 If no interactive terminal is available, confirm mode fails closed:
 
 ```text
-agentbom confirm mode requires an interactive terminal.
+aigenguard confirm mode requires an interactive terminal.
 Commit blocked. Use advisory mode, enforce mode, or bypass intentionally.
 ```
 
@@ -111,10 +112,10 @@ agentbom-report/agentbom.html
 Use `--html`:
 
 ```bash
-agentbom scan . --html
+aigenguard scan . --html
 ```
 
-You can also use `--open`; AgentBOM writes HTML first when browser opening needs
+You can also use `--open`; AigenGuard writes HTML first when browser opening needs
 an HTML report.
 
 ## Policy violations do not fail the scan
@@ -123,69 +124,72 @@ Policy mode is advisory by default. Use `--enforce-policy` when you are ready fo
 violations to fail the scan:
 
 ```bash
-agentbom scan . --policy agentbom.toml --enforce-policy
+aigenguard scan . --policy aigenguard.toml --enforce-policy
 ```
 
-## agentbom.toml already exists
+## aigenguard.toml already exists
 
-`agentbom init` will not overwrite an existing policy by default. Write to a new
+`aigenguard init` will not overwrite an existing policy by default. Write to a new
 path or choose to overwrite:
 
 ```bash
-agentbom init --output agentbom-starter.toml
-agentbom init --force
+aigenguard init --output aigenguard-starter.toml
+aigenguard init --force
 ```
 
-## Pre-commit hook cannot find agentbom
+## Pre-commit hook cannot find aigenguard
 
-The local hook calls `agentbom` from `PATH` by default. Install AgentBOM in the
+The local hook calls `aigenguard` from `PATH` by default. Install AigenGuard in the
 environment used by Git, or reinstall the hook with an explicit command:
 
 ```bash
-agentbom activate --agentbom-command .venv/bin/agentbom
+aigenguard activate --aigenguard-command .venv/bin/aigenguard
 ```
 
 The lower-level hook command accepts the same executable path:
 
 ```bash
-agentbom install-hook --policy agentbom.toml --agentbom-command .venv/bin/agentbom
+aigenguard install-hook --policy aigenguard.toml --aigenguard-command .venv/bin/aigenguard
 ```
 
-The hook remains local to the current repository under `.git/hooks/pre-commit`.
+The `--agentbom-command` option remains as an alias for compatibility. The hook
+remains local to the current repository under `.git/hooks/pre-commit`.
 
 ## Bypass local hook
 
 Bypass should be rare, but local hooks can be skipped when needed:
 
 ```bash
-AGENTBOM_SKIP_HOOK=1 git commit
+AIGENGUARD_SKIP_HOOK=1 git commit
 git commit --no-verify
 ```
 
+`AGENTBOM_SKIP_HOOK=1` remains accepted as a compatibility alias.
+
 CI enforcement is better for team-wide guarantees.
 
-Remove the AgentBOM managed hook block:
+Remove the AigenGuard managed hook block:
 
 ```bash
-agentbom deactivate
+aigenguard deactivate
 ```
 
 ## GitHub Action policy path not found
 
-Ensure `agentbom.toml` is committed and the action scans from the repository
+Ensure `aigenguard.toml` is committed and the action scans from the repository
 root. Configure the action with:
 
 ```yaml
-policy: agentbom.toml
+policy: aigenguard.toml
 ```
 
 ## Secret values are not shown
 
-AgentBOM records secret names and references only. Secret values are
+AigenGuard records secret names and references only. Secret values are
 intentionally not printed or embedded in reports.
 
 ## False positives / missed findings
 
 Static analysis is a review signal. Reachability is inferred from source and
 configuration, not runtime proof. Use policy review and the HTML Workbench to
-review findings and refine `agentbom.toml`.
+review findings and refine `aigenguard.toml`.

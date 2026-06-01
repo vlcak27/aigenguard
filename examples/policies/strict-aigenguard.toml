@@ -1,6 +1,6 @@
-# Stricter AgentBOM policy.
+# Stricter AigenGuard policy.
 # Test this without --enforce-policy first:
-# agentbom scan . --policy examples/policies/strict-agentbom.toml --pretty
+# aigenguard scan . --policy examples/policies/strict-aigenguard.toml --pretty
 
 [risk]
 warn_on = "high"

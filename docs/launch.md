@@ -11,7 +11,7 @@ Description:
 
 Website:
 
-> https://pypi.org/project/ai-agentbom/
+> https://pypi.org/project/aigenguard/
 
 ## GitHub Topics
 
@@ -50,37 +50,37 @@ private paths, customer data, tokens, or secret values.
 Install:
 
 ```bash
-pip install ai-agentbom
+pip install aigenguard
 ```
 
 Quick scan:
 
 ```bash
-agentbom scan . --pretty
+aigenguard scan . --pretty
 ```
 
 Generate reports:
 
 ```bash
-agentbom scan . --output-dir agentbom-report --html --mermaid --sarif --pretty
+aigenguard scan . --output-dir agentbom-report --html --mermaid --sarif --pretty
 ```
 
 MCP safe demo:
 
 ```bash
-agentbom scan examples/mcp-safe-agent --output-dir agentbom-report/mcp-safe --html --mermaid --sarif --pretty
+aigenguard scan examples/mcp-safe-agent --output-dir agentbom-report/mcp-safe --html --mermaid --sarif --pretty
 ```
 
 MCP risky demo:
 
 ```bash
-agentbom scan examples/mcp-risky-agent --output-dir agentbom-report/mcp-risky --html --mermaid --sarif --pretty
+aigenguard scan examples/mcp-risky-agent --output-dir agentbom-report/mcp-risky --html --mermaid --sarif --pretty
 ```
 
 MCP policy demo:
 
 ```bash
-agentbom scan examples/mcp-risky-agent --policy examples/policies/mcp-policy.yaml --output-dir agentbom-report/mcp-policy --html --mermaid --sarif --pretty
+aigenguard scan examples/mcp-risky-agent --policy examples/policies/mcp-policy.yaml --output-dir agentbom-report/mcp-policy --html --mermaid --sarif --pretty
 ```
 
 GitHub Action first-run mode:
@@ -97,9 +97,9 @@ with:
 ## Release Notes Template
 
 ````markdown
-# AgentBOM vX.Y.Z
+# AigenGuard vX.Y.Z
 
-AgentBOM is an offline static scanner for AI-agent components and reachable
+AigenGuard is an offline static scanner for AI-agent components and reachable
 capabilities.
 
 ## Highlights
@@ -129,7 +129,7 @@ capabilities.
 ## Upgrade
 
 ```bash
-pip install --upgrade ai-agentbom
+pip install --upgrade aigenguard
 ```
 ````
 
@@ -137,21 +137,21 @@ pip install --upgrade ai-agentbom
 
 X/Twitter:
 
-> AgentBOM is an open-source offline static scanner for AI-agent repositories.
+> AigenGuard is an open-source offline static scanner for AI-agent repositories.
 > It maps providers, models, frameworks, prompts, MCP servers, policy gaps, and
 > capabilities that appear reachable from an agent. Findings are review signals,
 > not exploit verification.
 
 Hacker News:
 
-> AgentBOM is a small open-source CLI that scans AI-agent repositories offline
+> AigenGuard is a small open-source CLI that scans AI-agent repositories offline
 > and writes JSON, Markdown, HTML, Mermaid, and SARIF reports. v0.8.0 adds
 > activation presets, an AI/API secret leak guard with redacted values, clearer
 > colored guard terminal output, and README/demo polish.
 
 Reddit:
 
-> I built AgentBOM, an open-source offline scanner for AI-agent repositories. It
+> I built AigenGuard, an open-source offline scanner for AI-agent repositories. It
 > reports providers, model identifiers, frameworks, prompts, MCP configuration,
 > reachable capabilities, and policy gaps without executing code or reading
 > secret values. v0.8.0 adds activation presets, an AI/API secret leak guard
@@ -160,7 +160,7 @@ Reddit:
 
 LinkedIn:
 
-> AgentBOM is an open-source offline static scanner for AI-agent repositories.
+> AigenGuard is an open-source offline static scanner for AI-agent repositories.
 > It reports providers, model identifiers, frameworks, prompts, MCP
 > configuration, reachable capabilities, and policy gaps. Outputs include JSON,
 > Markdown, HTML, Mermaid, SARIF, and a GitHub Action. Findings are review
@@ -168,7 +168,7 @@ LinkedIn:
 
 ## What To Show
 
-- A simple `pip install ai-agentbom` and `agentbom scan . --pretty` flow.
+- A simple `pip install aigenguard` and `aigenguard scan . --pretty` flow.
 - The HTML report summary.
 - MCP server findings with risk categories and source paths.
 - Env variable names only, with no secret values.
@@ -183,6 +183,6 @@ LinkedIn:
 - Do not claim deep language-specific SAST coverage.
 - Do not claim CycloneDX or SPDX replacement.
 - Do not claim secret discovery or secret value inspection.
-- Do not imply AgentBOM executes MCP servers or contacts networks.
+- Do not imply AigenGuard executes MCP servers or contacts networks.
 - Do not present deterministic pattern matching as complete vulnerability
   analysis.

@@ -1,16 +1,22 @@
-# AgentBOM v0.1 Specification
+# AigenGuard v0.1 Specification
 
-AgentBOM is an open-source CLI tool that creates a bill of materials for AI agents.
+AigenGuard is an open-source CLI tool that creates a bill of materials for AI agents.
+
+AgentBOM has been renamed to AigenGuard. The `agentbom` CLI remains a
+compatibility alias, and `agentbom.toml` remains a compatibility fallback. New
+projects should use `aigenguard` and `aigenguard.toml`.
 
 ## Command
 
-agentbom scan PATH
+aigenguard scan PATH
 
 ## Output
 
 The command creates:
 - agentbom.json
 - agentbom.md
+
+The report filenames remain unchanged for compatibility with existing users.
 
 ## Requirements
 
@@ -61,7 +67,7 @@ Risky capabilities:
 {
   "schema_version": "0.1.0",
   "repository": "examples/simple_agent",
-  "generated_by": "agentbom",
+  "generated_by": "aigenguard",
   "models": [],
   "frameworks": [],
   "mcp_servers": [],

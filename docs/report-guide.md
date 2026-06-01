@@ -8,6 +8,10 @@ It records static evidence, source paths, confidence, and rationale.
 
 AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
 
+Report filenames remain `agentbom.json`, `agentbom.md`, `agentbom.html`,
+`agentbom.mmd`, `agentbom.sarif`, and `agentbom.cdx.json` for compatibility
+with existing automation.
+
 ## Read order
 
 1. Repository risk: a compact severity and score with rationale.

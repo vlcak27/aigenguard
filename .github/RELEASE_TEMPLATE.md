@@ -1,4 +1,4 @@
-# AgentBOM vX.Y.Z
+# AigenGuard vX.Y.Z
 
 ## Highlights
 
@@ -25,7 +25,7 @@
 
 ## Security Notes
 
-- AgentBOM remains offline-first and does not execute scanned code.
+- AigenGuard remains offline-first and does not execute scanned code.
 - Secret findings record names only, never values.
 - Findings are review signals, not exploit claims.
 

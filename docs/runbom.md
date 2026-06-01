@@ -1,30 +1,30 @@
 # RunBOM
 
-RunBOM is AgentBOM's optional experimental runtime evidence mode. It runs a
+RunBOM is AigenGuard's optional experimental runtime evidence mode. It runs a
 configured or autodetected command and records best-effort Python runtime
 activity while the command runs.
 
 RunBOM is optional. It is not a sandbox, does not enforce policy yet, and is not
-part of the local pre-commit guard. `agentbom scan` and pre-commit remain
+part of the local pre-commit guard. `aigenguard scan` and pre-commit remain
 static-only.
 
 ## Quickstart
 
 ```bash
-agentbom activate
-agentbom run
+aigenguard activate
+aigenguard run
 ```
 
-`agentbom activate` installs the static local guard and, when possible, adds a
-`[runbom]` section to `agentbom.toml`. `agentbom run` executes the configured
+`aigenguard activate` installs the static local guard and, when possible, adds a
+`[runbom]` section to `aigenguard.toml`. `aigenguard run` executes the configured
 command, or an autodetected command, under experimental Python runtime
 instrumentation.
 
 To set a command directly:
 
 ```bash
-agentbom activate --command "python -m pytest"
-agentbom run
+aigenguard activate --command "python -m pytest"
+aigenguard run
 ```
 
 ## Command Autodetection
@@ -37,15 +37,16 @@ during detection. It prefers:
 - `python -m pytest` when pytest project signals are present
 - `pnpm test`, `bun test`, or `npm test` when a package test script is detected
 
-If `agentbom.toml` already has an enabled `[runbom]` command, that configured
-command is used.
+If `aigenguard.toml` already has an enabled `[runbom]` command, that configured
+command is used. Existing `agentbom.toml` files remain supported as a
+compatibility fallback.
 
 ## Terminal Summary
 
 RunBOM prints a human-readable developer summary after the command finishes:
 
 ```text
-AgentBOM RunBOM OK
+AigenGuard RunBOM OK
 
 Runtime summary:
   153 events observed
@@ -72,6 +73,9 @@ signals. High-risk runtime evidence does not fail the command by itself.
 ## Artifacts
 
 RunBOM writes artifacts under `.agentbom/`:
+
+The `.agentbom/` directory name remains unchanged for compatibility with
+existing automation.
 
 - `runbom-summary.json`: machine-readable summary with observed events, unique
   events, highest risk, risk counts, event type counts, and risky events
@@ -127,15 +131,15 @@ activate again:
 
 ```bash
 mkdir -p tests/agent_runtime
-agentbom activate
-agentbom run
+aigenguard activate
+aigenguard run
 ```
 
 Or configure a direct command:
 
 ```bash
-agentbom activate --command "python -m pytest"
-agentbom run
+aigenguard activate --command "python -m pytest"
+aigenguard run
 ```
 
 If RunBOM finds high-risk evidence, inspect the terminal Why/Fix guidance first,

@@ -3,9 +3,9 @@
 This static demo repository models a customer support agent that can summarize
 tickets, read customer context, and draft responses for human approval.
 
-AgentBOM scans this directory as text. Do not run the demo agent for the scan.
+AigenGuard scans this directory as text. Do not run the demo agent for the scan.
 
-AgentBOM should detect:
+AigenGuard should detect:
 
 - OpenAI provider and `gpt-4o`
 - LangChain framework usage
@@ -18,7 +18,7 @@ AgentBOM should detect:
 Run:
 
 ```bash
-agentbom scan examples/customer-support-agent \
+aigenguard scan examples/customer-support-agent \
   --output-dir agentbom-report/support \
   --html --mermaid --sarif --pretty
 ```

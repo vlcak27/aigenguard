@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
-  <title id="title">AgentBOM quickstart terminal demo</title>
+  <title id="title">AigenGuard quickstart terminal demo</title>
   <desc id="desc">Terminal-style screenshot showing install, scan, generated reports, and risk summary.</desc>
   <defs>
     <clipPath id="terminal-frame">
@@ -12,10 +12,10 @@
   <circle cx="92" cy="74" r="7" fill="#ef4444"/>
   <circle cx="116" cy="74" r="7" fill="#f59e0b"/>
   <circle cx="140" cy="74" r="7" fill="#22c55e"/>
-  <text x="560" y="80" text-anchor="middle" fill="#dbe2ea" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">AgentBOM quickstart</text>
+  <text x="560" y="80" text-anchor="middle" fill="#dbe2ea" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">AigenGuard quickstart</text>
   <g clip-path="url(#terminal-frame)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20">
-    <text x="96" y="142" fill="#8bd5ff">$ pip install ai-agentbom</text>
-    <text x="96" y="188" fill="#8bd5ff">$ agentbom scan examples/research-agent \</text>
+    <text x="96" y="142" fill="#8bd5ff">$ pip install aigenguard</text>
+    <text x="96" y="188" fill="#8bd5ff">$ aigenguard scan examples/research-agent \</text>
     <text x="120" y="224" fill="#8bd5ff">--output-dir agentbom-report \</text>
     <text x="120" y="260" fill="#8bd5ff">--html --mermaid --sarif --pretty</text>
     <text x="96" y="318" fill="#dbe2ea">Wrote agentbom-report/agentbom.json</text>

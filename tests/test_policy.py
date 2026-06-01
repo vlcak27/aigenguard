@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from agentbom.policy import PolicyError, load_toml_policy, parse_policy_yaml
-from agentbom.policy_onboarding import starter_policy_toml
-from agentbom.scanner import scan_path
+from aigenguard.policy import PolicyError, load_toml_policy, parse_policy_yaml
+from aigenguard.policy_onboarding import starter_policy_toml
+from aigenguard.scanner import scan_path
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -342,7 +342,7 @@ def test_strict_example_blocks_secret_leaks_like_builtin_strict_preset(tmp_path)
     builtin_path = tmp_path / "strict.toml"
     builtin_path.write_text(starter_policy_toml(preset="strict"), encoding="utf-8")
 
-    example = load_toml_policy(ROOT / "examples" / "policies" / "strict-agentbom.toml")
+    example = load_toml_policy(ROOT / "examples" / "policies" / "strict-aigenguard.toml")
     builtin = load_toml_policy(builtin_path)
 
     assert example["secrets"] == builtin["secrets"]

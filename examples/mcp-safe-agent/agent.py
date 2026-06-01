@@ -1,6 +1,6 @@
 """Static MCP safe-agent demo.
 
-This file is intentionally not executed by AgentBOM.
+This file is intentionally not executed by AigenGuard.
 """
 
 from __future__ import annotations

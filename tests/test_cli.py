@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import subprocess
 import sys
@@ -8,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from agentbom.cli import main
-from agentbom.github_summary import render_github_step_summary, write_github_step_summary
-from agentbom.html_report import _table, render_html
-from agentbom.scanner import MAX_FILE_SIZE, scan_path
+from aigenguard.cli import main
+from aigenguard.github_summary import render_github_step_summary, write_github_step_summary
+from aigenguard.html_report import _table, render_html
+from aigenguard.scanner import MAX_FILE_SIZE, scan_path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -71,8 +72,37 @@ def test_cli_top_level_help_mentions_init(capsys):
 def test_project_script_uses_modern_cli_entrypoint():
     pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert pyproject["project"]["scripts"]["aigenguard"] == "agentbom.cli:main"
-    assert pyproject["project"]["scripts"]["agentbom"] == "agentbom.cli:main"
+    assert pyproject["project"]["name"] == "aigenguard"
+    assert (
+        pyproject["project"]["description"]
+        == "Local-first pre-commit policy guard for AI-agent repositories"
+    )
+    assert pyproject["project"]["scripts"]["aigenguard"] == "aigenguard.cli:main"
+    assert pyproject["project"]["scripts"]["agentbom"] == "aigenguard.cli:main"
+
+
+def test_agentbom_imports_remain_compatibility_aliases():
+    modern_package = importlib.import_module("aigenguard")
+    legacy_package = importlib.import_module("agentbom")
+    modern_cli = importlib.import_module("aigenguard.cli")
+    legacy_cli = importlib.import_module("agentbom.cli")
+    modern_scanner = importlib.import_module("aigenguard.scanner")
+    legacy_scanner = importlib.import_module("agentbom.scanner")
+
+    assert legacy_package.__version__ == modern_package.__version__
+    assert legacy_cli is modern_cli
+    assert legacy_scanner is modern_scanner
+
+
+def test_agentbom_module_help_remains_available():
+    result = subprocess.run(
+        [sys.executable, "-m", "agentbom.cli", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Local-first pre-commit policy guard" in result.stdout
 
 
 @pytest.mark.parametrize("command", ["aigenguard", "agentbom"])
@@ -83,7 +113,7 @@ def test_installed_console_script_help_matches_module_help(command):
     if not script.exists():
         pytest.skip(f"{command} console script is not installed for this interpreter")
     module = subprocess.run(
-        [sys.executable, "-m", "agentbom.cli", "--help"],
+        [sys.executable, "-m", "aigenguard.cli", "--help"],
         check=True,
         capture_output=True,
         text=True,
@@ -331,7 +361,7 @@ def test_cli_scan_open_success_avoids_redundant_open_instruction(
     project = tmp_path / "agent"
     project.mkdir()
     output_dir = tmp_path / "out"
-    monkeypatch.setattr("agentbom.cli.webbrowser.open", lambda url: True)
+    monkeypatch.setattr("aigenguard.cli.webbrowser.open", lambda url: True)
 
     result = main(["scan", str(project), "--output-dir", str(output_dir), "--html", "--open"])
 
@@ -501,7 +531,7 @@ def test_cli_scan_html_open_calls_webbrowser(tmp_path, monkeypatch, capsys):
     project.mkdir()
     output_dir = tmp_path / "out"
     opened = []
-    monkeypatch.setattr("agentbom.cli.webbrowser.open", lambda url: opened.append(url) or True)
+    monkeypatch.setattr("aigenguard.cli.webbrowser.open", lambda url: opened.append(url) or True)
 
     result = main(["scan", str(project), "--output-dir", str(output_dir), "--html", "--open"])
 
@@ -516,7 +546,7 @@ def test_cli_scan_open_without_html_generates_html(tmp_path, monkeypatch):
     project.mkdir()
     output_dir = tmp_path / "out"
     opened = []
-    monkeypatch.setattr("agentbom.cli.webbrowser.open", lambda url: opened.append(url) or True)
+    monkeypatch.setattr("aigenguard.cli.webbrowser.open", lambda url: opened.append(url) or True)
 
     result = main(["scan", str(project), "--output-dir", str(output_dir), "--open"])
 
@@ -533,7 +563,7 @@ def test_cli_scan_open_failure_does_not_fail_scan(tmp_path, monkeypatch, capsys)
     def fail_open(url):
         raise RuntimeError(f"cannot open {url}")
 
-    monkeypatch.setattr("agentbom.cli.webbrowser.open", fail_open)
+    monkeypatch.setattr("aigenguard.cli.webbrowser.open", fail_open)
 
     result = main(["scan", str(project), "--output-dir", str(output_dir), "--html", "--open"])
 
@@ -552,7 +582,7 @@ def test_cli_scan_without_open_does_not_call_webbrowser(tmp_path, monkeypatch):
     def unexpected_open(url):
         raise AssertionError(f"unexpected browser open: {url}")
 
-    monkeypatch.setattr("agentbom.cli.webbrowser.open", unexpected_open)
+    monkeypatch.setattr("aigenguard.cli.webbrowser.open", unexpected_open)
 
     result = main(["scan", str(project), "--output-dir", str(output_dir), "--html"])
 
@@ -604,7 +634,7 @@ def test_cli_writes_github_step_summary_when_env_is_set(tmp_path, monkeypatch):
 
     assert result == 0
     summary = summary_path.read_text(encoding="utf-8")
-    assert "# AgentBOM scan summary" in summary
+    assert "# AigenGuard scan summary" in summary
     assert "Risk:" in summary
     assert "- Providers: openai" in summary
     assert "- Models: gpt-4o" in summary
@@ -722,28 +752,28 @@ def test_cli_generates_html_when_requested(tmp_path):
     assert "<style>" in html
     assert "<script src" not in html.lower()
     assert "<link" not in html.lower()
-    assert "AgentBOM Security Report" in html
+    assert "AigenGuard Security Report" in html
     assert "Overview" in html
     assert "Review workflow" in html
     assert "Review Priorities" in html
     assert "How to read this report" in html
-    assert "Use Policy Workbench to generate a starter agentbom.toml." in html
+    assert "Use Policy Workbench to generate a starter aigenguard.toml." in html
     assert "Providers &amp; Models" in html
     assert "MCP Security Analysis" in html
     assert "Reachable Capabilities" in html
     assert "Policy Findings" in html
     assert "Prompt Files" in html
     assert "Policy Workbench" in html
-    assert "Generate a starter agentbom.toml from current findings" in html
+    assert "Generate a starter aigenguard.toml from current findings" in html
     assert "Run the policy in advisory mode first" in html
     assert "Copy policy" in html
-    assert "Download agentbom.toml" in html
-    assert "agentbom scan . --policy agentbom.toml --html --open" in html
-    assert "agentbom scan . --policy agentbom.toml --pretty" in html
+    assert "Download aigenguard.toml" in html
+    assert "aigenguard scan . --policy aigenguard.toml --html --open" in html
+    assert "aigenguard scan . --policy aigenguard.toml --pretty" in html
     assert "Local guard" in html
-    assert "agentbom install-hook --policy agentbom.toml --mode advisory" in html
-    assert "agentbom install-hook --policy agentbom.toml --mode confirm" in html
-    assert "agentbom install-hook --policy agentbom.toml --mode enforce" in html
+    assert "aigenguard install-hook --policy aigenguard.toml --mode advisory" in html
+    assert "aigenguard install-hook --policy aigenguard.toml --mode confirm" in html
+    assert "aigenguard install-hook --policy aigenguard.toml --mode enforce" in html
     assert "Capability Graph" in html
     assert "score-ring" in html
     assert "severity-" in html
@@ -958,7 +988,7 @@ def test_cli_generates_sarif_when_requested(tmp_path):
     }
 
     assert sarif["version"] == "2.1.0"
-    assert run["tool"]["driver"]["name"] == "AgentBOM"
+    assert run["tool"]["driver"]["name"] == "AigenGuard"
     assert run["tool"]["driver"]["semanticVersion"] == "0.8.0"
 
     assert "risk.high" in rule_ids
@@ -1348,7 +1378,7 @@ def test_policy_reports_are_integrated_when_policy_is_used(tmp_path, monkeypatch
     assert "Policy Review" in html
     assert "Review workflow" in html
     assert "Policy review failed." in html
-    assert "agentbom scan . --policy agentbom.toml --enforce-policy" in html
+    assert "aigenguard scan . --policy aigenguard.toml --enforce-policy" in html
     assert "Denied reachable capability detected: code_execution." in html
     assert "Policy review: failed" in summary
     assert "Mode: advisory" in summary
@@ -1524,9 +1554,9 @@ def test_policy_builder_includes_detected_values_and_no_external_scripts():
     assert "custom-browser" in html
     assert "OPENAI_API_KEY" in html
     assert "prompt file detected without security policy" in html
-    assert "agentbom install-hook --policy agentbom.toml --mode advisory" in html
-    assert "agentbom install-hook --policy agentbom.toml --mode confirm" in html
-    assert "agentbom install-hook --policy agentbom.toml --mode enforce" in html
+    assert "aigenguard install-hook --policy aigenguard.toml --mode advisory" in html
+    assert "aigenguard install-hook --policy aigenguard.toml --mode confirm" in html
+    assert "aigenguard install-hook --policy aigenguard.toml --mode enforce" in html
     assert 'data-kind="provider" data-action="warn"' not in html
     assert 'data-kind="model" data-action="warn"' not in html
     assert 'data-kind="framework" data-action="warn"' not in html

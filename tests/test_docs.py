@@ -12,11 +12,11 @@ def test_troubleshooting_doc_exists_and_covers_common_issues():
     assert path.exists()
     text = path.read_text(encoding="utf-8")
 
-    assert "agentbom: command not found" in text
+    assert "aigenguard: command not found" in text
     assert "Windows 11 / PowerShell activation" in text
     assert "--open does not open the browser" in text
     assert "--enforce-policy" in text
-    assert "Pre-commit hook cannot find agentbom" in text
+    assert "Pre-commit hook cannot find aigenguard" in text
     assert "Bypass local hook" in text
     assert "Secret values are not shown" in text
 
@@ -48,6 +48,15 @@ def test_github_action_installs_checked_out_action_code():
 
     assert 'python -m pip install "$GITHUB_ACTION_PATH"' in text
     assert "pip install ai-agentbom" not in text
+    assert "aigenguard scan" in text
+
+
+def test_github_action_docs_prefer_new_repo_and_explain_old_action_compatibility():
+    text = (ROOT / "docs" / "github-action.md").read_text(encoding="utf-8")
+
+    assert "uses: vlcak27/aigenguard@v0.8.0" in text
+    assert "`vlcak27/agentbom@...`" in text
+    assert "do not rely on repository redirects alone" in text
 
 
 def test_readme_includes_recommended_workflow_and_local_guard_example():
@@ -59,7 +68,7 @@ def test_readme_includes_recommended_workflow_and_local_guard_example():
     assert "creates or reuses `aigenguard.toml`" in readme
     assert "repo-local" in readme
     assert "default mode is `confirm`" in readme
-    assert "AgentBOM OK" in readme
+    assert "AigenGuard OK" in readme
     assert "aigenguard scan . --policy aigenguard.toml --html --open" in readme
     assert "advisory" in readme
     assert "confirm" in readme
@@ -80,19 +89,21 @@ def test_policy_docs_explain_local_guard_modes_and_bypass():
     assert "aigenguard guard . --policy aigenguard.toml --mode advisory" in policy_docs
     assert "aigenguard guard . --policy aigenguard.toml --mode confirm" in policy_docs
     assert "aigenguard guard . --policy aigenguard.toml --mode enforce" in policy_docs
-    assert "AgentBOM OK" in policy_docs
-    assert "AGENTBOM_SKIP_HOOK=1 git commit" in policy_docs
+    assert "AigenGuard OK" in policy_docs
+    assert "AIGENGUARD_SKIP_HOOK=1 git commit" in policy_docs
+    assert "`AGENTBOM_SKIP_HOOK=1` remains accepted as a compatibility alias." in policy_docs
     assert "git commit --no-verify" in policy_docs
 
 
-def test_troubleshooting_docs_explain_confirm_and_agentbom_command():
+def test_troubleshooting_docs_explain_confirm_and_aigenguard_command():
     troubleshooting = (ROOT / "docs" / "troubleshooting.md").read_text(encoding="utf-8")
 
     assert "Activate Says This Is Not a Git Repository" in troubleshooting
     assert "Existing Hook Prevents Activation" in troubleshooting
     assert "Status Says Hook Not Installed" in troubleshooting
-    assert "agentbom activate --append" in troubleshooting
-    assert "agentbom status" in troubleshooting
+    assert "aigenguard activate --append" in troubleshooting
+    assert "aigenguard status" in troubleshooting
     assert "confirm mode requires an interactive terminal" in troubleshooting
-    assert "--agentbom-command .venv/bin/agentbom" in troubleshooting
-    assert "agentbom deactivate" in troubleshooting
+    assert "--aigenguard-command .venv/bin/aigenguard" in troubleshooting
+    assert "`--agentbom-command` option remains as an alias" in troubleshooting
+    assert "aigenguard deactivate" in troubleshooting

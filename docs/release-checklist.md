@@ -1,6 +1,6 @@
 # Release Checklist
 
-Use this checklist for a normal AgentBOM release.
+Use this checklist for a normal AigenGuard release.
 
 1. Create a release-prep branch.
 2. Bump the package version.
@@ -20,11 +20,11 @@ Use this checklist for a normal AgentBOM release.
 9. Run a clean install smoke test:
 
    ```bash
-   python -m pip install ai-agentbom==X.Y.Z
-   agentbom --version
-   agentbom activate
-   agentbom guard
+   python -m pip install aigenguard==X.Y.Z
+   aigenguard --version
+   aigenguard activate
+   aigenguard guard
    ```
 
-If `agentbom --version` shows an old version after install, run `hash -r` or
+If `aigenguard --version` shows an old version after install, run `hash -r` or
 `rehash` and retry.

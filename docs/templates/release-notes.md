@@ -1,4 +1,4 @@
-# AgentBOM vX.Y.Z
+# AigenGuard vX.Y.Z
 
 ## Highlights
 
@@ -7,9 +7,9 @@
 ## Adoption Notes
 
 - Installation:
-  `pip install ai-agentbom`
+  `pip install aigenguard`
 - Quick demo:
-  `agentbom scan examples/research-agent --output-dir agentbom-report --html --mermaid --sarif --pretty`
+  `aigenguard scan examples/research-agent --output-dir agentbom-report --html --mermaid --sarif --pretty`
 
 ## Output Changes
 

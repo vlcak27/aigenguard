@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="560" viewBox="0 0 1120 560" role="img" aria-labelledby="title desc">
-  <title id="title">AgentBOM architecture flow</title>
+  <title id="title">AigenGuard architecture flow</title>
   <desc id="desc">Diagram showing file discovery, detectors, reachability inference, scoring, and report outputs.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -7,7 +7,7 @@
     </marker>
   </defs>
   <rect width="1120" height="560" fill="#f6f7f9"/>
-  <text x="560" y="62" text-anchor="middle" fill="#17202a" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800">AgentBOM Static Analysis Pipeline</text>
+  <text x="560" y="62" text-anchor="middle" fill="#17202a" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800">AigenGuard Static Analysis Pipeline</text>
   <g font-family="Inter, Arial, sans-serif" font-size="16">
     <rect x="66" y="142" width="178" height="98" rx="8" fill="#ffffff" stroke="#d9e0e8"/>
     <text x="155" y="180" text-anchor="middle" fill="#17202a" font-size="18" font-weight="700">File Walk</text>

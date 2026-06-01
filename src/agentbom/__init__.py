@@ -1,4 +1,5 @@
-"""AgentBOM package."""
+"""Compatibility package for the former AgentBOM import path."""
 
-__version__ = "0.8.0"
-SCHEMA_VERSION = "0.1.0"
+from aigenguard import SCHEMA_VERSION, __version__
+
+__all__ = ["SCHEMA_VERSION", "__version__"]

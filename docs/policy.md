@@ -10,7 +10,7 @@ import scanned modules, run MCP servers, call networks, add telemetry, or print
 secret values. Likely AI/API credential leak findings are reported with
 redacted metadata only.
 
-## Migration from AgentBOM
+## Migration from AigenGuard
 
 AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
 
@@ -75,7 +75,7 @@ aigenguard deactivate
 Bypass a local hook only when intentional:
 
 ```bash
-AGENTBOM_SKIP_HOOK=1 git commit
+AIGENGUARD_SKIP_HOOK=1 git commit
 git commit --no-verify
 ```
 
@@ -170,15 +170,17 @@ aigenguard guard . --policy aigenguard.toml --mode enforce
 
 `aigenguard guard` runs the scan with temporary report output outside the
 repository and prints concise commit-time status. Passing policy prints
-`AgentBOM OK` in green when stdout is a TTY and `NO_COLOR` is not set; otherwise
+`AigenGuard OK` in green when stdout is a TTY and `NO_COLOR` is not set; otherwise
 it prints plain text.
 
 Bypass a local hook intentionally with either command:
 
 ```bash
-AGENTBOM_SKIP_HOOK=1 git commit
+AIGENGUARD_SKIP_HOOK=1 git commit
 git commit --no-verify
 ```
+
+`AGENTBOM_SKIP_HOOK=1` remains accepted as a compatibility alias.
 
 Remove the repo-local hook block with:
 
@@ -245,8 +247,8 @@ Severity thresholds accept `low`, `medium`, `high`, and `critical`.
 Use advisory mode first:
 
 ```yaml
-- name: Run AgentBOM
-  uses: vlcak27/agentbom@v0.8.0
+- name: Run AigenGuard
+  uses: vlcak27/aigenguard@v0.8.0
   with:
     path: .
     fail-on: none
@@ -259,8 +261,8 @@ Use advisory mode first:
 Then opt into policy enforcement:
 
 ```yaml
-- name: Run AgentBOM
-  uses: vlcak27/agentbom@v0.8.0
+- name: Run AigenGuard
+  uses: vlcak27/aigenguard@v0.8.0
   with:
     path: .
     fail-on: none

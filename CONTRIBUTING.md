@@ -1,7 +1,11 @@
-# Contributing to AgentBOM
+# Contributing to AigenGuard
 
-AgentBOM is intentionally small, deterministic, and offline-first. Contributions
+AigenGuard is intentionally small, deterministic, and offline-first. Contributions
 should preserve that shape.
+
+AgentBOM has been renamed to AigenGuard. Keep the `agentbom` CLI alias and
+`agentbom.toml` config fallback working while new code and docs use
+`aigenguard` and `aigenguard.toml`.
 
 ## Development Setup
 
