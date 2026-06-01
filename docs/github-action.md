@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run AigenGuard
-        uses: vlcak27/aigenguard@v0.8.0
+        uses: vlcak27/aigenguard@v0.8.1
         with:
           path: .
           # Informational mode:
@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run AigenGuard
-        uses: vlcak27/aigenguard@v0.8.0
+        uses: vlcak27/aigenguard@v0.8.1
         with:
           path: .
           fail-on: none
@@ -124,7 +124,7 @@ Advisory workflow:
 
 ```yaml
 - name: Run AigenGuard
-  uses: vlcak27/aigenguard@v0.8.0
+  uses: vlcak27/aigenguard@v0.8.1
   with:
     path: .
     fail-on: none
@@ -138,7 +138,7 @@ Enforced policy workflow:
 
 ```yaml
 - name: Run AigenGuard
-  uses: vlcak27/aigenguard@v0.8.0
+  uses: vlcak27/aigenguard@v0.8.1
   with:
     path: .
     fail-on: none
