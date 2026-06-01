@@ -1,4 +1,4 @@
-# Advisory AgentBOM policy for first reviews.
+# Advisory AigenGuard policy for first reviews.
 # Run without --enforce-policy until the generated report matches expectations.
 
 [risk]

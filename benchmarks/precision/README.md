@@ -1,9 +1,9 @@
 # Static Precision Corpus
 
 The precision corpus is a small set of safe and risky fixture repositories used
-to regression-test AgentBOM's static detections.
+to regression-test AigenGuard's static detections.
 
-It exists to show that AgentBOM can distinguish harmless AI-agent repository
+It exists to show that AigenGuard can distinguish harmless AI-agent repository
 patterns from concrete risky behavior, and to prevent false-positive and
 false-negative regressions.
 

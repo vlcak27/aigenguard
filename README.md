@@ -4,10 +4,10 @@ Previously AgentBOM.
 
 Local-first pre-commit policy guard for AI-agent repositories.
 
-![CI](https://github.com/vlcak27/agentbom/actions/workflows/ci.yml/badge.svg)
-[![Precision Corpus](https://github.com/vlcak27/agentbom/actions/workflows/precision-corpus.yml/badge.svg)](https://github.com/vlcak27/agentbom/actions/workflows/precision-corpus.yml)
-![PyPI](https://img.shields.io/pypi/v/ai-agentbom)
-![Python](https://img.shields.io/pypi/pyversions/ai-agentbom)
+![CI](https://github.com/vlcak27/aigenguard/actions/workflows/ci.yml/badge.svg)
+[![Precision Corpus](https://github.com/vlcak27/aigenguard/actions/workflows/precision-corpus.yml/badge.svg)](https://github.com/vlcak27/aigenguard/actions/workflows/precision-corpus.yml)
+![PyPI](https://img.shields.io/pypi/v/aigenguard)
+![Python](https://img.shields.io/pypi/pyversions/aigenguard)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What AigenGuard Is
@@ -29,7 +29,7 @@ AigenGuard gives you a local review signal before risky changes enter git.
 ## Quickstart
 
 ```bash
-pip install ai-agentbom
+pip install aigenguard
 cd my-agent-repo
 aigenguard activate
 git commit
@@ -70,14 +70,14 @@ for machines and CI; terminal output is the developer summary.
 Passing commit:
 
 ```text
-AgentBOM OK
+AigenGuard OK
 No policy violations found.
 ```
 
 Blocked commit:
 
 ```text
-AgentBOM blocked this commit
+AigenGuard blocked this commit
 
 2 blocking finding(s)
 Highest severity: critical
@@ -99,7 +99,7 @@ code/config appears capable, not that it executed.
 `aigenguard activate` creates or reuses `aigenguard.toml` and installs a
 repo-local pre-commit guard. Existing `agentbom.toml` files are reused as a
 compatibility fallback. The default mode is `confirm`: passing commits print
-`AgentBOM OK`, and the guard asks before committing when policy violations are
+`AigenGuard OK`, and the guard asks before committing when policy violations are
 found. Activation only affects this local clone and does not overwrite an
 existing policy unless `--force` is passed.
 
@@ -186,7 +186,7 @@ RunBOM prints a human-readable terminal summary and writes machine-readable
 artifacts:
 
 ```text
-AgentBOM RunBOM OK
+AigenGuard RunBOM OK
 
 Runtime summary:
   153 events observed
@@ -239,7 +239,7 @@ mitigation signals where static evidence is available.
 
 ## Reports
 
-![AgentBOM HTML report preview](docs/assets/html-report-preview.svg)
+![AigenGuard HTML report preview](docs/assets/html-report-preview.svg)
 
 Generate review artifacts:
 
@@ -258,12 +258,16 @@ aigenguard scan . --baseline agentbom-baseline.json --fail-on-new high --sarif -
 See the [report guide](docs/report-guide.md) for field definitions and reviewer
 workflow.
 
+Report filenames remain `agentbom.json`, `agentbom.md`, `agentbom.html`,
+`agentbom.mmd`, `agentbom.sarif`, and `agentbom.cdx.json` for compatibility
+with existing automation. RunBOM artifacts also remain under `.agentbom/`.
+
 ## GitHub Action
 
 Use the action in pull requests to publish reports and a workflow job summary.
 
 ```yaml
-name: AgentBOM
+name: AigenGuard
 
 on:
   pull_request:
@@ -279,8 +283,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run AgentBOM
-        uses: vlcak27/agentbom@v0.8.0
+      - name: Run AigenGuard
+        uses: vlcak27/aigenguard@v0.8.0
         with:
           path: .
           fail-on: none
@@ -288,7 +292,7 @@ jobs:
           html: true
           output-dir: agentbom-report
 
-      - name: Upload AgentBOM reports
+      - name: Upload AigenGuard reports
         uses: actions/upload-artifact@v4
         with:
           name: agentbom-report
@@ -304,6 +308,10 @@ permissions:
 ```
 
 More details: [GitHub Action docs](docs/github-action.md).
+
+New workflows should use `vlcak27/aigenguard@...`. Existing workflows that use
+`vlcak27/agentbom@...` need the old action repository and tag to remain
+available; do not rely on repository redirects alone for action compatibility.
 
 ## Security Model
 

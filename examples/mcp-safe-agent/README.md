@@ -4,10 +4,10 @@ This static demo contains a controlled MCP setup. The agent has a prompt, a
 LangChain model call, a local memory MCP server, and policy text that requires
 human approval before tool output is used.
 
-AgentBOM scans this directory as text. Do not run the demo agent or install its
+AigenGuard scans this directory as text. Do not run the demo agent or install its
 requirements for the scan.
 
-Expected AgentBOM result:
+Expected AigenGuard result:
 
 - OpenAI provider and `gpt-4o`
 - LangChain framework
@@ -18,7 +18,7 @@ Expected AgentBOM result:
 Run:
 
 ```bash
-agentbom scan examples/mcp-safe-agent \
+aigenguard scan examples/mcp-safe-agent \
   --output-dir agentbom-report/mcp-safe \
   --html --mermaid --sarif --pretty
 ```
@@ -33,4 +33,4 @@ Secret handling:
 
 - The code references `OPENAI_API_KEY` by env variable name only.
 - No secret value is included in this example.
-- AgentBOM reports credential names for review and does not store values.
+- AigenGuard reports credential names for review and does not store values.

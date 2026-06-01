@@ -2,7 +2,11 @@
 
 ## Project
 
-AgentBOM is a minimal open-source CLI that generates a bill of materials for AI agents.
+AigenGuard is a minimal open-source CLI that generates a bill of materials for AI agents.
+
+AgentBOM has been renamed to AigenGuard. Keep the `agentbom` CLI compatibility
+alias and `agentbom.toml` compatibility fallback. New projects should use
+`aigenguard` and `aigenguard.toml`.
 
 ## Rules for coding agents
 
@@ -32,4 +36,4 @@ pytest
 
 Run:
 
-agentbom scan examples/simple_agent --pretty
+aigenguard scan examples/simple_agent --pretty

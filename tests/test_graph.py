@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agentbom.graph import (
+from aigenguard.graph import (
     EdgeType,
     NodeType,
     build_capability_graph,

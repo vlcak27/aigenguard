@@ -1,7 +1,11 @@
 # Security Policy
 
-AgentBOM is a static scanner for reviewing AI agent repositories. It is designed
+AigenGuard is a static scanner for reviewing AI agent repositories. It is designed
 to run safely against untrusted source trees without executing project code.
+
+AgentBOM has been renamed to AigenGuard. The `agentbom` CLI remains a
+compatibility alias, and `agentbom.toml` remains a compatibility fallback. New
+projects should use `aigenguard` and `aigenguard.toml`.
 
 ## Supported Versions
 
@@ -25,7 +29,7 @@ payloads that execute code.
 
 Useful reports include:
 
-- AgentBOM version
+- AigenGuard version
 - operating system and Python version
 - exact command used
 - minimal non-sensitive reproduction files
@@ -34,16 +38,16 @@ Useful reports include:
 
 ## Security Boundaries
 
-For the 0.8 series, AgentBOM is static analysis only:
+For the 0.8 series, AigenGuard is static analysis only:
 
-- AgentBOM does not execute scanned code.
-- AgentBOM does not import scanned modules.
-- AgentBOM does not execute MCP servers.
-- AgentBOM does not contact networks during scanning.
-- AgentBOM avoids following symlink loops.
-- AgentBOM skips binary-looking and oversized files.
-- AgentBOM records secret reference names.
-- AgentBOM may detect likely AI/API credential values.
+- AigenGuard does not execute scanned code.
+- AigenGuard does not import scanned modules.
+- AigenGuard does not execute MCP servers.
+- AigenGuard does not contact networks during scanning.
+- AigenGuard avoids following symlink loops.
+- AigenGuard skips binary-looking and oversized files.
+- AigenGuard records secret reference names.
+- AigenGuard may detect likely AI/API credential values.
 - Secret values must never be printed, stored, serialized, or included in reports.
 - Secret leak findings use redacted metadata only.
 

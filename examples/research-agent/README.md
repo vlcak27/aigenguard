@@ -3,9 +3,9 @@
 This static demo repository models an intentionally risky research agent. It has
 reachable capabilities and missing controls.
 
-AgentBOM scans this directory as text. Do not run the demo agent for the scan.
+AigenGuard scans this directory as text. Do not run the demo agent for the scan.
 
-AgentBOM should detect:
+AigenGuard should detect:
 
 - Anthropic provider and `claude-3-sonnet`
 - CrewAI framework usage
@@ -16,7 +16,7 @@ AgentBOM should detect:
 Run:
 
 ```bash
-agentbom scan examples/research-agent \
+aigenguard scan examples/research-agent \
   --output-dir agentbom-report/research \
   --html --mermaid --sarif --pretty
 ```

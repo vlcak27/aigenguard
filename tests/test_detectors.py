@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from agentbom.detectors import (
+from aigenguard.detectors import (
     DetectionContext,
     DetectionResult,
     detect_in_file,

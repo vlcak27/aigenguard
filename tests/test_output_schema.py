@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agentbom.scanner import scan_path
+from aigenguard.scanner import scan_path
 
 
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "docs" / "output-schema.json"

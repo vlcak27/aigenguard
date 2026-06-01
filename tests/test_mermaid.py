@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from agentbom.cli import main
-from agentbom.mermaid import render_mermaid
+from aigenguard.cli import main
+from aigenguard.mermaid import render_mermaid
 
 
 def test_cli_generates_mermaid_when_requested(tmp_path):

@@ -5,10 +5,10 @@ has a framework and prompt context, plus MCP servers that appear to expose
 filesystem, shell/process, browser/network, database, cloud, and env-backed
 access. The env entries are variable names only.
 
-AgentBOM scans this directory as text. Do not run the demo agent, install its
+AigenGuard scans this directory as text. Do not run the demo agent, install its
 requirements, or execute the configured MCP server commands for the scan.
 
-Expected AgentBOM result:
+Expected AigenGuard result:
 
 - OpenAI provider and `gpt-4o`
 - LangGraph framework
@@ -20,7 +20,7 @@ Expected AgentBOM result:
 Run:
 
 ```bash
-agentbom scan examples/mcp-risky-agent \
+aigenguard scan examples/mcp-risky-agent \
   --output-dir agentbom-report/mcp-risky \
   --html --mermaid --sarif --pretty
 ```
@@ -34,7 +34,7 @@ open agentbom-report/mcp-risky/agentbom.html
 Policy example:
 
 ```bash
-agentbom scan examples/mcp-risky-agent \
+aigenguard scan examples/mcp-risky-agent \
   --policy examples/policies/mcp-policy.yaml \
   --output-dir agentbom-report/mcp-policy \
   --html --mermaid --sarif --pretty
@@ -46,4 +46,4 @@ Secret handling:
 - `mcp.json` references names such as `BRAVE_SEARCH_API_KEY`,
   `AWS_PROFILE`, and `DATABASE_URL`.
 - No secret value is included in this example.
-- AgentBOM reports credential names for review and does not store values.
+- AigenGuard reports credential names for review and does not store values.

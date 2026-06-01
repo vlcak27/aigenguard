@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agentbom.diff import diff_reports, has_new_findings_at_or_above
+from aigenguard.diff import diff_reports, has_new_findings_at_or_above
 
 
 def test_diff_reports_introduced_resolved_and_unchanged_findings():

@@ -2,22 +2,22 @@
 
 Model Context Protocol servers can connect an agent runtime to tools outside the
 model: local files, shell commands, browsers, databases, cloud APIs, or services
-that need credentials. AgentBOM treats MCP configuration as part of the agent
+that need credentials. AigenGuard treats MCP configuration as part of the agent
 attack surface so reviewers can see which tools are configured and whether they
 appear reachable from agent code or prompt context.
 
 Findings are review signals, not exploit verification.
 
-## What AgentBOM Detects
+## What AigenGuard Detects
 
-AgentBOM detects common JSON MCP configuration files:
+AigenGuard detects common JSON MCP configuration files:
 
 - `mcp.json`
 - `.mcp.json`
 - `claude_desktop_config.json`
 - nested Cursor or Claude MCP config paths such as `.cursor/mcp.json`
 
-For parsed MCP servers, AgentBOM records:
+For parsed MCP servers, AigenGuard records:
 
 - server name
 - source file and confidence
@@ -31,19 +31,19 @@ For parsed MCP servers, AgentBOM records:
 
 ## Safe Parsing Model
 
-AgentBOM parses MCP configuration as data. It reads JSON MCP config files,
+AigenGuard parses MCP configuration as data. It reads JSON MCP config files,
 extracts fields, and applies deterministic patterns. It does not execute MCP
 servers, does not run configured commands, does not import scanned code, and
 does not contact networks. Invalid JSON is handled as a report finding instead
 of failing the scan.
 
-The scanner keeps the same repository safety rules used elsewhere in AgentBOM:
+The scanner keeps the same repository safety rules used elsewhere in AigenGuard:
 large files are skipped, binary-looking files are skipped, and symlink loops are
 not followed.
 
 ## Secret Handling
 
-AgentBOM records env variable names only. For example, an MCP config containing
+AigenGuard records env variable names only. For example, an MCP config containing
 `BRAVE_SEARCH_API_KEY` is reported as that name, but the value is not resolved,
 stored, or printed. Secret-looking args such as `--token value` are redacted in
 output.
@@ -66,7 +66,7 @@ reachable. They do not verify exploitability.
 
 ## Reachability
 
-AgentBOM marks MCP tool invocation as reachable when parsed MCP server config
+AigenGuard marks MCP tool invocation as reachable when parsed MCP server config
 exists alongside an agent framework or prompt configuration. This is static
 evidence of an agent runtime or prompt surface near MCP configuration. The
 finding includes the MCP server name, source file, risk categories, and
@@ -78,7 +78,7 @@ environment.
 
 ## Policy Controls
 
-The recommended policy format is `agentbom.toml`; use it to allow or deny MCP
+The recommended policy format is `aigenguard.toml`; use it to allow or deny MCP
 server names in the Policy Workbench or by editing `[mcp]` directly.
 
 Legacy YAML policy files are still accepted for compatibility with older MCP
@@ -101,7 +101,7 @@ require:
 Run the legacy policy demo:
 
 ```bash
-agentbom scan examples/mcp-risky-agent \
+aigenguard scan examples/mcp-risky-agent \
   --policy examples/policies/mcp-policy.yaml \
   --output-dir agentbom-report/mcp-policy \
   --html --mermaid --sarif --pretty
@@ -121,7 +121,7 @@ Use this checklist when reviewing MCP findings:
   approval, or least-privilege credentials.
 - Review reachable `mcp_tool_invocation` findings next to framework and prompt
   findings.
-- Decide whether `agentbom.toml` should allow or deny specific server names.
+- Decide whether `aigenguard.toml` should allow or deny specific server names.
 
 ## Reviewing Findings
 
@@ -132,7 +132,7 @@ approval are documented.
 
 ## Limitations
 
-AgentBOM does not:
+AigenGuard does not:
 
 - execute MCP servers
 - validate server package authenticity

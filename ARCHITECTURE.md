@@ -1,10 +1,14 @@
-# AgentBOM Architecture
+# AigenGuard Architecture
 
-AgentBOM is a static bill-of-materials scanner for AI agent repositories. The long-term goal is to describe the parts of an agent system that matter for security review: what AI services it uses, what code or frameworks connect to those services, what external tools are available, and which risks are reachable from those connections.
+AigenGuard is a static bill-of-materials scanner for AI agent repositories. The long-term goal is to describe the parts of an agent system that matter for security review: what AI services it uses, what code or frameworks connect to those services, what external tools are available, and which risks are reachable from those connections.
+
+AgentBOM has been renamed to AigenGuard. The `agentbom` CLI remains a
+compatibility alias, and `agentbom.toml` remains a compatibility fallback. New
+projects should use `aigenguard` and `aigenguard.toml`.
 
 The project should remain useful in local development, CI, and offline review environments. It favors simple static evidence over opaque scoring or generated summaries.
 
-![AgentBOM architecture flow](docs/assets/architecture-flow.svg)
+![AigenGuard architecture flow](docs/assets/architecture-flow.svg)
 
 ```mermaid
 flowchart LR
@@ -47,7 +51,7 @@ Risks are scanner-level assessments derived from findings. They summarize likely
 
 4. Inference
 
-   Inference derives higher-level relationships from detector output. For reachability, AgentBOM connects model, framework, or tool findings to capability findings using deterministic rules and source-file locality.
+   Inference derives higher-level relationships from detector output. For reachability, AigenGuard connects model, framework, or tool findings to capability findings using deterministic rules and source-file locality.
 
 5. Reporting
 
@@ -55,19 +59,19 @@ Risks are scanner-level assessments derived from findings. They summarize likely
 
 ## Design Constraints
 
-AgentBOM is offline-first. The scanner must work without network access so it can run in restricted CI, private repositories, and incident-review environments.
+AigenGuard is offline-first. The scanner must work without network access so it can run in restricted CI, private repositories, and incident-review environments.
 
-AgentBOM is deterministic. The same input repository should produce the same output, aside from explicit version or path changes. This makes results auditable and diff-friendly.
+AigenGuard is deterministic. The same input repository should produce the same output, aside from explicit version or path changes. This makes results auditable and diff-friendly.
 
-AgentBOM is non-executing. It does not execute scanned code, import scanned modules, follow dynamic plugin loading, or evaluate project configuration. Static evidence is less complete, but it avoids triggering malicious or unsafe code.
+AigenGuard is non-executing. It does not execute scanned code, import scanned modules, follow dynamic plugin loading, or evaluate project configuration. Static evidence is less complete, but it avoids triggering malicious or unsafe code.
 
-AgentBOM is dependency-light. Runtime dependencies increase supply-chain risk and make offline operation harder. New dependencies should be avoided unless they solve a clear scanner problem that cannot be handled simply.
+AigenGuard is dependency-light. Runtime dependencies increase supply-chain risk and make offline operation harder. New dependencies should be avoided unless they solve a clear scanner problem that cannot be handled simply.
 
 ## AI Agent Attack Surface Analysis
 
 AI agents combine model reasoning with software capabilities. The important security question is not only whether a risky API exists in a repository, but whether an agent-controlled path can reach it.
 
-AgentBOM models this attack surface in layers:
+AigenGuard models this attack surface in layers:
 
 - AI layer: providers and models that generate decisions or tool calls.
 - Orchestration layer: frameworks that route prompts, memory, tools, and callbacks.
@@ -80,7 +84,7 @@ In early versions, this analysis is rule-based and conservative. It should prefe
 ## Differentiation From Traditional SAST
 
 Traditional SAST usually starts with language-specific vulnerability patterns.
-AgentBOM starts with the AI agent inventory and asks which agent actors appear
+AigenGuard starts with the AI agent inventory and asks which agent actors appear
 connected to sensitive capabilities.
 
 The distinction matters because an AI agent review often needs evidence such as:
@@ -91,7 +95,7 @@ The distinction matters because an AI agent review often needs evidence such as:
 - whether a capability is merely present or appears reachable from an AI actor
 - whether repository policy documents the expected control
 
-AgentBOM should stay complementary to SAST rather than becoming a general
+AigenGuard should stay complementary to SAST rather than becoming a general
 language vulnerability scanner.
 
 ## Roadmap Ideas

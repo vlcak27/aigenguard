@@ -1,4 +1,4 @@
-name: "AgentBOM AI Agent Security Scan"
+name: "AigenGuard AI Agent Security Scan"
 
 description: "Offline AI agent bill of materials and attack surface scanning"
 
@@ -28,15 +28,15 @@ inputs:
     default: "false"
 
   output-dir:
-    description: "Directory for generated AgentBOM reports"
+    description: "Directory for generated AigenGuard reports"
     default: "agentbom-report"
 
   policy:
-    description: "Optional AgentBOM TOML policy file"
+    description: "Optional AigenGuard TOML policy file"
     default: ""
 
   enforce-policy:
-    description: "Fail when the supplied AgentBOM policy has violations"
+    description: "Fail when the supplied AigenGuard policy has violations"
     default: "false"
 
 outputs:
@@ -52,18 +52,18 @@ runs:
   using: "composite"
 
   steps:
-    - name: Install AgentBOM
+    - name: Install AigenGuard
       shell: bash
       run: |
         python -m pip install --upgrade pip
         python -m pip install "$GITHUB_ACTION_PATH"
 
-    - name: Run AgentBOM
+    - name: Run AigenGuard
       id: scan
       shell: bash
       env:
-        AGENTBOM_INPUT_POLICY: ${{ inputs.policy }}
-        AGENTBOM_INPUT_ENFORCE_POLICY: ${{ inputs.enforce-policy }}
+        AIGENGUARD_INPUT_POLICY: ${{ inputs.policy }}
+        AIGENGUARD_INPUT_ENFORCE_POLICY: ${{ inputs.enforce-policy }}
       run: |
         FLAGS=()
 
@@ -79,15 +79,15 @@ runs:
           FLAGS+=(--cyclonedx)
         fi
 
-        if [ -n "$AGENTBOM_INPUT_POLICY" ]; then
-          FLAGS+=(--policy "$AGENTBOM_INPUT_POLICY")
+        if [ -n "$AIGENGUARD_INPUT_POLICY" ]; then
+          FLAGS+=(--policy "$AIGENGUARD_INPUT_POLICY")
         fi
 
-        if [ "$AGENTBOM_INPUT_ENFORCE_POLICY" = "true" ]; then
+        if [ "$AIGENGUARD_INPUT_ENFORCE_POLICY" = "true" ]; then
           FLAGS+=(--enforce-policy)
         fi
 
-        agentbom scan "${{ inputs.path }}" \
+        aigenguard scan "${{ inputs.path }}" \
           --output-dir "${{ inputs.output-dir }}" \
           --pretty \
           "${FLAGS[@]}"
@@ -132,6 +132,6 @@ runs:
         fi
 
         if [ "$FAIL_ON" != "none" ] && [ "$ACTUAL_RANK" -ge "$THRESHOLD_RANK" ]; then
-          echo "AgentBOM risk severity $SEVERITY meets fail-on threshold $FAIL_ON" >&2
+          echo "AigenGuard risk severity $SEVERITY meets fail-on threshold $FAIL_ON" >&2
           exit 1
         fi

@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agentbom.cli import main
-from agentbom.scanner import scan_path
+from aigenguard.cli import main
+from aigenguard.scanner import scan_path
 
 
 ROOT = Path(__file__).resolve().parents[1]

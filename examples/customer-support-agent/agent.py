@@ -1,4 +1,4 @@
-"""Static demo support agent used by AgentBOM documentation.
+"""Static demo support agent used by AigenGuard documentation.
 
 This file is intentionally not executed by the scanner.
 """

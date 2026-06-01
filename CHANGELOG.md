@@ -11,7 +11,10 @@ All notable changes to AigenGuard, previously AgentBOM, are documented here.
 - New projects should use `aigenguard` and `aigenguard.toml`.
 - Policy discovery prefers an explicit `--policy` path, then
   `aigenguard.toml`, then the `agentbom.toml` compatibility fallback.
-- The PyPI package name and Python module remain unchanged for now.
+- The PyPI package and Python module are now `aigenguard`.
+- The `agentbom` Python package remains as a compatibility import path.
+- Report filenames and `.agentbom/` RunBOM artifact paths remain unchanged for
+  compatibility with existing automation.
 
 ## v0.8.0
 

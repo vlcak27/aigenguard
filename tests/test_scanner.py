@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agentbom.scanner import MAX_FILE_SIZE, scan_path
+from aigenguard.scanner import MAX_FILE_SIZE, scan_path
 
 
 def assert_reachable_contains(items, expected):

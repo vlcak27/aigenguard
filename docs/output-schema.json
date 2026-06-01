@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentbom.dev/schemas/output-schema.json",
-  "title": "AgentBOM Output",
+  "$id": "https://aigenguard.dev/schemas/output-schema.json",
+  "title": "AigenGuard Output",
   "type": "object",
   "required": [
     "schema_version",

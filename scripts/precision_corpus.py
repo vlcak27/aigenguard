@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the AgentBOM static precision fixture corpus."""
+"""Run the AigenGuard static precision fixture corpus."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def load_cases(manifest_path: Path = MANIFEST_PATH) -> list[dict[str, Any]]:
 
 
 def scan_fixture(case: dict[str, Any], fixture_root: Path = FIXTURE_ROOT) -> dict[str, object]:
-    from agentbom.scanner import scan_path
+    from aigenguard.scanner import scan_path
 
     fixture_path = fixture_root / str(case["case"])
     policy_name = case.get("policy")

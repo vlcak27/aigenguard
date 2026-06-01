@@ -4,9 +4,9 @@ import io
 
 import pytest
 
-from agentbom.cli import main
-from agentbom.local_guard import local_guard_status, run_guard
-from agentbom.policy_paths import MAX_POLICY_FILE_SIZE, preferred_policy_path
+from aigenguard.cli import main
+from aigenguard.local_guard import local_guard_status, run_guard
+from aigenguard.policy_paths import MAX_POLICY_FILE_SIZE, preferred_policy_path
 
 
 class TtyBuffer(io.StringIO):
@@ -47,7 +47,7 @@ def test_activate_creates_policy_and_installs_confirm_hook(tmp_path, monkeypatch
     assert "aigenguard guard ." in hook_text
     assert "agentbom run" not in hook_text
     assert "runbom" not in hook_text.lower()
-    assert "AgentBOM activated" in captured.out
+    assert "AigenGuard activated" in captured.out
     assert "Policy: aigenguard.toml" in captured.out
     assert "Preset: safe" in captured.out
     assert "Guard mode: confirm" in captured.out
@@ -264,7 +264,7 @@ def test_activate_existing_non_agentbom_hook_fails_by_default(tmp_path, monkeypa
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "existing non-AgentBOM pre-commit hook found" in captured.err
+    assert "existing non-AigenGuard pre-commit hook found" in captured.err
     assert "aigenguard install-hook --append --policy aigenguard.toml --mode confirm" in captured.err
     assert "aigenguard activate --append" in captured.err
     assert hook.read_text(encoding="utf-8") == "#!/bin/sh\necho existing\n"
@@ -322,7 +322,7 @@ def test_status_outside_git_repo_reports_not_detected(tmp_path, monkeypatch, cap
 
     captured = capsys.readouterr()
     assert result == 0
-    assert "AgentBOM status" in captured.out
+    assert "AigenGuard status" in captured.out
     assert "Repository: not detected" in captured.out
     assert "Local guard: not installed" in captured.out
 
@@ -398,7 +398,7 @@ def test_deactivate_removes_hook_block_and_keeps_policy(tmp_path, monkeypatch, c
 
     captured = capsys.readouterr()
     assert result == 0
-    assert "AgentBOM deactivated for this repository." in captured.out
+    assert "AigenGuard deactivated for this repository." in captured.out
     assert (repo / "aigenguard.toml").exists()
     assert not (repo / ".git" / "hooks" / "pre-commit").exists()
 
@@ -431,6 +431,7 @@ def test_default_install_hook_uses_advisory_mode(tmp_path, monkeypatch):
     assert hook.exists()
     assert hook.parent == repo / ".git" / "hooks"
     assert '--mode "advisory"' in text
+    assert "AIGENGUARD_SKIP_HOOK" in text
     assert "AGENTBOM_SKIP_HOOK" in text
     assert "aigenguard guard . --policy" in text
     assert "--html" not in text
@@ -485,7 +486,7 @@ def test_guard_advisory_allows_policy_violations(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result == 0
-    assert "AgentBOM found policy violations" in captured.out
+    assert "AigenGuard found policy violations" in captured.out
     assert "Commit allowed because guard mode is advisory." in captured.out
     assert not (project / "agentbom.json").exists()
     assert not (project / "agentbom.md").exists()
@@ -498,30 +499,30 @@ def test_guard_enforce_blocks_policy_violations(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "AgentBOM blocked this commit" in captured.out
+    assert "AigenGuard blocked this commit" in captured.out
     assert "blocking finding(s)" in captured.out
     assert "Highest severity: medium" in captured.out
     assert "Why:" in captured.out
     assert "Fix:" in captured.out
-    assert "AGENTBOM_SKIP_HOOK=1 git commit" in captured.out
+    assert "AIGENGUARD_SKIP_HOOK=1 git commit" in captured.out
     assert "git commit --no-verify" in captured.out
 
 
 def test_guard_confirm_allows_on_yes(tmp_path, monkeypatch, capsys):
     project, policy = _project_with_model_violation(tmp_path)
-    monkeypatch.setattr("agentbom.local_guard._read_confirmation_from_tty", lambda prompt: True)
+    monkeypatch.setattr("aigenguard.local_guard._read_confirmation_from_tty", lambda prompt: True)
 
     result = main(["guard", str(project), "--policy", str(policy), "--mode", "confirm"])
 
     captured = capsys.readouterr()
     assert result == 0
-    assert "AgentBOM found policy violations" in captured.out
+    assert "AigenGuard found policy violations" in captured.out
     assert "Commit allowed." in captured.out
 
 
 def test_guard_confirm_blocks_on_no(tmp_path, monkeypatch, capsys):
     project, policy = _project_with_model_violation(tmp_path)
-    monkeypatch.setattr("agentbom.local_guard._read_confirmation_from_tty", lambda prompt: False)
+    monkeypatch.setattr("aigenguard.local_guard._read_confirmation_from_tty", lambda prompt: False)
 
     result = main(["guard", str(project), "--policy", str(policy), "--mode", "confirm"])
 
@@ -532,13 +533,13 @@ def test_guard_confirm_blocks_on_no(tmp_path, monkeypatch, capsys):
 
 def test_guard_confirm_fails_closed_without_interactive_tty(tmp_path, monkeypatch, capsys):
     project, policy = _project_with_model_violation(tmp_path)
-    monkeypatch.setattr("agentbom.local_guard._read_confirmation_from_tty", lambda prompt: None)
+    monkeypatch.setattr("aigenguard.local_guard._read_confirmation_from_tty", lambda prompt: None)
 
     result = main(["guard", str(project), "--policy", str(policy), "--mode", "confirm"])
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "agentbom confirm mode requires an interactive terminal." in captured.out
+    assert "aigenguard confirm mode requires an interactive terminal." in captured.out
     assert "Commit blocked. Use advisory mode, enforce mode, or bypass intentionally." in captured.out
 
 
@@ -549,7 +550,7 @@ def test_guard_prints_ok_plain_when_output_is_not_tty(tmp_path):
     result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO(), environ={})
 
     assert result == 0
-    assert "AgentBOM OK" in out.getvalue()
+    assert "AigenGuard OK" in out.getvalue()
     assert "No policy violations found." in out.getvalue()
     assert "\033[" not in out.getvalue()
 
@@ -561,7 +562,7 @@ def test_guard_prints_ok_green_when_tty_supports_color(tmp_path):
     result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO(), environ={})
 
     assert result == 0
-    assert "\033[32mAgentBOM OK\033[0m" in out.getvalue()
+    assert "\033[32mAigenGuard OK\033[0m" in out.getvalue()
 
 
 def test_guard_no_color_disables_ansi(tmp_path):
@@ -578,7 +579,7 @@ def test_guard_no_color_disables_ansi(tmp_path):
     )
 
     assert result == 0
-    assert "AgentBOM OK" in out.getvalue()
+    assert "AigenGuard OK" in out.getvalue()
     assert "\033[" not in out.getvalue()
 
 
@@ -590,7 +591,7 @@ def test_guard_blocking_tty_output_uses_red(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "\033[31mAgentBOM blocked this commit\033[0m" in output
+    assert "\033[31mAigenGuard blocked this commit\033[0m" in output
     assert "\033[33mMEDIUM\033[0m Model denied by policy: gpt-4o." in output
 
 
@@ -602,7 +603,7 @@ def test_guard_warning_tty_output_uses_yellow(tmp_path):
 
     output = out.getvalue()
     assert result == 0
-    assert "\033[33mAgentBOM passed with warnings\033[0m" in output
+    assert "\033[33mAigenGuard passed with warnings\033[0m" in output
     assert "\033[33mMEDIUM\033[0m Secret reference detected" in output
 
 
@@ -622,7 +623,7 @@ def test_guard_confirm_tty_output_uses_yellow(tmp_path):
 
     output = out.getvalue()
     assert result == 0
-    assert "\033[33mAgentBOM found policy violations\033[0m" in output
+    assert "\033[33mAigenGuard found policy violations\033[0m" in output
     assert "Commit allowed." in output
 
 
@@ -634,7 +635,7 @@ def test_guard_blocking_non_tty_output_has_no_ansi(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "AgentBOM blocked this commit" in output
+    assert "AigenGuard blocked this commit" in output
     assert "\033[" not in output
 
 
@@ -645,7 +646,7 @@ def test_guard_warnings_do_not_print_secret_values(tmp_path):
     result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO())
 
     assert result == 0
-    assert "AgentBOM passed with warnings" in out.getvalue()
+    assert "AigenGuard passed with warnings" in out.getvalue()
     assert "Secret reference detected" in out.getvalue()
     assert "do-not-store" not in out.getvalue()
 
@@ -658,7 +659,7 @@ def test_guard_enforce_blocks_secret_leaks_with_redacted_output(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "AgentBOM blocked this commit" in output
+    assert "AigenGuard blocked this commit" in output
     assert "CRITICAL Possible OpenAI API key value" in output
     assert ".env:1" in output
     assert "Why: likely credential value found in a committed file." in output
@@ -766,7 +767,7 @@ def test_guard_blocked_no_color_respects_no_color(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "AgentBOM blocked this commit" in output
+    assert "AigenGuard blocked this commit" in output
     assert "\033[" not in output
 
 

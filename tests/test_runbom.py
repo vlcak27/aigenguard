@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from agentbom.cli import main
-from agentbom.policy_paths import MAX_POLICY_FILE_SIZE
-from agentbom.runbom import (
+from aigenguard.cli import main
+from aigenguard.policy_paths import MAX_POLICY_FILE_SIZE
+from aigenguard.runbom import (
     build_runbom_summary,
     format_runbom_terminal_summary,
     normalize_runbom_event,
@@ -217,7 +217,7 @@ def test_runbom_runs_configured_command_without_shell_and_writes_jsonl(
         for line in (repo / ".agentbom" / "runbom.jsonl").read_text(encoding="utf-8").splitlines()
     ]
     assert result == 0
-    assert "AgentBOM RunBOM OK" in captured.out
+    assert "AigenGuard RunBOM OK" in captured.out
     assert "Runtime summary:" in captured.out
     assert (repo / "runtime-ok.txt").read_text(encoding="utf-8") == "ok"
     assert events[0]["event"] == "run.start"
@@ -351,7 +351,7 @@ def test_runbom_success_prints_human_readable_runtime_summary(
     captured = capsys.readouterr()
     summary = _read_runbom_summary(repo)
     assert result == 0
-    assert "AgentBOM RunBOM OK" in captured.out
+    assert "AigenGuard RunBOM OK" in captured.out
     assert "Runtime summary:" in captured.out
     assert f"{summary['events_total']} events observed" in captured.out
     assert f"{summary['unique_events']} unique events" in captured.out
@@ -399,7 +399,7 @@ def test_runbom_failed_command_still_prints_summary_when_available(
 
     captured = capsys.readouterr()
     assert result == 7
-    assert "AgentBOM RunBOM FAILED" in captured.out
+    assert "AigenGuard RunBOM FAILED" in captured.out
     assert "Runtime command failed with exit code 7" in captured.out
     assert "Runtime summary:" in captured.out
     assert "HIGH env.read GITHUB_TOKEN" in captured.out
@@ -483,7 +483,7 @@ def test_runbom_preserves_command_exit_code(tmp_path, monkeypatch, capsys):
     result = main(["run"])
 
     assert result == 3
-    assert "AgentBOM RunBOM FAILED" in capsys.readouterr().out
+    assert "AigenGuard RunBOM FAILED" in capsys.readouterr().out
     assert _read_runbom_summary(repo)["command_exit_code"] == 3
 
 
@@ -521,7 +521,7 @@ def test_runbom_uses_autodetected_command_when_config_command_is_empty(
     summary = _read_runbom_summary(repo)
     assert result == 0
     assert "RunBOM detected command: python -m pytest tests/agent_runtime" in captured.out
-    assert "AgentBOM RunBOM OK" in captured.out
+    assert "AigenGuard RunBOM OK" in captured.out
     assert summary["command"] == "python -m pytest tests/agent_runtime"
 
 
@@ -573,7 +573,7 @@ def test_runbom_failing_command_returns_nonzero(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     summary = _read_runbom_summary(repo)
     assert result == 7
-    assert "AgentBOM RunBOM FAILED" in captured.out
+    assert "AigenGuard RunBOM FAILED" in captured.out
     assert "Runtime summary:" in captured.out
     assert summary["command_exit_code"] == 7
 

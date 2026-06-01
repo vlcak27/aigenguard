@@ -6,13 +6,13 @@ the first-run experience.
 ## 1. Install
 
 ```bash
-pip install ai-agentbom
+pip install aigenguard
 ```
 
 ## 2. Scan a controlled agent
 
 ```bash
-agentbom scan examples/customer-support-agent \
+aigenguard scan examples/customer-support-agent \
   --output-dir agentbom-report/support \
   --html \
   --mermaid \
@@ -20,13 +20,13 @@ agentbom scan examples/customer-support-agent \
   --pretty
 ```
 
-Expected use: show that AgentBOM identifies AI components and capabilities while
+Expected use: show that AigenGuard identifies AI components and capabilities while
 recognizing documented controls.
 
 ## 3. Scan a riskier agent
 
 ```bash
-agentbom scan examples/research-agent \
+aigenguard scan examples/research-agent \
   --output-dir agentbom-report/research \
   --html \
   --mermaid \
@@ -47,6 +47,6 @@ cat agentbom-report/research/agentbom.mmd
 The HTML report is self-contained and works offline. The Mermaid report can be
 pasted into GitHub Markdown or rendered by tools that support Mermaid.
 
-![AgentBOM quickstart terminal demo](assets/terminal-demo.svg)
+![AigenGuard quickstart terminal demo](assets/terminal-demo.svg)
 
-![AgentBOM HTML report preview](assets/html-report-preview.svg)
+![AigenGuard HTML report preview](assets/html-report-preview.svg)

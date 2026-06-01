@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="720" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
-  <title id="title">AgentBOM HTML report preview</title>
-  <desc id="desc">Preview of the AgentBOM HTML report with risk summary, review priorities, metrics, and findings tables.</desc>
+  <title id="title">AigenGuard HTML report preview</title>
+  <desc id="desc">Preview of the AigenGuard HTML report with risk summary, review priorities, metrics, and findings tables.</desc>
   <rect width="1120" height="720" fill="#f6f7f9"/>
   <rect x="54" y="44" width="1012" height="632" rx="8" fill="#ffffff" stroke="#d9e0e8"/>
   <rect x="54" y="44" width="230" height="632" rx="8" fill="#17202a"/>
-  <text x="88" y="96" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="700">AgentBOM</text>
+  <text x="88" y="96" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="700">AigenGuard</text>
   <text x="88" y="124" fill="#b9c3d0" font-family="Inter, Arial, sans-serif" font-size="14">Offline AI agent review</text>
   <g font-family="Inter, Arial, sans-serif" font-size="15">
     <text x="88" y="178" fill="#ffffff">Overview</text>

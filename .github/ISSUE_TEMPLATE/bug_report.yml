@@ -13,15 +13,15 @@ body:
   - type: input
     id: version
     attributes:
-      label: AgentBOM version
-      placeholder: "agentbom --version"
+      label: AigenGuard version
+      placeholder: "aigenguard --version"
     validations:
       required: true
   - type: textarea
     id: command
     attributes:
       label: Command
-      description: Paste the AgentBOM command you ran.
+      description: Paste the AigenGuard command you ran.
       render: bash
     validations:
       required: true
