@@ -17,6 +17,6 @@ Run:
 
 ```bash
 aigenguard scan examples/research-agent \
-  --output-dir agentbom-report/research \
+  --output-dir aigenguard-report/research \
   --html --mermaid --sarif --pretty
 ```

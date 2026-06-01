@@ -16,13 +16,13 @@
   <g clip-path="url(#terminal-frame)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20">
     <text x="96" y="142" fill="#8bd5ff">$ pip install aigenguard</text>
     <text x="96" y="188" fill="#8bd5ff">$ aigenguard scan examples/research-agent \</text>
-    <text x="120" y="224" fill="#8bd5ff">--output-dir agentbom-report \</text>
+    <text x="120" y="224" fill="#8bd5ff">--output-dir aigenguard-report \</text>
     <text x="120" y="260" fill="#8bd5ff">--html --mermaid --sarif --pretty</text>
-    <text x="96" y="318" fill="#dbe2ea">Wrote agentbom-report/agentbom.json</text>
-    <text x="96" y="356" fill="#dbe2ea">Wrote agentbom-report/agentbom.md</text>
-    <text x="96" y="394" fill="#dbe2ea">Wrote agentbom-report/agentbom.html</text>
-    <text x="96" y="432" fill="#dbe2ea">Wrote agentbom-report/agentbom.mmd</text>
-    <text x="96" y="470" fill="#dbe2ea">Wrote agentbom-report/agentbom.sarif</text>
+    <text x="96" y="318" fill="#dbe2ea">Wrote aigenguard-report/agentbom.json</text>
+    <text x="96" y="356" fill="#dbe2ea">Wrote aigenguard-report/agentbom.md</text>
+    <text x="96" y="394" fill="#dbe2ea">Wrote aigenguard-report/agentbom.html</text>
+    <text x="96" y="432" fill="#dbe2ea">Wrote aigenguard-report/agentbom.mmd</text>
+    <text x="96" y="470" fill="#dbe2ea">Wrote aigenguard-report/agentbom.sarif</text>
     <text x="96" y="520" fill="#fca5a5">Risk: critical (100/100)</text>
     <text x="96" y="548" fill="#a7f3d0" font-size="18">Open the HTML report or upload SARIF to code scanning.</text>
   </g>

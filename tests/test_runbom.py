@@ -307,10 +307,10 @@ except OSError:
 def test_runbom_records_env_read_event_without_secret_value(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
     secret = "super-secret-runtime-value"
-    monkeypatch.setenv("AGENTBOM_TEST_SECRET", secret)
+    monkeypatch.setenv("AIGENGUARD_TEST_SECRET", secret)
     _write_runbom_config(
         repo,
-        _python_command("import os; os.getenv('AGENTBOM_TEST_SECRET')"),
+        _python_command("import os; os.getenv('AIGENGUARD_TEST_SECRET')"),
     )
     monkeypatch.chdir(repo)
 
@@ -323,7 +323,7 @@ def test_runbom_records_env_read_event_without_secret_value(tmp_path, monkeypatc
     assert secret not in log_text
     assert secret not in summary_text
     assert any(
-        event["event"] == "env.read" and event["name"] == "AGENTBOM_TEST_SECRET"
+        event["event"] == "env.read" and event["name"] == "AIGENGUARD_TEST_SECRET"
         for event in events
     )
 
@@ -453,11 +453,11 @@ def test_runbom_high_runtime_risk_does_not_fail_successful_command(
 def test_runbom_decodes_bytes_env_read_names(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
     secret = "bytes-secret-runtime-value"
-    monkeypatch.setenv("AGENTBOM_TEST_SECRET", secret)
+    monkeypatch.setenv("AIGENGUARD_TEST_SECRET", secret)
     script = (
         "import os; "
-        "os.environb.get(b'AGENTBOM_TEST_SECRET') "
-        "if hasattr(os, 'environb') else os.getenv('AGENTBOM_TEST_SECRET')"
+        "os.environb.get(b'AIGENGUARD_TEST_SECRET') "
+        "if hasattr(os, 'environb') else os.getenv('AIGENGUARD_TEST_SECRET')"
     )
     _write_runbom_config(repo, _python_command(script))
     monkeypatch.chdir(repo)
@@ -471,8 +471,8 @@ def test_runbom_decodes_bytes_env_read_names(tmp_path, monkeypatch):
     ]
     assert result == 0
     assert secret not in log_text
-    assert "AGENTBOM_TEST_SECRET" in env_names
-    assert "b'AGENTBOM_TEST_SECRET'" not in env_names
+    assert "AIGENGUARD_TEST_SECRET" in env_names
+    assert "b'AIGENGUARD_TEST_SECRET'" not in env_names
 
 
 def test_runbom_preserves_command_exit_code(tmp_path, monkeypatch, capsys):
@@ -534,7 +534,7 @@ def test_activate_pre_commit_hook_stays_static_only(tmp_path, monkeypatch):
     hook_text = (repo / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
     assert result == 0
     assert "aigenguard guard ." in hook_text
-    assert "agentbom run" not in hook_text
+    assert "aigenguard run" not in hook_text
     assert "runbom" not in hook_text.lower()
 
 

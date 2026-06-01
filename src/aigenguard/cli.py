@@ -493,7 +493,7 @@ def cli(argv: list[str] | None = None) -> int:
             hook_path = install_hook(
                 args.policy,
                 mode,
-                agentbom_command=args.aigenguard_command,
+                aigenguard_command=args.aigenguard_command,
                 append=True,
                 force=args.force,
             )
@@ -558,7 +558,7 @@ def _activate(args: argparse.Namespace) -> int:
         install_hook(
             args.policy,
             args.mode,
-            agentbom_command=args.aigenguard_command,
+            aigenguard_command=args.aigenguard_command,
             append=args.append,
             force=args.force,
             cwd=repo_root,

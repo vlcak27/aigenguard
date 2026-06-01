@@ -175,7 +175,7 @@ def test_toml_policy_denies_provider_model_framework_and_capability(tmp_path):
         ),
         encoding="utf-8",
     )
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -219,7 +219,7 @@ def test_toml_policy_allow_list_flags_values_outside_allow_list(tmp_path):
         ),
         encoding="utf-8",
     )
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -247,7 +247,7 @@ def test_toml_policy_secret_warning_does_not_include_secret_value(tmp_path):
         "OPENAI_API_KEY = 'do-not-store'\n",
         encoding="utf-8",
     )
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -281,7 +281,7 @@ def test_toml_policy_mcp_unknown_and_risky_server_rules(tmp_path):
         """,
         encoding="utf-8",
     )
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -305,7 +305,7 @@ def test_toml_policy_gap_and_repository_risk_thresholds(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "AGENTS.md").write_text("system prompt\n", encoding="utf-8")
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text(
         "\n".join(
             [
@@ -331,7 +331,7 @@ def test_toml_policy_gap_and_repository_risk_thresholds(tmp_path):
 
 
 def test_toml_policy_invalid_severity_is_clear(tmp_path):
-    policy = tmp_path / "agentbom.toml"
+    policy = tmp_path / "aigenguard.toml"
     policy.write_text("[risk]\nwarn_on = \"urgent\"\n", encoding="utf-8")
 
     with pytest.raises(PolicyError, match="invalid severity for risk.warn_on"):

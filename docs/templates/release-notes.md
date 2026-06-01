@@ -9,7 +9,7 @@
 - Installation:
   `pip install aigenguard`
 - Quick demo:
-  `aigenguard scan examples/research-agent --output-dir agentbom-report --html --mermaid --sarif --pretty`
+  `aigenguard scan examples/research-agent --output-dir aigenguard-report --html --mermaid --sarif --pretty`
 
 ## Output Changes
 

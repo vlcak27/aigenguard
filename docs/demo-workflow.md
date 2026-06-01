@@ -13,7 +13,7 @@ pip install aigenguard
 
 ```bash
 aigenguard scan examples/customer-support-agent \
-  --output-dir agentbom-report/support \
+  --output-dir aigenguard-report/support \
   --html \
   --mermaid \
   --sarif \
@@ -27,7 +27,7 @@ recognizing documented controls.
 
 ```bash
 aigenguard scan examples/research-agent \
-  --output-dir agentbom-report/research \
+  --output-dir aigenguard-report/research \
   --html \
   --mermaid \
   --sarif \
@@ -40,8 +40,8 @@ and SARIF output.
 ## 4. Open the reports
 
 ```bash
-open agentbom-report/research/agentbom.html
-cat agentbom-report/research/agentbom.mmd
+open aigenguard-report/research/agentbom.html
+cat aigenguard-report/research/agentbom.mmd
 ```
 
 The HTML report is self-contained and works offline. The Mermaid report can be

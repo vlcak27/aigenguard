@@ -54,13 +54,13 @@ jobs:
           sarif-upload: false
           html: true
           policy: aigenguard.toml
-          output-dir: agentbom-report
+          output-dir: aigenguard-report
 
       - name: Upload AigenGuard reports
         uses: actions/upload-artifact@v4
         with:
-          name: agentbom-report
-          path: agentbom-report/
+          name: aigenguard-report
+          path: aigenguard-report/
 ```
 
 SARIF upload is optional. Enable it only when you want AigenGuard findings to
@@ -84,7 +84,7 @@ jobs:
           fail-on: none
           sarif-upload: true
           html: true
-          output-dir: agentbom-report
+          output-dir: aigenguard-report
 ```
 
 ## Modes
@@ -93,7 +93,7 @@ Informational mode:
 
 - Set `fail-on: none`.
 - Set `sarif-upload: false`.
-- Keep `html: true` and upload `agentbom-report/` as an artifact.
+- Keep `html: true` and upload `aigenguard-report/` as an artifact.
 - Review the AigenGuard job summary directly in the workflow run.
 - Use this mode to inspect a baseline without failing CI.
 
@@ -131,7 +131,7 @@ Advisory workflow:
     sarif-upload: false
     html: true
     policy: aigenguard.toml
-    output-dir: agentbom-report
+    output-dir: aigenguard-report
 ```
 
 Enforced policy workflow:
@@ -146,7 +146,7 @@ Enforced policy workflow:
     html: true
     policy: aigenguard.toml
     enforce-policy: true
-    output-dir: agentbom-report
+    output-dir: aigenguard-report
 ```
 
 AigenGuard remains static and offline in both modes. It does not execute scanned

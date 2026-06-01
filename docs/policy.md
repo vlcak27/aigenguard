@@ -10,7 +10,7 @@ import scanned modules, run MCP servers, call networks, add telemetry, or print
 secret values. Likely AI/API credential leak findings are reported with
 redacted metadata only.
 
-## Migration from AigenGuard
+## Migration from AgentBOM
 
 AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
 
@@ -255,7 +255,7 @@ Use advisory mode first:
     sarif-upload: false
     html: true
     policy: aigenguard.toml
-    output-dir: agentbom-report
+    output-dir: aigenguard-report
 ```
 
 Then opt into policy enforcement:
@@ -270,7 +270,7 @@ Then opt into policy enforcement:
     html: true
     policy: aigenguard.toml
     enforce-policy: true
-    output-dir: agentbom-report
+    output-dir: aigenguard-report
 ```
 
 `fail-on` still controls repository risk threshold enforcement. `enforce-policy`

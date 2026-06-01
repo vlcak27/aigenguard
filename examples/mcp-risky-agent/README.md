@@ -21,14 +21,14 @@ Run:
 
 ```bash
 aigenguard scan examples/mcp-risky-agent \
-  --output-dir agentbom-report/mcp-risky \
+  --output-dir aigenguard-report/mcp-risky \
   --html --mermaid --sarif --pretty
 ```
 
 Review the HTML report:
 
 ```bash
-open agentbom-report/mcp-risky/agentbom.html
+open aigenguard-report/mcp-risky/agentbom.html
 ```
 
 Policy example:
@@ -36,7 +36,7 @@ Policy example:
 ```bash
 aigenguard scan examples/mcp-risky-agent \
   --policy examples/policies/mcp-policy.yaml \
-  --output-dir agentbom-report/mcp-policy \
+  --output-dir aigenguard-report/mcp-policy \
   --html --mermaid --sarif --pretty
 ```
 

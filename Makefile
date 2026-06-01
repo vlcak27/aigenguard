@@ -15,12 +15,12 @@ test:
 check: lint test
 
 demo:
-	$(AIGENGUARD) scan examples/research-agent --output-dir agentbom-report --html --mermaid --sarif --pretty
+	$(AIGENGUARD) scan examples/research-agent --output-dir aigenguard-report --html --mermaid --sarif --pretty
 
 mcp-demo:
-	$(AIGENGUARD) scan examples/mcp-safe-agent --output-dir agentbom-report/mcp-safe --html --mermaid --sarif --pretty
-	$(AIGENGUARD) scan examples/mcp-risky-agent --output-dir agentbom-report/mcp-risky --html --mermaid --sarif --pretty
-	$(AIGENGUARD) scan examples/mcp-risky-agent --policy examples/policies/mcp-policy.yaml --output-dir agentbom-report/mcp-policy --html --mermaid --sarif --pretty
+	$(AIGENGUARD) scan examples/mcp-safe-agent --output-dir aigenguard-report/mcp-safe --html --mermaid --sarif --pretty
+	$(AIGENGUARD) scan examples/mcp-risky-agent --output-dir aigenguard-report/mcp-risky --html --mermaid --sarif --pretty
+	$(AIGENGUARD) scan examples/mcp-risky-agent --policy examples/policies/mcp-policy.yaml --output-dir aigenguard-report/mcp-policy --html --mermaid --sarif --pretty
 
 clean:
-	rm -rf build dist .pytest_cache .ruff_cache agentbom-report
+	rm -rf build dist .pytest_cache .ruff_cache aigenguard-report
