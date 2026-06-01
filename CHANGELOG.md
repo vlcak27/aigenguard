@@ -2,7 +2,7 @@
 
 All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
-## Unreleased
+## v0.8.1
 
 ### Migration
 
