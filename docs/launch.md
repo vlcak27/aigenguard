@@ -7,7 +7,7 @@ copy.
 
 Description:
 
-> Offline static scanner for AI-agent components and reachable capabilities.
+> Local-first pre-commit policy guard for AI-agent repositories.
 
 Website:
 
@@ -22,7 +22,8 @@ Recommended topics:
 - agent-security
 - mcp
 - model-context-protocol
-- sbom
+- pre-commit
+- policy-as-code
 - security-tools
 - static-analysis
 - github-actions
@@ -99,8 +100,7 @@ with:
 ````markdown
 # AigenGuard vX.Y.Z
 
-AigenGuard is an offline static scanner for AI-agent components and reachable
-capabilities.
+AigenGuard is a local-first pre-commit policy guard for AI-agent repositories.
 
 ## Highlights
 
@@ -137,34 +137,31 @@ pip install --upgrade aigenguard
 
 X/Twitter:
 
-> AigenGuard is an open-source offline static scanner for AI-agent repositories.
-> It maps providers, models, frameworks, prompts, MCP servers, policy gaps, and
-> capabilities that appear reachable from an agent. Findings are review signals,
-> not exploit verification.
+> AigenGuard is an open-source local-first pre-commit policy guard for AI-agent
+> repositories. It gives deterministic review signals for risky agent
+> capabilities, MCP exposure, policy gaps, and AI/API credential context before
+> changes land in git.
 
 Hacker News:
 
-> AigenGuard is a small open-source CLI that scans AI-agent repositories offline
-> and writes JSON, Markdown, HTML, Mermaid, and SARIF reports. v0.8.0 adds
-> activation presets, an AI/API secret leak guard with redacted values, clearer
-> colored guard terminal output, and README/demo polish.
+> AigenGuard is a small open-source CLI for local pre-commit policy review in
+> AI-agent repositories. It installs a repo-local guard, keeps static scanning
+> offline and deterministic, and reports risky capabilities, MCP exposure,
+> policy gaps, and AI/API credential context without executing scanned code.
 
 Reddit:
 
-> I built AigenGuard, an open-source offline scanner for AI-agent repositories. It
-> reports providers, model identifiers, frameworks, prompts, MCP configuration,
-> reachable capabilities, and policy gaps without executing code or reading
-> secret values. v0.8.0 adds activation presets, an AI/API secret leak guard
-> with redacted values, clearer colored guard terminal output, and README/demo
-> polish.
+> I built AigenGuard, an open-source local-first pre-commit policy guard for
+> AI-agent repositories. It reports risky capabilities, MCP exposure, policy
+> gaps, and AI/API credential context without executing scanned code, importing
+> scanned modules, or sending code to network services.
 
 LinkedIn:
 
-> AigenGuard is an open-source offline static scanner for AI-agent repositories.
-> It reports providers, model identifiers, frameworks, prompts, MCP
-> configuration, reachable capabilities, and policy gaps. Outputs include JSON,
-> Markdown, HTML, Mermaid, SARIF, and a GitHub Action. Findings are review
-> signals for human assessment.
+> AigenGuard is an open-source local-first pre-commit policy guard for AI-agent
+> repositories. It helps teams catch risky agent capabilities, MCP exposure,
+> policy gaps, and AI/API credential context before changes land in git.
+> Findings are deterministic review signals for human assessment.
 
 ## What To Show
 
@@ -183,6 +180,9 @@ LinkedIn:
 - Do not claim deep language-specific SAST coverage.
 - Do not claim CycloneDX or SPDX replacement.
 - Do not claim secret discovery or secret value inspection.
+- Do not position AigenGuard as a generic MCP scanner.
+- Do not position AigenGuard as a cloud security platform.
+- Do not position RunBOM as the main product.
 - Do not imply AigenGuard executes MCP servers or contacts networks.
 - Do not present deterministic pattern matching as complete vulnerability
   analysis.

@@ -1,62 +1,176 @@
-# AigenGuard Roadmap
+# AigenGuard 0.9 Roadmap
 
-AigenGuard has the core public adoption surface in place: PyPI package, HTML
-reports, Mermaid export, SARIF integration, CycloneDX export, GitHub Action,
-realistic examples, and onboarding documentation.
+AigenGuard 0.9 is a positioning and credibility release.
 
-The roadmap below is intentionally conservative. AigenGuard should remain
-offline-first, deterministic, dependency-light, and safe to run on untrusted
-repositories.
+## 0.9 Goal
 
-## Migration
+Make AigenGuard easy to understand, evaluate, and trust as a local-first
+pre-commit policy guard for AI-agent repositories.
+
+0.9 is not a detector expansion release. The priority is clearer product
+identity, simpler docs, honest limits, stable compatibility, and visible
+precision work.
 
 AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
 
-## Current Focus
+## Focus Areas
 
-- Keep MCP Security Analysis precise, explainable, and easy to review.
-- Keep detector accuracy improvements offline and deterministic.
-- Keep report outputs stable and easy to diff.
-- Make CI adoption simple without requiring hosted services.
+### First Impression
 
-## v0.6.0 MCP Security Analysis
+Outcome:
 
-Status: implemented.
+- A new user can understand the product in under a minute.
+- The primary workflow is clear: install, activate, commit.
+- RunBOM appears as optional evidence, not the main product.
+- AgentBOM compatibility remains visible but secondary.
 
-- Detect common MCP JSON config files, including `mcp.json`, `.mcp.json`,
-  `claude_desktop_config.json`, and nested Cursor/Claude paths.
-- Parse MCP server definitions safely without code execution or network access.
-- Extract server name, command, args, transport, package or binary, and env
-  variable names only.
-- Classify MCP server risk across filesystem, shell/process, browser/network,
-  database, cloud, secrets/env, and unknown/custom categories.
-- Connect MCP server config to reachable `mcp_tool_invocation` findings when an
-  agent framework or prompt configuration is present.
-- Include MCP security analysis in JSON, Markdown, HTML, Mermaid, and SARIF.
-- Support simple custom policy denies for MCP server names and risk categories.
+Planned work:
 
-## Near-Term Candidates
+- Keep README and package language centered on local pre-commit policy review.
+- Lead with `pip install aigenguard`, `aigenguard activate`, and `git commit`.
+- Show one short blocked-change example with Why, Fix, and redaction behavior.
+- Keep optional reports and RunBOM below the primary workflow.
 
-- More package and configuration parsing with standard-library parsers where
-  possible.
-- More precise framework-to-tool registration patterns.
-- Policy allowlists for expected capabilities.
-- Baseline comparison for existing repositories.
-- Additional SARIF rule help and remediation text.
-- More demo repositories that mirror real agent architectures.
+Non-goals:
 
-## Not Yet Planned
+- Marketing-heavy copy.
+- Cloud service positioning.
+- Making reports or runtime evidence feel required for basic use.
 
-- SPDX export.
-- Dynamic analysis.
-- Runtime tracing.
-- Telemetry.
-- Hosted scanning.
+### Product Simplicity
+
+Outcome:
+
+- The command surface feels small and predictable.
+- `aigenguard activate` is the default setup path.
+- `aigenguard scan` remains useful for manual review and CI.
+
+Planned work:
+
+- Keep activation, status, deactivate, and guard behavior easy to explain.
+- Keep policy modes understandable: advisory, confirm, enforce.
+- Keep report filenames stable for existing automation.
+- Keep examples close to common AI-agent repository layouts.
+
+Non-goals:
+
+- New command families unrelated to pre-commit review.
+- Hosted policy setup.
+- Broad security platform features.
+
+### Trust Model
+
+Outcome:
+
+- Users understand what static scan does and does not do.
+- Static review remains local, offline, deterministic, and designed for
+  untrusted source trees.
+- RunBOM has a clearly separate trust boundary.
+
+Planned work:
+
+- Keep the threat model documented in `docs/threat-model.md`.
+- State that static scan does not execute code, import modules, execute MCP
+  servers, or make network calls.
+- Keep secret values redacted and out of outputs.
+- Explain RunBOM as optional runtime evidence that intentionally executes a
+  configured or autodetected command.
+- Preserve AgentBOM migration support: CLI alias, import aliases,
+  `agentbom.toml` fallback, report filenames, `.agentbom/` artifacts, and hook
+  bypass alias.
+
+Non-goals:
+
+- Runtime isolation claims.
+- Exploit verification claims.
+- Telemetry or remote scanning.
+- Secret value collection.
+
+### Technical Discipline
+
+Outcome:
+
+- Changes are small, test-backed, and explainable.
+- Findings remain deterministic review signals with source paths, confidence,
+  rationale, and guidance where static evidence supports it.
+
+Planned work:
+
+- Keep detection dependency-light.
+- Prefer standard-library parsers and simple pattern matching in v0.x.
+- Expand regression tests before broadening detector categories.
+- Keep generated output stable enough for review and CI diffs.
+- Keep docs and examples synchronized with actual behavior.
+
+Non-goals:
+
+- Runtime policy enforcement.
 - LLM-generated findings.
+- Deep language-specific SAST rules.
+- New runtime dependencies without a clear maintenance reason.
 
-## Release Principles
+### Differentiation
 
-- New findings should include source paths and confidence.
-- New outputs should be deterministic.
-- New dependencies should be avoided unless they are clearly justified.
-- Secret values must never be stored or printed.
+Outcome:
+
+- AigenGuard is positioned by its narrow scope: AI-agent repository review before
+  commit.
+- Adjacent tools are treated as complements, not competitors to replace.
+
+Planned work:
+
+- Keep `docs/comparison.md` concise and factual.
+- Keep `docs/agent-risk-taxonomy.md` focused on review categories.
+- Use examples that reflect realistic changes a reviewer may want to catch in
+  git.
+
+Non-goals:
+
+- Broad package vulnerability scanning.
+- Full secret scanner parity.
+- Generic MCP inventory unrelated to repository policy.
+- SBOM, SPDX, or CycloneDX replacement positioning.
+
+### Precision Corpus
+
+Outcome:
+
+- Precision work is visible without overstating what it proves.
+- The corpus helps catch obvious regressions and guides future detector work.
+
+Planned work:
+
+- Keep `benchmarks/precision/README.md` clear about scope and limits.
+- Maintain representative good cases for documentation mentions, placeholders,
+  and policy-documented capabilities.
+- Maintain representative bad cases for risky capabilities, MCP exposure,
+  leaked credential values, and policy gaps.
+- Report corpus results in CI.
+
+Non-goals:
+
+- Claims of broad vulnerability coverage.
+- Metrics that imply exploitability.
+- Benchmarks that require network services or executing scanned code.
+
+## Release Criteria
+
+- README opens with the product identity, problem, primary workflow, blocked
+  example, and local-first trust model.
+- RunBOM is documented as optional supporting evidence.
+- AgentBOM compatibility remains documented without dominating first-run docs.
+- Threat model, comparison, and agent-risk taxonomy docs are present and
+  aligned.
+- Examples demonstrate expected and risky AI-agent repository changes.
+- Precision corpus runs in CI and documents its limits.
+- Required validation passes: Ruff, `git diff --check`, and pytest.
+
+## Non-Goals
+
+- Dashboard.
+- Cloud service.
+- Runtime isolation feature.
+- AI chatbot.
+- Detector expansion without precision work.
+- Runtime policy enforcement.
+- SPDX, CycloneDX, or SBOM replacement behavior.

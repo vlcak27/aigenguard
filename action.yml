@@ -1,6 +1,6 @@
-name: "AigenGuard AI Agent Security Scan"
+name: "AigenGuard AI Agent Policy Guard"
 
-description: "Offline AI agent bill of materials and attack surface scanning"
+description: "Local-first pre-commit policy guard for AI-agent repositories."
 
 branding:
   icon: shield

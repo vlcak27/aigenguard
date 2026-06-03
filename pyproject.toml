@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aigenguard"
 version = "0.8.1"
-description = "Local-first pre-commit policy guard for AI-agent repositories"
+description = "Local-first pre-commit policy guard for AI-agent repositories."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "AigenGuard contributors" }]
 license = { text = "MIT" }
 dependencies = []
-keywords = ["ai", "agents", "security", "bom", "sast", "mcp", "sarif"]
+keywords = ["ai", "agents", "security", "pre-commit", "policy", "mcp", "sarif"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
