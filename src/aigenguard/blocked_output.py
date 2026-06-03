@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 from typing import Any
 
+from .terminal import TerminalStyle
+
 
 SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 TOP_REASON_LIMIT = 5
@@ -31,19 +33,21 @@ def format_blocked_details(
     html_path: str | Path | None,
     html_suggestion: str = HTML_SUGGESTION,
     limit: int = TOP_REASON_LIMIT,
+    style: TerminalStyle | None = None,
 ) -> str:
     """Format a short blocked-output summary and local report pointer."""
+    style = TerminalStyle(enabled=False) if style is None else style
     reasons = top_blocking_reasons(bom, limit=limit)
-    lines = ["Top reasons:"]
+    lines = [style.bold("Top reasons:")]
     if reasons:
-        lines.extend(f"- {reason}" for reason in reasons)
+        lines.extend(f"- {_style_reason(reason, style)}" for reason in reasons)
     else:
         lines.append("- policy enforcement failed")
-    lines.extend(["", "Detailed report:"])
+    lines.extend(["", style.bold("Detailed report:")])
     if html_path is None:
-        lines.append(html_suggestion)
+        lines.append(style.dim(html_suggestion))
     else:
-        lines.append(f"open {Path(html_path)}")
+        lines.append(f"open {style.cyan(Path(html_path))}")
     return "\n".join(lines)
 
 
@@ -183,10 +187,10 @@ def _mcp_server_reason(item: dict[str, Any]) -> str:
 
 def _secret_leak_reason(item: dict[str, Any]) -> str:
     severity = str(item.get("severity", "critical")).lower()
-    details = [severity, "value redacted"]
+    details = [f"severity={severity}", "value redacted"]
     location = _location(item)
     if location:
-        details.append(location)
+        details.append(f"path={location}")
     return f"secret_leak: {', '.join(details)}"
 
 
@@ -210,17 +214,17 @@ def _detail_parts(
     policy_status = str(item.get("policy_status") or "").strip()
 
     if include_risk and risk:
-        details.append(f"{risk} risk")
+        details.append(f"risk={risk}")
     elif severity:
-        details.append(severity)
+        details.append(f"severity={severity}")
     if confidence:
-        details.append(f"{confidence} confidence")
+        details.append(f"confidence={confidence}")
     if policy_status:
-        details.append(f"policy status: {policy_status}")
+        details.append(f"policy_status={policy_status}")
     if include_location:
         location = _location(item)
         if location:
-            details.append(location)
+            details.append(f"path={location}")
     return details or ["review required"]
 
 
@@ -425,3 +429,12 @@ def _compact(text: str, limit: int = 120) -> str:
 
 def _redact_text(text: str) -> str:
     return _SECRET_VALUE_RE.sub("[REDACTED]", text)
+
+
+def _style_reason(reason: str, style: TerminalStyle) -> str:
+    lowered = reason.lower()
+    if "severity=critical" in lowered:
+        return style.red(reason)
+    if "severity=high" in lowered or "risk=high" in lowered:
+        return style.yellow(reason)
+    return reason

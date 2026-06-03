@@ -16,6 +16,10 @@ When enforcement blocks a commit, terminal output is intentionally short. It
 lists the top reasons and points to the local `agentbom.html` report when HTML
 was generated, or tells you to rerun with `--html` to create it.
 
+Terminal color is enabled only for interactive TTY output. Set `NO_COLOR=1`, or
+pass `--no-color` to `aigenguard scan` or `aigenguard guard`, to disable ANSI
+color.
+
 ## Read order
 
 1. Repository risk: a compact severity and score with rationale.
