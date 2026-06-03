@@ -40,6 +40,10 @@ Examples include sensitive capabilities without a reviewed `aigenguard.toml`,
 prompt-authorized shell access without controls, or MCP servers that are not
 allowed or denied explicitly.
 
+Policy context is review evidence, not runtime proof. A policy can document why
+a high-confidence agent capability is expected without proving the capability is
+safe, sandboxed, or unreachable.
+
 ## Credential Context
 
 Credential context includes AI provider names, model identifiers, secret
@@ -55,3 +59,19 @@ compare static expectations with observed Python runtime activity during a
 chosen command.
 
 RunBOM is not the primary product, not a sandbox, and not policy enforcement.
+
+## Confidence and Review
+
+AigenGuard confidence levels describe static evidence strength. They do not
+describe exploitability.
+
+High confidence usually comes from parsed executable code evidence, exact
+tool/API call evidence, provider-shaped credential values, or structured config
+with a direct risky capability. Medium confidence covers structured config
+evidence, MCP metadata, generic secret-like assignments, or risk that needs
+reviewer confirmation. Low confidence covers text-only evidence, prompt wording,
+inferred cross-file relationships, and weak static signals.
+
+This keeps the taxonomy specific to agent capability, policy context, reviewer
+signal, and pre-commit review. It also prepares future capability-diff work
+without implementing capability diff in this release.

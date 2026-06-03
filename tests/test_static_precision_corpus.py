@@ -49,6 +49,13 @@ EXPECTED_CASES = {
 }
 
 
+def case_by_id(name: str) -> dict[str, Any]:
+    for case in CASES:
+        if case_id(case) == name:
+            return case
+    raise AssertionError(f"missing precision case {name}")
+
+
 def case_id(case: dict[str, Any]) -> str:
     return str(case["case"])
 
@@ -281,6 +288,73 @@ def test_bad_precision_cases_have_precise_evidence(case: dict[str, Any]):
             and "without restrictions" in str(finding.get("message", ""))
             for finding in collect_findings(bom, "policy_findings")
         )
+
+
+def test_confidence_model_matches_current_precision_fixture_behavior():
+    leaked = scan_case(case_by_id("bad/leaked_ai_key_value"))
+    openai_leak = next(
+        leak
+        for leak in collect_findings(leaked, "secret_leak_findings")
+        if leak.get("provider") == "openai"
+    )
+    assert openai_leak["severity"] == "critical"
+    assert openai_leak["confidence"] == "high"
+    assert openai_leak["path"] == ".env"
+    assert openai_leak["line"] == 1
+    assert openai_leak["title"] == "Possible OpenAI API key value"
+    assert "[REDACTED]" in str(openai_leak["redacted_evidence"])
+    assert "rotate" in str(openai_leak["suggested_action"]).lower()
+
+    docs_only = scan_case(case_by_id("good/docs_only_mentions"))
+    assert collect_findings(docs_only, "capabilities") == []
+    assert collect_findings(docs_only, "reachable_capabilities") == []
+    assert collect_findings(docs_only, "mcp_servers") == []
+    assert collect_findings(docs_only, "secret_leak_findings") == []
+    assert_no_high_or_critical_blocking_findings(docs_only)
+
+    mcp_parsed = scan_case(case_by_id("bad/mcp_filesystem_agent"))
+    filesystem_server = next(
+        server
+        for server in collect_findings(mcp_parsed, "mcp_servers")
+        if server.get("name") == "filesystem"
+    )
+    assert filesystem_server["kind"] == "server"
+    assert filesystem_server["parse_status"] == "parsed"
+    assert filesystem_server["confidence"] == "medium"
+    assert filesystem_server["risk"] == "high"
+    assert "filesystem_access" in filesystem_server["risk_categories"]
+    assert filesystem_server["command"] == "npx"
+    assert filesystem_server["args"] == [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/tmp",
+    ]
+    assert filesystem_server["rationale"]
+
+    unusable_mcp = scan_case(case_by_id("good/mcp_no_usable_servers"))
+    unusable_servers = collect_findings(unusable_mcp, "mcp_servers")
+    assert {
+        (server.get("path"), server.get("kind"), server.get("parse_status"))
+        for server in unusable_servers
+    } == {
+        ("claude_desktop_config.json", "config_file", "no_servers"),
+        ("mcp.json", "config_file", "invalid_json"),
+    }
+    assert all(server.get("confidence") == "medium" for server in unusable_servers)
+    assert all(server.get("risk") not in {"high", "critical"} for server in unusable_servers)
+
+    executable = scan_case(case_by_id("bad/shell_exec_agent"))
+    prompt = scan_case(case_by_id("bad/prompt_allows_shell_agent"))
+    assert {
+        "name": "shell",
+        "path": "agent.py",
+        "confidence": "high",
+    } in collect_findings(executable, "capabilities")
+    assert {
+        "name": "shell",
+        "path": "AGENTS.md",
+        "confidence": "low",
+    } in collect_findings(prompt, "capabilities")
 
 
 def test_precision_corpus_harness_expectations_pass():
