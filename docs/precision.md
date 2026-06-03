@@ -26,11 +26,27 @@ will hold that boundary.
 ## Confidence
 
 Confidence means the strength of static evidence, not exploitability.
+It is an AI-agent pre-commit review signal about how directly AigenGuard can
+tie a finding to local code, structured configuration, credential shape, or
+review text. It does not prove that a capability is reachable at runtime,
+exploitable, safe, or unsafe.
 
-- high = strong static evidence such as parsed code/config or provider-shaped
-  credential values
-- medium = structured but indirect evidence
-- low = text-only, documentation, prompt, or inferred evidence
+- high confidence = strong static evidence such as parsed executable code
+  evidence, exact tool/API call evidence, a provider-shaped credential value,
+  or structured config with a direct risky capability.
+- medium confidence = structured config evidence that is indirect, a generic
+  secret-like assignment, MCP metadata from parsed config, or risk that needs
+  reviewer confirmation.
+- low confidence = text-only evidence, docs/prompt wording, an inferred
+  cross-file relationship, or a weak or ambiguous static signal.
 
-For example, a high-confidence finding may still need human review to determine
-whether it is exploitable, intentional, or sufficiently controlled by policy.
+Severity and confidence are different. Severity describes why the finding may
+matter for agent capability, policy context, or security review. Confidence
+describes how strong the static evidence is. A high-confidence finding can
+still be acceptable if documented by policy, and policy can document risk
+without proving safety. A low-confidence finding can still be useful review
+context for a reviewer deciding what should be allowed before commit.
+
+These rules keep AigenGuard local-first and AI-agent focused. They also prepare
+future Agent Power Delta / Capability Diff work by making current static
+evidence consistent before comparing capability changes across commits.

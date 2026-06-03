@@ -43,6 +43,27 @@ def test_precision_doc_exists_and_explains_static_scope():
     assert "Confidence means the strength of static evidence, not exploitability" in text
 
 
+def test_confidence_docs_define_static_evidence_model():
+    precision = (ROOT / "docs" / "precision.md").read_text(encoding="utf-8")
+    report_guide = (ROOT / "docs" / "report-guide.md").read_text(encoding="utf-8")
+    taxonomy = (ROOT / "docs" / "agent-risk-taxonomy.md").read_text(encoding="utf-8")
+    combined = "\n".join([precision, report_guide, taxonomy]).lower()
+
+    assert "strength of static evidence" in combined
+    assert "not exploitability" in combined
+    assert "severity and confidence are different" in combined
+    assert "high confidence" in combined
+    assert "medium confidence" in combined
+    assert "low confidence" in combined
+    assert "parsed executable code evidence" in combined
+    assert "structured config evidence" in combined
+    assert "text-only evidence" in combined
+    assert "policy can document risk without proving safety" in combined
+    assert "agent capability" in combined
+    assert "pre-commit review" in combined
+    assert "capability-diff" in combined
+
+
 def test_rename_docs_explain_agentbom_backward_compatibility():
     paths = [
         ROOT / "README.md",

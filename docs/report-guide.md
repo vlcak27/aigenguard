@@ -40,11 +40,27 @@ with existing automation.
 - Capability: static evidence of a sensitive action, such as shell or network.
 - Reachable capability: an inferred relationship from an AI actor to a
   capability.
+- Confidence: strength of static evidence, not exploitability. A high
+  confidence finding has direct parsed code, exact tool/API call,
+  provider-shaped credential, or structured risky config evidence. Medium
+  confidence usually means structured but indirect config or MCP metadata that
+  needs reviewer confirmation. Low confidence means text-only evidence,
+  prompt wording, or an inferred relationship.
 - Policy finding: a missing control or custom policy violation.
 - Policy review: advisory or enforced evaluation of `aigenguard.toml`. Advisory
   review never fails the scan by itself.
 - Secret leak finding: a likely AI/API credential value detected by static
   pattern matching. Values are always redacted.
+
+Severity and confidence are reported separately. Severity is the review
+priority or policy risk; confidence is the strength of static evidence. A
+policy can document risk without proving safety, and a low-confidence item can
+still be useful reviewer signal during pre-commit review.
+
+Confidence appears in JSON, Markdown, HTML, SARIF-derived result messages where
+applicable, graph outputs, and compatibility report formats for provider,
+framework, model, dependency, prompt, MCP, capability, secret reference, secret
+leak, and reachable capability findings.
 
 ## Model evidence
 
