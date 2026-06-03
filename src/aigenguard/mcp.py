@@ -242,6 +242,10 @@ def _safe_args(args: list[str]) -> list[str]:
             redact_next = False
             continue
         lowered = arg.lower()
+        redacted_url = _redact_url_value(arg)
+        if redacted_url != arg:
+            safe.append(redacted_url)
+            continue
         if _looks_secret_flag(lowered):
             if "=" in arg:
                 name, _value = arg.split("=", 1)

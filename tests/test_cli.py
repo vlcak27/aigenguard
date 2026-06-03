@@ -1498,6 +1498,149 @@ def test_secret_leak_value_is_redacted_from_all_cli_reports(tmp_path, monkeypatc
     assert "[REDACTED]" in html
 
 
+def test_cross_output_secret_redaction_fixture_covers_user_outputs(
+    tmp_path, monkeypatch, capsys
+):
+    project = PROJECT_ROOT / "tests" / "fixtures" / "precision" / "bad" / (
+        "cross_output_secret_redaction"
+    )
+    raw_values = (
+        "sk-proj-AIGENGUARDREDACTSENTINEL000000000001",
+        "sk-ant-AIGENGUARDREDACTSENTINEL000000000002",
+        "github_pat_AIGENGUARD_REDACT_SENTINEL_000000000003",
+        "mcpArgSecretAIGENGUARD000001",
+        "mcpTokenSecretAIGENGUARD000002",
+        "mcpUrlPasswordAIGENGUARD000003",
+        "sk-proj-AIGENGUARDMCPENV000000000000000004",
+        "mcpEnvTokenAIGENGUARD000005",
+        "mcpUrlCredentialAIGENGUARD000006",
+    )
+    policy = tmp_path / "aigenguard.toml"
+    policy.write_text(
+        "[secrets]\nwarn_on_detected = true\nblock_leaks = true\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+    summary_path = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(output_dir),
+            "--policy",
+            str(policy),
+            "--enforce-policy",
+            "--html",
+            "--sarif",
+            "--pretty",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    json_text = (output_dir / "agentbom.json").read_text(encoding="utf-8")
+    markdown = (output_dir / "agentbom.md").read_text(encoding="utf-8")
+    html = (output_dir / "agentbom.html").read_text(encoding="utf-8")
+    sarif_text = (output_dir / "agentbom.sarif").read_text(encoding="utf-8")
+    summary = summary_path.read_text(encoding="utf-8")
+    outputs = {
+        "stdout": captured.out,
+        "stderr": captured.err,
+        "json": json_text,
+        "markdown": markdown,
+        "html": html,
+        "sarif": sarif_text,
+        "github_summary": summary,
+    }
+
+    assert result == 1
+    for output_name, output in outputs.items():
+        for raw_value in raw_values:
+            assert raw_value not in output, f"{output_name} leaked {raw_value}"
+
+    data = json.loads(json_text)
+    leak_context = {
+        (
+            finding.get("provider"),
+            finding.get("category"),
+            finding.get("path"),
+            finding.get("line"),
+            finding.get("redacted_evidence"),
+        )
+        for finding in data["secret_leak_findings"]
+    }
+    assert (
+        "openai",
+        "api_key",
+        ".env",
+        1,
+        "OPENAI_API_KEY = [REDACTED]",
+    ) in leak_context
+    assert (
+        "anthropic",
+        "api_key",
+        ".env",
+        2,
+        "ANTHROPIC_API_KEY = [REDACTED]",
+    ) in leak_context
+    assert (
+        "github",
+        "token",
+        ".env",
+        3,
+        "GITHUB_TOKEN = [REDACTED]",
+    ) in leak_context
+    assert any(
+        finding.get("path") == "mcp.json"
+        and finding.get("line") == 14
+        and "[REDACTED]" in str(finding.get("redacted_evidence", ""))
+        for finding in data["secret_leak_findings"]
+    )
+    assert any(
+        server.get("path") == "mcp.json"
+        and server.get("name") == "sentinel-web"
+        and server.get("args")
+        == [
+            "-y",
+            "@modelcontextprotocol/server-fetch",
+            "--api-key",
+            "[redacted]",
+            "--token=[redacted]",
+            "https://example.invalid/sse",
+        ]
+        and server.get("env") == ["OPENAI_API_KEY", "SERVICE_TOKEN"]
+        and "secrets_env_access" in server.get("risk_categories", [])
+        for server in data["mcp_servers"]
+    )
+
+    assert "Secret Leak Findings" in markdown
+    assert ".env:1" in markdown
+    assert "OPENAI_API_KEY = [REDACTED]" in markdown
+    assert "ANTHROPIC_API_KEY = [REDACTED]" in html
+    assert "sentinel-web" in html
+    assert "https://example.invalid/sse" in html
+
+    sarif = json.loads(sarif_text)
+    sarif_serialized = json.dumps(sarif, sort_keys=True)
+    assert "secret_leak.openai.api_key" in sarif_serialized
+    assert "secret_leak.anthropic.api_key" in sarif_serialized
+    assert "secret_leak.github.token" in sarif_serialized
+    assert '"uri": ".env"' in sarif_serialized
+    assert '"startLine": 1' in sarif_serialized
+    assert '"uri": "mcp.json"' in sarif_serialized
+    assert "agentbom.secret_provider" in sarif_serialized
+
+    assert "Policy enforcement failed" in captured.out
+    assert "Possible OpenAI API key value" in captured.out
+    assert "Secret leak findings: 4" in summary
+    assert "agentbom.json" in summary
+    assert "agentbom.md" in summary
+    assert "agentbom.html" in summary
+    assert "agentbom.sarif" in summary
+
+
 def test_policy_builder_includes_detected_values_and_no_external_scripts():
     html = render_html(
         {

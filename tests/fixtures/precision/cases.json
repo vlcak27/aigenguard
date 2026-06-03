@@ -75,6 +75,25 @@
     "notes": "likely AI API key values must be reported and redacted"
   },
   {
+    "case": "bad/cross_output_secret_redaction",
+    "kind": "bad",
+    "expected_any": ["secret_leak", "secrets_env_access", "sentinel-web"],
+    "expected_paths": [".env", "mcp.json"],
+    "min_severity": "critical",
+    "raw_values_absent": [
+      "sk-proj-AIGENGUARDREDACTSENTINEL000000000001",
+      "sk-ant-AIGENGUARDREDACTSENTINEL000000000002",
+      "github_pat_AIGENGUARD_REDACT_SENTINEL_000000000003",
+      "mcpArgSecretAIGENGUARD000001",
+      "mcpTokenSecretAIGENGUARD000002",
+      "mcpUrlPasswordAIGENGUARD000003",
+      "sk-proj-AIGENGUARDMCPENV000000000000000004",
+      "mcpEnvTokenAIGENGUARD000005",
+      "mcpUrlCredentialAIGENGUARD000006"
+    ],
+    "notes": "known output paths must redact fake sentinel secret values while preserving finding context"
+  },
+  {
     "case": "bad/shell_exec_agent",
     "kind": "bad",
     "expected_any": ["shell", "shell_execution", "without restrictions"],
