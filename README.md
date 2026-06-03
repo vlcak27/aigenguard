@@ -278,7 +278,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run AigenGuard
-        uses: vlcak27/aigenguard@v0.8.2
+        uses: vlcak27/aigenguard@v0.8.3
         with:
           path: .
           fail-on: none

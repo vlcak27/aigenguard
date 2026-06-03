@@ -248,7 +248,7 @@ Use advisory mode first:
 
 ```yaml
 - name: Run AigenGuard
-  uses: vlcak27/aigenguard@v0.8.2
+  uses: vlcak27/aigenguard@v0.8.3
   with:
     path: .
     fail-on: none
@@ -262,7 +262,7 @@ Then opt into policy enforcement:
 
 ```yaml
 - name: Run AigenGuard
-  uses: vlcak27/aigenguard@v0.8.2
+  uses: vlcak27/aigenguard@v0.8.3
   with:
     path: .
     fail-on: none
