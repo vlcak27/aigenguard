@@ -23,13 +23,18 @@ not prove the action executed.
 
 ## MCP Exposure
 
-MCP exposure covers visible Model Context Protocol configuration and the risk
+MCP inventory covers visible Model Context Protocol configuration and the risk
 categories suggested by server commands, args, packages, transports, and env
-variable names.
+variable names. It means a server is configured in the repository, not that an
+agent can use it at runtime.
 
-AigenGuard focuses on whether MCP servers appear expected, risky, reachable
-from nearby agent context, and documented by policy. It does not execute MCP
-servers or verify package authenticity.
+Reachable MCP exposure is a separate static inference. AigenGuard reports it
+when parsed MCP server config appears alongside agent framework or prompt
+evidence suggesting an agent may be able to use that configured capability.
+
+AigenGuard focuses on whether MCP servers appear expected, risky, statically
+reachable from agent context, and documented by policy. It does not execute MCP
+servers, prove runtime reachability, or verify package authenticity.
 
 ## Policy Gaps
 

@@ -34,12 +34,17 @@ with existing automation.
 - Framework: agent orchestration library such as LangChain or CrewAI.
 - MCP server: a Model Context Protocol server definition found in JSON config.
   AigenGuard records server metadata and env variable names only.
+- MCP inventory: local MCP JSON configuration or parsed MCP server definitions
+  found in the repository. Inventory does not mean the server is reachable by
+  an agent at runtime.
 - MCP risk category: deterministic classification for server definitions that
   appear to expose filesystem, shell/process, browser/network, database, cloud,
   secrets/env, or unknown/custom capabilities.
 - Capability: static evidence of a sensitive action, such as shell or network.
 - Reachable capability: an inferred relationship from an AI actor to a
-  capability.
+  capability. For MCP, this means static agent, framework, or prompt evidence
+  suggests an agent may be able to use a configured MCP server. It is not proof
+  of runtime reachability.
 - Confidence: strength of static evidence, not exploitability. A high
   confidence finding has direct parsed code, exact tool/API call,
   provider-shaped credential, or structured risky config evidence. Medium
@@ -81,7 +86,8 @@ The MCP Security Analysis section lists each detected MCP config file or parsed
 server definition. AigenGuard currently parses JSON only, including `mcp.json`,
 `.mcp.json`, `claude_desktop_config.json`, and common nested Cursor or Claude
 paths. Invalid JSON is reported as a low-confidence review signal instead of
-failing the scan.
+failing the scan. This section is MCP inventory: local configuration that exists
+in the repository.
 
 For parsed servers, review:
 
@@ -91,10 +97,16 @@ For parsed servers, review:
 - `risk_categories`: why the server may matter for attack-surface review.
 - `rationale`: the simple pattern match that caused the category.
 
-If an agent framework or prompt configuration exists with an MCP config,
-AigenGuard adds reachable `mcp_tool_invocation` entries. Those entries identify
-the MCP server, risk categories, and rationale so reviewers can decide whether
-the tool exposure is expected, sandboxed, or policy-approved.
+If an agent framework or prompt configuration exists with a parsed MCP server
+config, AigenGuard adds reachable `mcp_tool_invocation` entries. Those entries
+identify the MCP server, risk categories, and rationale so reviewers can decide
+whether the possible tool exposure is expected, sandboxed, or policy-approved.
+AigenGuard does not execute MCP servers, inspect deployed runtime permissions,
+or prove that a model can call a specific MCP tool at runtime.
+
+Keeping MCP inventory separate from reachable MCP exposure prepares future
+Agent Power Delta / Capability Diff work, where a reviewer will need to compare
+which configured capabilities appear newly available to an agent.
 
 AigenGuard TOML policy can deny MCP server names:
 

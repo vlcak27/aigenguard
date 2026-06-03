@@ -18,6 +18,13 @@ AigenGuard's static scan does not execute scanned code. It does not execute MCP 
 It does not make network calls during scanning. Findings come from parsed files,
 configuration, and text patterns in the local repository.
 
+MCP inventory and reachable exposure are separate static signals. MCP inventory
+means AigenGuard found local MCP JSON configuration or a parsed server
+definition. Reachable exposure means the scan also found static agent,
+framework, or prompt evidence suggesting an agent may be able to use that
+configured MCP capability. Neither signal proves runtime reachability,
+exploitability, safety, or unsafe behavior.
+
 Precision work should guide detector changes before broadening detection. New
 detectors and broader patterns should first explain which corpus case they
 improve, which false-positive risk they introduce, and what regression fixture
