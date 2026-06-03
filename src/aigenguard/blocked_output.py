@@ -14,26 +14,23 @@ HTML_SUGGESTION = "run with --html to create agentbom.html"
 def format_blocked_details(
     bom: dict[str, object],
     *,
+    status: str,
     html_path: str | Path | None,
     html_suggestion: str = HTML_SUGGESTION,
     limit: int = 5,
     style: TerminalStyle | None = None,
-    commit_context: bool = False,
 ) -> str:
     """Format a short blocked-output summary and local report pointer."""
     del limit
     style = TerminalStyle(enabled=False) if style is None else style
-    lines = [_blocked_sentence(bom, commit_context=commit_context)]
+    summary = f"{status} {_blocked_sentence(bom)}"
     if _secret_values_contributed(bom):
-        lines.append("Secret values were redacted.")
-    lines.append("")
+        summary = f"{summary} Secret values were redacted."
     if html_path is None:
-        lines.append("Detailed report:")
-        lines.append(style.dim(html_suggestion))
+        detail = f"Detailed report: {style.dim(html_suggestion)}"
     else:
-        lines.append("Open the detailed report:")
-        lines.append(f"open {style.cyan(Path(html_path))}")
-    return "\n".join(lines)
+        detail = f"Detailed report: open {style.cyan(Path(html_path))}"
+    return "\n".join([style.red(summary), detail])
 
 
 def top_blocking_reasons(
@@ -43,17 +40,16 @@ def top_blocking_reasons(
 ) -> list[str]:
     """Return a metadata-free blocked summary for legacy callers."""
     del limit
-    return [_blocked_sentence(bom, commit_context=False)]
+    return [_blocked_sentence(bom)]
 
 
-def _blocked_sentence(bom: dict[str, object], *, commit_context: bool) -> str:
+def _blocked_sentence(bom: dict[str, object]) -> str:
     count = _blocking_issue_count(bom)
-    suffix = " before this change can land" if commit_context else ""
     if count == 1:
-        return f"1 policy violation needs review{suffix}."
+        return "1 policy violation needs review."
     if count > 1:
-        return f"{count} policy violations need review{suffix}."
-    return f"Policy enforcement needs review{suffix}."
+        return f"{count} policy violations need review."
+    return "Policy enforcement needs review."
 
 
 def _blocking_issue_count(bom: dict[str, object]) -> int:

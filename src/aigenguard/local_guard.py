@@ -135,22 +135,16 @@ def run_guard(
         print("Commit blocked.", file=out)
         return 1
 
-    _print_guard_status("AigenGuard blocked this commit.", "red", out, style)
-    print("", file=out)
     print(
         format_blocked_details(
             bom,
+            status="AigenGuard blocked this commit.",
             html_path=None,
             html_suggestion="run with --html to create agentbom.html",
             style=style,
-            commit_context=True,
         ),
         file=out,
     )
-    print("", file=out)
-    print("Fix violations or bypass locally with:", file=out)
-    print("  AIGENGUARD_SKIP_HOOK=1 git commit", file=out)
-    print("  git commit --no-verify", file=out)
     return 1
 
 
@@ -640,7 +634,7 @@ def _format_one_policy_item(
     lines.append(f"Why: {_redact_static_text(explanation.why)}")
     lines.append(f"Fix: {_redact_static_text(explanation.fix)}")
     if explanation.secret_redacted:
-        lines.append("Secret value redacted.")
+        lines.append("Secret values were redacted.")
     return "\n".join(lines)
 
 

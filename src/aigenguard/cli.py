@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import shlex
 import sys
 import webbrowser
 from pathlib import Path
@@ -32,7 +31,7 @@ from .policy_onboarding import (
     suggested_policy_toml,
     write_policy_file,
 )
-from .policy_paths import DEFAULT_POLICY_NAME, discover_policy_path, preferred_policy_path
+from .policy_paths import DEFAULT_POLICY_NAME, preferred_policy_path
 from .report import write_reports
 from .runbom import configure_runbom, detect_runbom_command, run_runbom
 from .sarif import write_sarif_report
@@ -448,52 +447,26 @@ def cli(argv: list[str] | None = None) -> int:
                 diff_blocked=bool(diff_blocked),
                 style=style,
             )
-            print("")
-        print(f"Wrote {style.cyan(json_path)}")
-        print(f"Wrote {style.cyan(md_path)}")
-        if cyclonedx_path is not None:
-            print(f"Wrote {style.cyan(cyclonedx_path)}")
-        if html_path is not None:
-            print(f"Wrote {style.cyan(html_path)}")
-            if args.open and browser_error is not None:
-                print(
-                    f"Could not open browser automatically: {browser_error}",
-                    file=sys.stderr,
-                )
-            elif args.open and not browser_opened:
-                print(
-                    "Could not confirm browser opened automatically.",
-                    file=sys.stderr,
-                )
-        if mermaid_path is not None:
-            print(f"Wrote {style.cyan(mermaid_path)}")
-        if sarif_path is not None:
-            print(f"Wrote {style.cyan(sarif_path)}")
-        if suggested_policy_path is not None:
-            print("")
-            print(f"Suggested policy written to {style.cyan(suggested_policy_path)}")
-            _print_next_steps(suggested_policy_path)
-        risk = bom.get("repository_risk", {})
-        if isinstance(risk, dict):
-            severity = risk.get("severity", "unknown")
-            score = risk.get("score", "unknown")
-            print(f"Risk: {_format_risk_value(severity, style)} ({score}/100)")
-        if isinstance(policy_review, dict):
-            _print_policy_review(policy_review, include_items=not policy_blocked, style=style)
+            if suggested_policy_path is not None:
+                print(f"Suggested policy written to {style.cyan(suggested_policy_path)}")
+        if html_path is not None and args.open and browser_error is not None:
+            print(
+                f"Could not open browser automatically: {browser_error}",
+                file=sys.stderr,
+            )
+        elif html_path is not None and args.open and not browser_opened:
+            print(
+                "Could not confirm browser opened automatically.",
+                file=sys.stderr,
+            )
         if policy_blocked:
-            print("")
-            print(style.red("AigenGuard blocked this policy-enforced scan."))
-            print("")
-            print(format_blocked_details(bom, html_path=html_path, style=style))
-        else:
-            _print_scan_next_steps(
-                args=args,
-                output_dir=json_path.parent,
-                html_path=html_path,
-                browser_opened=browser_opened,
-                policy_review=policy_review if isinstance(policy_review, dict) else None,
-                suggested_policy_path=suggested_policy_path,
-                style=style,
+            print(
+                format_blocked_details(
+                    bom,
+                    status="AigenGuard blocked this policy-enforced scan.",
+                    html_path=html_path,
+                    style=style,
+                )
             )
         if diff_blocked:
             print(
@@ -731,140 +704,6 @@ def _print_next_steps(policy_path: str | Path) -> None:
         print(f"  {command}")
 
 
-def _print_scan_next_steps(
-    *,
-    args: argparse.Namespace,
-    output_dir: Path,
-    html_path: Path | None,
-    browser_opened: bool,
-    policy_review: dict[str, object] | None,
-    suggested_policy_path: Path | None,
-    style: TerminalStyle,
-) -> None:
-    print("")
-    print(f"Reports written to: {style.cyan(_display_dir(output_dir))}")
-    if html_path is not None:
-        print("")
-        if args.open and browser_opened:
-            print("Opened HTML report:")
-            print(f"  {style.cyan(html_path)}")
-        else:
-            print("HTML report:")
-            print(f"  {style.cyan(html_path)}")
-            print("")
-            print("Open it:")
-            print(f"  {_scan_command(args, html=True, open_report=True)}")
-    if suggested_policy_path is not None:
-        return
-    if policy_review is None:
-        _print_no_policy_next_steps(args)
-        return
-    _print_policy_next_steps(args, policy_review)
-
-
-def _print_no_policy_next_steps(args: argparse.Namespace) -> None:
-    policy_path = discover_policy_path(args.path)
-    print("")
-    print("Next:")
-    if not args.html:
-        print("  Open HTML report:")
-        print(f"    {_scan_command(args, html=True, open_report=True)}")
-        print("")
-    if policy_path is not None:
-        print("  Use existing policy:")
-        print(
-            f"    {_scan_command(args, policy=policy_path, html=True, open_report=True)}"
-        )
-    else:
-        print("  Start policy review:")
-        print("    aigenguard init")
-        print(
-            f"    {_scan_command(args, policy=Path(DEFAULT_POLICY_NAME), html=True, open_report=True)}"
-        )
-
-
-def _print_policy_next_steps(args: argparse.Namespace, policy_review: dict[str, object]) -> None:
-    status = _policy_review_status(policy_review)
-    mode = str(policy_review.get("mode", "advisory"))
-    policy_path = Path(str(policy_review.get("policy_file") or args.policy))
-    print("")
-    print("Next:")
-    if mode == "enforced":
-        if status == "failed":
-            print("  Policy enforcement failed. Fix policy violations before committing/merging.")
-        else:
-            suffix = " with warnings" if status == "passed with warnings" else ""
-            print(f"  Policy enforcement passed{suffix}.")
-        return
-    print("  Review policy findings in the report.")
-    if status == "failed":
-        print(f"  Update {policy_path.as_posix()}, then run advisory mode again.")
-    print("")
-    print("  Enforce after review:")
-    print(f"    {_scan_command(args, policy=policy_path, enforce_policy=True)}")
-
-
-def _scan_command(
-    args: argparse.Namespace,
-    *,
-    policy: Path | None = None,
-    html: bool = False,
-    open_report: bool = False,
-    enforce_policy: bool = False,
-) -> str:
-    parts = ["aigenguard", "scan", str(args.path)]
-    if args.output_dir != ".":
-        parts.extend(["--output-dir", str(args.output_dir)])
-    if policy is not None:
-        parts.extend(["--policy", policy.as_posix()])
-    if html:
-        parts.append("--html")
-    if open_report:
-        parts.append("--open")
-    if enforce_policy:
-        parts.append("--enforce-policy")
-    return " ".join(shlex.quote(part) for part in parts)
-
-
-def _display_dir(path: Path) -> str:
-    value = path.as_posix()
-    if value in {"", "."}:
-        return "."
-    return value.rstrip("/") + "/"
-
-
-def _print_policy_review(
-    policy_review: dict[str, object],
-    *,
-    include_items: bool = True,
-    style: TerminalStyle,
-) -> None:
-    status = _policy_review_status(policy_review)
-    print("")
-    print(f"{style.bold('Policy review')}: {_format_policy_status(status, style)}")
-    print(f"Mode: {policy_review.get('mode', 'advisory')}")
-    policy_file = policy_review.get("policy_file")
-    if policy_file:
-        print(f"Policy file: {style.cyan(policy_file)}")
-    if not include_items:
-        return
-    violations = _policy_items(policy_review.get("violations"))
-    warnings = _policy_items(policy_review.get("warnings"))
-    if violations:
-        print("")
-        print("Violations:")
-        for item in violations:
-            print(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
-    if warnings:
-        print("")
-        print("Warnings:")
-        for item in warnings:
-            print(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
-    if policy_review.get("mode") == "advisory" and violations:
-        print("")
-        print(style.dim("Policy violations do not fail the scan unless --enforce-policy is used."))
-
-
 def _print_scan_completion(
     *,
     policy_review: dict[str, object] | None,
@@ -872,14 +711,22 @@ def _print_scan_completion(
     style: TerminalStyle,
 ) -> None:
     if _has_advisory_policy_violations(policy_review):
-        print(style.yellow("AigenGuard scan completed with review findings."))
-        print(style.dim("Run with --enforce-policy to block policy violations."))
+        print(
+            style.yellow(
+                "AigenGuard scan completed with review findings. "
+                "No blocking enforcement enabled."
+            )
+        )
         return
     if _has_policy_warnings(policy_review) or diff_blocked:
-        print(style.yellow("AigenGuard scan completed with review findings."))
+        print(
+            style.yellow(
+                "AigenGuard scan completed with review findings. "
+                "No blocking findings found."
+            )
+        )
         return
-    print(style.green("AigenGuard scan completed."))
-    print("No blocking findings found.")
+    print(style.green("AigenGuard scan completed. No blocking findings found."))
 
 
 def _has_advisory_policy_violations(policy_review: dict[str, object] | None) -> bool:
@@ -894,38 +741,10 @@ def _has_policy_warnings(policy_review: dict[str, object] | None) -> bool:
     return policy_review is not None and bool(_policy_items(policy_review.get("warnings")))
 
 
-def _format_policy_status(status: str, style: TerminalStyle) -> str:
-    if status == "failed":
-        return style.red(status)
-    if status == "passed with warnings":
-        return style.yellow(status)
-    return style.green(status)
-
-
-def _format_risk_value(severity: object, style: TerminalStyle) -> str:
-    value = str(severity)
-    lowered = value.lower()
-    if lowered == "critical":
-        return style.red(value)
-    if lowered in {"high", "medium"}:
-        return style.yellow(value)
-    if lowered == "low":
-        return style.green(value)
-    return value
-
-
 def _policy_items(value: object) -> list[dict[str, object]]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]
-
-
-def _policy_review_status(policy_review: dict[str, object]) -> str:
-    if policy_review.get("violations"):
-        return "failed"
-    if policy_review.get("warnings"):
-        return "passed with warnings"
-    return "passed"
 
 
 if __name__ == "__main__":
