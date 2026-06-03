@@ -1,7 +1,5 @@
 # AigenGuard
 
-Previously AgentBOM.
-
 Local-first pre-commit policy guard for AI-agent repositories.
 
 ![CI](https://github.com/vlcak27/aigenguard/actions/workflows/ci.yml/badge.svg)
@@ -10,23 +8,16 @@ Local-first pre-commit policy guard for AI-agent repositories.
 ![Python](https://img.shields.io/pypi/pyversions/aigenguard)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-## What AigenGuard Is
+AigenGuard helps review AI-agent repositories before risky changes land in git.
+It installs a repo-local pre-commit guard and produces deterministic static
+review signals for code, prompts, MCP config, policy gaps, and AI/API credential
+context.
 
-AigenGuard is a local-first pre-commit policy guard for AI-agent repositories. It combines
-a fast static pre-commit guard with optional experimental RunBOM runtime
-evidence.
+AI-agent repos often spread important behavior across prompt files, tool
+permissions, MCP servers, and credential references. AigenGuard makes those
+changes visible in the normal commit workflow.
 
-AI-agent repos often mix prompts, tool permissions, MCP config, and API keys.
-AigenGuard gives you a local review signal before risky changes enter git.
-
-- Activate once with `aigenguard activate`.
-- Commit normally with the static local guard.
-- Use `aigenguard scan` and pre-commit for static-only review.
-- Optionally run `aigenguard run` for best-effort Python runtime evidence.
-- Keep RunBOM separate from enforcement: it is not a sandbox and does not
-  enforce policy yet.
-
-## Quickstart
+## Primary Workflow
 
 ```bash
 pip install aigenguard
@@ -35,10 +26,43 @@ aigenguard activate
 git commit
 ```
 
-Normal commits use the static local guard installed by `aigenguard activate`.
-`aigenguard scan` and the local guard do not execute scanned code.
+`aigenguard activate` creates or reuses `aigenguard.toml` and installs the local
+pre-commit guard. After that, commits run the static guard locally.
 
-## Migration from AgentBOM
+## Example Blocked Change
+
+```text
+AigenGuard blocked this commit
+
+CRITICAL Possible OpenAI API key value
+.env:1
+Why: likely credential value found in a committed file.
+Fix: remove the key, rotate it, and keep secrets in environment variables or a secret manager.
+Secret value redacted.
+```
+
+The local guard can allow, confirm, or block commits based on configured policy.
+Static findings are review signals, not exploit proof.
+
+## Local-First Trust Model
+
+- Static scans run locally and work offline.
+- Static scans do not execute scanned code or import scanned modules.
+- Static scans do not execute MCP servers or contact networks.
+- Secret values are redacted and must not be printed or stored.
+
+## Optional RunBOM Evidence
+
+```bash
+aigenguard run
+```
+
+RunBOM is optional supporting runtime evidence. It intentionally executes the
+configured or autodetected command under experimental Python-focused
+instrumentation. It is not the main product, not a sandbox, and not policy
+enforcement.
+
+## AgentBOM Compatibility
 
 AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain supported during migration. New projects should use `aigenguard` and `aigenguard.toml`.
 
@@ -48,51 +72,21 @@ Policy discovery uses this order:
 2. `aigenguard.toml` when present.
 3. `agentbom.toml` as a compatibility fallback.
 
-Optional runtime evidence:
+Compatibility remains for existing automation:
 
-```bash
-aigenguard run
-```
+- `agentbom` CLI alias
+- `agentbom` Python import aliases
+- `agentbom.toml` fallback
+- `agentbom.*` report filenames
+- `.agentbom/` runtime artifacts
+- `AGENTBOM_SKIP_HOOK` hook bypass alias
 
-`aigenguard run` intentionally executes the configured or autodetected command
-under experimental Python-focused instrumentation. JSON artifacts are written
-for machines and CI; terminal output is the developer summary.
-
-## What It Catches
+## What It Reviews
 
 - likely AI/API key leaks, with values redacted
 - risky shell or code execution capabilities
 - MCP server exposure
 - AI provider or model usage outside policy
-
-## Demo
-
-Passing commit:
-
-```text
-AigenGuard OK
-No policy violations found.
-```
-
-Blocked commit:
-
-```text
-AigenGuard blocked this commit
-
-2 blocking finding(s)
-Highest severity: critical
-
-CRITICAL Possible OpenAI API key value
-.env:1
-Why: likely credential value found in a committed file.
-Fix: remove the key, rotate it, and keep secrets in environment variables or a secret manager.
-Secret value redacted.
-```
-
-The local guard can block commits based on configured policy. Blocked output
-shows source, Why, Fix, and whether a secret value was redacted. Static findings
-are review signals, not exploit proof. Static capability findings mean
-code/config appears capable, not that it executed.
 
 ## Recommended Workflow
 
@@ -372,5 +366,8 @@ Useful docs:
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 - [SECURITY.md](SECURITY.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+- [Threat model](docs/threat-model.md)
+- [Comparison](docs/comparison.md)
+- [Agent risk taxonomy](docs/agent-risk-taxonomy.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [RunBOM](docs/runbom.md)

@@ -75,7 +75,7 @@ def test_project_script_uses_modern_cli_entrypoint():
     assert pyproject["project"]["name"] == "aigenguard"
     assert (
         pyproject["project"]["description"]
-        == "Local-first pre-commit policy guard for AI-agent repositories"
+        == "Local-first pre-commit policy guard for AI-agent repositories."
     )
     assert pyproject["project"]["scripts"]["aigenguard"] == "aigenguard.cli:main"
     assert pyproject["project"]["scripts"]["agentbom"] == "aigenguard.cli:main"

@@ -166,7 +166,7 @@ git commit --no-verify
 
 `AGENTBOM_SKIP_HOOK=1` remains accepted as a compatibility alias.
 
-CI enforcement is better for team-wide guarantees.
+CI enforcement is better for team-wide policy consistency.
 
 Remove the AigenGuard managed hook block:
 
