@@ -39,6 +39,7 @@ EXPECTED_CASES = {
     "good/env_example_names_only",
     "good/placeholder_credentials_text",
     "bad/leaked_ai_key_value",
+    "bad/cross_output_secret_redaction",
     "bad/shell_exec_agent",
     "bad/code_exec_agent",
     "bad/mcp_filesystem_agent",
@@ -210,6 +211,39 @@ def test_bad_precision_cases_have_precise_evidence(case: dict[str, Any]):
             for leak in leaks
         )
         assert all("[REDACTED]" in str(leak.get("redacted_evidence", "")) for leak in leaks)
+
+    if case_name == "bad/cross_output_secret_redaction":
+        leaks = collect_findings(bom, "secret_leak_findings")
+        leak_keys = {
+            (
+                leak.get("provider"),
+                leak.get("category"),
+                leak.get("path"),
+                leak.get("line"),
+            )
+            for leak in leaks
+        }
+        assert ("openai", "api_key", ".env", 1) in leak_keys
+        assert ("anthropic", "api_key", ".env", 2) in leak_keys
+        assert ("github", "token", ".env", 3) in leak_keys
+        assert all("[REDACTED]" in str(leak.get("redacted_evidence", "")) for leak in leaks)
+        servers = collect_findings(bom, "mcp_servers")
+        assert any(
+            server.get("path") == "mcp.json"
+            and server.get("name") == "sentinel-web"
+            and server.get("args")
+            == [
+                "-y",
+                "@modelcontextprotocol/server-fetch",
+                "--api-key",
+                "[redacted]",
+                "--token=[redacted]",
+                "https://example.invalid/sse",
+            ]
+            and server.get("env") == ["OPENAI_API_KEY", "SERVICE_TOKEN"]
+            and "secrets_env_access" in server.get("risk_categories", [])
+            for server in servers
+        )
 
     if case_name == "bad/shell_exec_agent":
         assert {

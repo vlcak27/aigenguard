@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "sentinel-web": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch",
+        "--api-key",
+        "mcpArgSecretAIGENGUARD000001",
+        "--token=mcpTokenSecretAIGENGUARD000002",
+        "https://mcp-user:mcpUrlPasswordAIGENGUARD000003@example.invalid/sse"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-proj-AIGENGUARDMCPENV000000000000000004",
+        "SERVICE_TOKEN": "mcpEnvTokenAIGENGUARD000005"
+      },
+      "url": "https://mcp-url-user:mcpUrlCredentialAIGENGUARD000006@example.invalid/mcp"
+    }
+  }
+}
