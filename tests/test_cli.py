@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import io
 import json
 import subprocess
 import sys
@@ -17,6 +18,11 @@ from aigenguard.scanner import MAX_FILE_SIZE, scan_path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+class TtyBuffer(io.StringIO):
+    def isatty(self) -> bool:
+        return True
 
 
 def test_cli_version(capsys):
@@ -44,6 +50,7 @@ def test_cli_help_mentions_core_workflows(capsys):
     assert "opens the generated HTML report" in help_text
     assert "--baseline" in help_text
     assert "--fail-on-new" in help_text
+    assert "--no-color" in help_text
     assert "JSON and Markdown reports are always written" in help_text
     assert "optional reports" in help_text
     assert "diff and policy gates" in help_text
@@ -334,12 +341,90 @@ def test_cli_scan_prints_report_path_and_no_policy_next_steps(tmp_path, capsys):
 
     assert result == 0
     captured = capsys.readouterr()
+    assert "AigenGuard scan completed." in captured.out
+    assert "No blocking findings found." in captured.out
     assert f"Reports written to: {output_dir.as_posix()}/" in captured.out
     assert "Next:" in captured.out
     assert "Open HTML report:" in captured.out
     assert "Start policy review:" in captured.out
     assert "aigenguard init" in captured.out
     assert "--enforce-policy" not in captured.out
+    assert "blocked" not in captured.out.lower()
+    assert "\033[" not in captured.out
+
+
+def test_cli_scan_tty_output_uses_color(tmp_path, monkeypatch):
+    project = tmp_path / "agent"
+    project.mkdir()
+    output_dir = tmp_path / "out"
+    out = TtyBuffer()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    result = main(["scan", str(project), "--output-dir", str(output_dir)])
+
+    assert result == 0
+    assert "\033[32mAigenGuard scan completed.\033[0m" in out.getvalue()
+    assert f"Wrote \033[36m{output_dir / 'agentbom.json'}\033[0m" in out.getvalue()
+
+
+def test_cli_scan_tty_color_does_not_affect_report_files(tmp_path, monkeypatch):
+    project = tmp_path / "agent"
+    project.mkdir()
+    output_dir = tmp_path / "out"
+    out = TtyBuffer()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(output_dir),
+            "--html",
+            "--sarif",
+            "--pretty",
+        ]
+    )
+
+    assert result == 0
+    assert "\033[" in out.getvalue()
+    for path in (
+        output_dir / "agentbom.json",
+        output_dir / "agentbom.md",
+        output_dir / "agentbom.html",
+        output_dir / "agentbom.sarif",
+    ):
+        assert "\033[" not in path.read_text(encoding="utf-8")
+
+
+def test_cli_scan_no_color_disables_tty_color(tmp_path, monkeypatch):
+    project = tmp_path / "agent"
+    project.mkdir()
+    out = TtyBuffer()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    result = main(["scan", str(project), "--output-dir", str(tmp_path / "out"), "--no-color"])
+
+    assert result == 0
+    assert "AigenGuard scan completed." in out.getvalue()
+    assert "\033[" not in out.getvalue()
+
+
+def test_cli_scan_no_color_environment_disables_tty_color(tmp_path, monkeypatch):
+    project = tmp_path / "agent"
+    project.mkdir()
+    out = TtyBuffer()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setenv("NO_COLOR", "1")
+
+    result = main(["scan", str(project), "--output-dir", str(tmp_path / "out")])
+
+    assert result == 0
+    assert "AigenGuard scan completed." in out.getvalue()
+    assert "\033[" not in out.getvalue()
 
 
 def test_cli_scan_html_prints_html_report_path(tmp_path, capsys):
@@ -1261,6 +1346,8 @@ def test_cli_policy_is_advisory_by_default(tmp_path, capsys):
 
     assert result == 0
     captured = capsys.readouterr()
+    assert "AigenGuard scan completed with review findings." in captured.out
+    assert "Run with --enforce-policy to block policy violations." in captured.out
     assert "Policy review: failed" in captured.out
     assert "Mode: advisory" in captured.out
     assert "Model denied by policy: gpt-4o." in captured.out
@@ -1302,8 +1389,8 @@ def test_cli_enforce_policy_failure_prints_blocked_summary_without_html(tmp_path
     assert "AigenGuard blocked this policy-enforced scan." in captured.out
     assert "Top reasons:" in captured.out
     assert (
-        "- model gpt-4o: medium, high confidence, policy status: "
-        "policy_violation, agent.py"
+        "- model gpt-4o: severity=medium, confidence=high, "
+        "policy_status=policy_violation, path=agent.py"
     ) in captured.out
     assert "Detailed report:" in captured.out
     assert "run with --html to create agentbom.html" in captured.out
@@ -1653,7 +1740,7 @@ def test_secret_leak_value_is_redacted_from_all_cli_reports(tmp_path, monkeypatc
 
     assert result == 1
     assert "AigenGuard blocked this policy-enforced scan." in captured.out
-    assert "secret_leak: critical, value redacted, .env:1" in captured.out
+    assert "secret_leak: severity=critical, value redacted, path=.env:1" in captured.out
     assert "Secret Leak Findings" in markdown
     assert "Secret Leak Findings" in html
     assert "secret_leak_findings" in json_text
@@ -1799,7 +1886,7 @@ def test_cross_output_secret_redaction_fixture_covers_user_outputs(
     assert "agentbom.secret_provider" in sarif_serialized
 
     assert "AigenGuard blocked this policy-enforced scan." in captured.out
-    assert "secret_leak: critical, value redacted" in captured.out
+    assert "secret_leak: severity=critical, value redacted" in captured.out
     assert "Secret leak findings: 4" in summary
     assert "agentbom.json" in summary
     assert "agentbom.md" in summary

@@ -37,6 +37,7 @@ from .report import write_reports
 from .runbom import configure_runbom, detect_runbom_command, run_runbom
 from .sarif import write_sarif_report
 from .scanner import scan_path
+from .terminal import TerminalStyle, terminal_style
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -138,6 +139,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="exit nonzero when introduced diff findings meet or exceed this severity",
     )
     scan_parser.add_argument("--pretty", action="store_true", help="pretty-print JSON reports")
+    scan_parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="disable ANSI color in terminal output",
+    )
     output_group = scan_parser.add_argument_group("optional reports")
     output_group.add_argument(
         "--cyclonedx",
@@ -270,6 +276,11 @@ def build_parser() -> argparse.ArgumentParser:
             "enforce blocks (default: advisory)"
         ),
     )
+    guard_parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="disable ANSI color in terminal output",
+    )
 
     install_parser = subparsers.add_parser(
         "install-hook",
@@ -349,6 +360,7 @@ def cli(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "scan":
+        style = terminal_style(no_color=args.no_color)
         if args.fail_on_new and not args.baseline:
             parser.error("--fail-on-new requires --baseline PATH")
         if args.open:
@@ -424,12 +436,25 @@ def cli(argv: list[str] | None = None) -> int:
             and args.enforce_policy
             and bool(_policy_items(policy_review.get("violations")))
         )
-        print(f"Wrote {json_path}")
-        print(f"Wrote {md_path}")
+        diff = bom.get("diff", {})
+        diff_blocked = (
+            isinstance(diff, dict)
+            and args.fail_on_new
+            and has_new_findings_at_or_above(diff, args.fail_on_new)
+        )
+        if not policy_blocked:
+            _print_scan_completion(
+                policy_review=policy_review if isinstance(policy_review, dict) else None,
+                diff_blocked=bool(diff_blocked),
+                style=style,
+            )
+            print("")
+        print(f"Wrote {style.cyan(json_path)}")
+        print(f"Wrote {style.cyan(md_path)}")
         if cyclonedx_path is not None:
-            print(f"Wrote {cyclonedx_path}")
+            print(f"Wrote {style.cyan(cyclonedx_path)}")
         if html_path is not None:
-            print(f"Wrote {html_path}")
+            print(f"Wrote {style.cyan(html_path)}")
             if args.open and browser_error is not None:
                 print(
                     f"Could not open browser automatically: {browser_error}",
@@ -441,25 +466,25 @@ def cli(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
         if mermaid_path is not None:
-            print(f"Wrote {mermaid_path}")
+            print(f"Wrote {style.cyan(mermaid_path)}")
         if sarif_path is not None:
-            print(f"Wrote {sarif_path}")
+            print(f"Wrote {style.cyan(sarif_path)}")
         if suggested_policy_path is not None:
             print("")
-            print(f"Suggested policy written to {suggested_policy_path}")
+            print(f"Suggested policy written to {style.cyan(suggested_policy_path)}")
             _print_next_steps(suggested_policy_path)
         risk = bom.get("repository_risk", {})
         if isinstance(risk, dict):
             severity = risk.get("severity", "unknown")
             score = risk.get("score", "unknown")
-            print(f"Risk: {severity} ({score}/100)")
+            print(f"Risk: {_format_risk_value(severity, style)} ({score}/100)")
         if isinstance(policy_review, dict):
-            _print_policy_review(policy_review, include_items=not policy_blocked)
+            _print_policy_review(policy_review, include_items=not policy_blocked, style=style)
         if policy_blocked:
             print("")
-            print("AigenGuard blocked this policy-enforced scan.")
+            print(style.red("AigenGuard blocked this policy-enforced scan."))
             print("")
-            print(format_blocked_details(bom, html_path=html_path))
+            print(format_blocked_details(bom, html_path=html_path, style=style))
         else:
             _print_scan_next_steps(
                 args=args,
@@ -468,15 +493,14 @@ def cli(argv: list[str] | None = None) -> int:
                 browser_opened=browser_opened,
                 policy_review=policy_review if isinstance(policy_review, dict) else None,
                 suggested_policy_path=suggested_policy_path,
+                style=style,
             )
-        diff = bom.get("diff", {})
-        if isinstance(diff, dict) and args.fail_on_new:
-            if has_new_findings_at_or_above(diff, args.fail_on_new):
-                print(
-                    f"New findings at or above {args.fail_on_new} severity were introduced.",
-                    file=sys.stderr,
-                )
-                return 1
+        if diff_blocked:
+            print(
+                f"New findings at or above {args.fail_on_new} severity were introduced.",
+                file=sys.stderr,
+            )
+            return 1
         if isinstance(policy_review, dict) and args.enforce_policy:
             if policy_review.get("violations"):
                 return 1
@@ -495,7 +519,7 @@ def cli(argv: list[str] | None = None) -> int:
         return _deactivate()
 
     if args.command == "guard":
-        return run_guard(args.path, args.policy, args.mode)
+        return run_guard(args.path, args.policy, args.mode, no_color=args.no_color)
 
     if args.command == "install-hook":
         if args.mode and args.enforce_policy:
@@ -715,17 +739,18 @@ def _print_scan_next_steps(
     browser_opened: bool,
     policy_review: dict[str, object] | None,
     suggested_policy_path: Path | None,
+    style: TerminalStyle,
 ) -> None:
     print("")
-    print(f"Reports written to: {_display_dir(output_dir)}")
+    print(f"Reports written to: {style.cyan(_display_dir(output_dir))}")
     if html_path is not None:
         print("")
         if args.open and browser_opened:
             print("Opened HTML report:")
-            print(f"  {html_path}")
+            print(f"  {style.cyan(html_path)}")
         else:
             print("HTML report:")
-            print(f"  {html_path}")
+            print(f"  {style.cyan(html_path)}")
             print("")
             print("Open it:")
             print(f"  {_scan_command(args, html=True, open_report=True)}")
@@ -812,14 +837,15 @@ def _print_policy_review(
     policy_review: dict[str, object],
     *,
     include_items: bool = True,
+    style: TerminalStyle,
 ) -> None:
     status = _policy_review_status(policy_review)
     print("")
-    print(f"Policy review: {status}")
+    print(f"{style.bold('Policy review')}: {_format_policy_status(status, style)}")
     print(f"Mode: {policy_review.get('mode', 'advisory')}")
     policy_file = policy_review.get("policy_file")
     if policy_file:
-        print(f"Policy file: {policy_file}")
+        print(f"Policy file: {style.cyan(policy_file)}")
     if not include_items:
         return
     violations = _policy_items(policy_review.get("violations"))
@@ -836,7 +862,56 @@ def _print_policy_review(
             print(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
     if policy_review.get("mode") == "advisory" and violations:
         print("")
-        print("Policy violations do not fail the scan unless --enforce-policy is used.")
+        print(style.dim("Policy violations do not fail the scan unless --enforce-policy is used."))
+
+
+def _print_scan_completion(
+    *,
+    policy_review: dict[str, object] | None,
+    diff_blocked: bool,
+    style: TerminalStyle,
+) -> None:
+    if _has_advisory_policy_violations(policy_review):
+        print(style.yellow("AigenGuard scan completed with review findings."))
+        print(style.dim("Run with --enforce-policy to block policy violations."))
+        return
+    if _has_policy_warnings(policy_review) or diff_blocked:
+        print(style.yellow("AigenGuard scan completed with review findings."))
+        return
+    print(style.green("AigenGuard scan completed."))
+    print("No blocking findings found.")
+
+
+def _has_advisory_policy_violations(policy_review: dict[str, object] | None) -> bool:
+    return (
+        policy_review is not None
+        and policy_review.get("mode") == "advisory"
+        and bool(_policy_items(policy_review.get("violations")))
+    )
+
+
+def _has_policy_warnings(policy_review: dict[str, object] | None) -> bool:
+    return policy_review is not None and bool(_policy_items(policy_review.get("warnings")))
+
+
+def _format_policy_status(status: str, style: TerminalStyle) -> str:
+    if status == "failed":
+        return style.red(status)
+    if status == "passed with warnings":
+        return style.yellow(status)
+    return style.green(status)
+
+
+def _format_risk_value(severity: object, style: TerminalStyle) -> str:
+    value = str(severity)
+    lowered = value.lower()
+    if lowered == "critical":
+        return style.red(value)
+    if lowered in {"high", "medium"}:
+        return style.yellow(value)
+    if lowered == "low":
+        return style.green(value)
+    return value
 
 
 def _policy_items(value: object) -> list[dict[str, object]]:

@@ -16,6 +16,7 @@ from .blocked_output import format_blocked_details
 from .report import write_reports
 from .policy_paths import preferred_policy_path
 from .scanner import scan_path
+from .terminal import TerminalStyle, terminal_style
 
 
 GUARD_MODES = ("advisory", "confirm", "enforce")
@@ -64,11 +65,13 @@ def run_guard(
     stderr: TextIO | None = None,
     environ: Mapping[str, str] | None = None,
     confirm_reader: ConfirmReader | None = None,
+    no_color: bool = False,
 ) -> int:
     """Run the concise local policy guard."""
     out = sys.stdout if stdout is None else stdout
     err = sys.stderr if stderr is None else stderr
     env = os.environ if environ is None else environ
+    style = terminal_style(out, env, no_color=no_color)
     guard_mode = normalize_guard_mode(mode)
 
     try:
@@ -92,21 +95,21 @@ def run_guard(
     warnings = _policy_items(policy_review.get("warnings"))
 
     if not violations and not warnings:
-        _print_guard_status("AigenGuard OK", "green", out, env)
+        _print_guard_status("AigenGuard OK", "green", out, style)
         print("No policy violations found.", file=out)
         return 0
 
     if not violations:
-        _print_guard_status("AigenGuard passed with warnings", "yellow", out, env)
+        _print_guard_status("AigenGuard passed with warnings", "yellow", out, style)
         print("", file=out)
-        _print_policy_items(warnings, out, env)
+        _print_policy_items(warnings, out, style)
         print("Commit allowed.", file=out)
         return 0
 
     if guard_mode == "advisory":
-        _print_guard_status("AigenGuard found policy violations", "yellow", out, env)
+        _print_guard_status("AigenGuard found policy violations", "yellow", out, style)
         print("", file=out)
-        _print_policy_items(violations, out, env)
+        _print_policy_items(violations, out, style)
         print("Commit allowed because guard mode is advisory.", file=out)
         print("", file=out)
         print("To block commits, run:", file=out)
@@ -114,9 +117,9 @@ def run_guard(
         return 0
 
     if guard_mode == "confirm":
-        _print_guard_status("AigenGuard found policy violations", "yellow", out, env)
+        _print_guard_status("AigenGuard found policy violations", "yellow", out, style)
         print("", file=out)
-        _print_policy_items(violations, out, env)
+        _print_policy_items(violations, out, style)
         reader = _read_confirmation_from_tty if confirm_reader is None else confirm_reader
         answer = reader("Continue with commit? [y/N]: ")
         if answer is None:
@@ -132,13 +135,14 @@ def run_guard(
         print("Commit blocked.", file=out)
         return 1
 
-    _print_guard_status("AigenGuard blocked this commit.", "red", out, env)
+    _print_guard_status("AigenGuard blocked this commit.", "red", out, style)
     print("", file=out)
     print(
         format_blocked_details(
             bom,
             html_path=None,
             html_suggestion="run with --html to create agentbom.html",
+            style=style,
         ),
         file=out,
     )
@@ -443,20 +447,20 @@ def _print_guard_status(
     message: str,
     color: str,
     stdout: TextIO,
-    environ: Mapping[str, str],
+    style: TerminalStyle,
 ) -> None:
-    print(_color(message, color, stdout, environ), file=stdout)
+    print(_color(message, color, style), file=stdout)
 
 
 def _print_policy_items(
     items: list[dict[str, object]],
     stdout: TextIO,
-    environ: Mapping[str, str],
+    style: TerminalStyle,
 ) -> None:
     print(
         _format_explained_policy_items(
             items,
-            severity_formatter=lambda severity: _format_severity(severity, stdout, environ),
+            severity_formatter=lambda severity: _format_severity(severity, style),
         ),
         file=stdout,
     )
@@ -745,31 +749,27 @@ def _guard_scan_policy_arg(policy_path: str | Path) -> str:
     return str(policy_path)
 
 
-def _color(text: str, color: str, stdout: TextIO, environ: Mapping[str, str]) -> str:
-    if not _supports_color(stdout, environ):
-        return text
-    code = {"green": "32", "yellow": "33", "red": "31", "bold_red": "1;31"}[color]
-    return f"\033[{code}m{text}\033[0m"
-
-
-def _supports_color(stdout: TextIO, environ: Mapping[str, str]) -> bool:
-    return "NO_COLOR" not in environ and hasattr(stdout, "isatty") and stdout.isatty()
+def _color(text: str, color: str, style: TerminalStyle) -> str:
+    if color == "green":
+        return style.green(text)
+    if color == "yellow":
+        return style.yellow(text)
+    return style.red(text)
 
 
 def _format_severity(
     severity: str,
-    stdout: TextIO,
-    environ: Mapping[str, str],
+    style: TerminalStyle,
 ) -> str:
     label = severity.upper()
     color = {
         "CRITICAL": "red",
-        "HIGH": "bold_red",
+        "HIGH": "yellow",
         "MEDIUM": "yellow",
     }.get(label)
     if color is None:
         return label
-    return _color(label, color, stdout, environ)
+    return _color(label, color, style)
 
 
 def _shell_double_quote(value: str) -> str:

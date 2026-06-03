@@ -101,7 +101,8 @@ should block without prompting.
 
 ## --open does not open the browser
 
-The report is still written. Open the printed HTML path manually, for example:
+The local report is still written. Open the printed HTML path manually, for
+example:
 
 ```text
 aigenguard-report/agentbom.html
@@ -117,6 +118,16 @@ aigenguard scan . --html
 
 You can also use `--open`; AigenGuard writes HTML first when browser opening needs
 an HTML report.
+
+## Terminal color is not wanted
+
+AigenGuard only uses ANSI color when stdout is an interactive TTY. Disable color
+explicitly with either:
+
+```bash
+NO_COLOR=1 aigenguard scan .
+aigenguard scan . --no-color
+```
 
 ## Policy violations do not fail the scan
 
