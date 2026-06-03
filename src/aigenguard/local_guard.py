@@ -12,6 +12,7 @@ import tempfile
 from dataclasses import dataclass
 from typing import Callable, Mapping, TextIO
 
+from .blocked_output import format_blocked_details
 from .report import write_reports
 from .policy_paths import preferred_policy_path
 from .scanner import scan_path
@@ -131,13 +132,13 @@ def run_guard(
         print("Commit blocked.", file=out)
         return 1
 
-    _print_guard_status("AigenGuard blocked this commit", "red", out, env)
+    _print_guard_status("AigenGuard blocked this commit.", "red", out, env)
     print("", file=out)
     print(
-        format_blocking_findings(
-            violations,
-            policy_path=_guard_scan_policy_arg(policy_path),
-            severity_formatter=lambda severity: _format_severity(severity, out, env),
+        format_blocked_details(
+            bom,
+            html_path=None,
+            html_suggestion="run with --html to create agentbom.html",
         ),
         file=out,
     )
