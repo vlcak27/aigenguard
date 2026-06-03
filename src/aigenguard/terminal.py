@@ -15,6 +15,7 @@ ANSI_CODES = {
     "bold_red": "1;31",
     "yellow": "33",
     "green": "32",
+    "bold_green": "1;32",
     "cyan": "36",
 }
 
@@ -43,7 +44,7 @@ class TerminalStyle:
         return self.apply(text, "yellow")
 
     def green(self, text: object) -> str:
-        return self.apply(text, "green")
+        return self.apply(text, "bold_green")
 
     def cyan(self, text: object) -> str:
         return self.apply(text, "cyan")

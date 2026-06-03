@@ -543,13 +543,11 @@ def test_guard_enforce_blocks_policy_violations(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 1
     assert "AigenGuard blocked this commit." in captured.out
-    assert "Top reasons:" in captured.out
-    assert (
-        "- model gpt-4o: severity=medium, confidence=high, "
-        "policy_status=policy_violation, path=agent.py"
-    ) in captured.out
+    assert "2 policy violations need review before this change can land." in captured.out
     assert "Detailed report:" in captured.out
     assert "run with --html to create agentbom.html" in captured.out
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in captured.out
     assert "AIGENGUARD_SKIP_HOOK=1 git commit" in captured.out
     assert "git commit --no-verify" in captured.out
 
@@ -608,7 +606,7 @@ def test_guard_prints_ok_green_when_tty_supports_color(tmp_path):
     result = run_guard(project, policy, "advisory", stdout=out, stderr=io.StringIO(), environ={})
 
     assert result == 0
-    assert "\033[32mAigenGuard OK\033[0m" in out.getvalue()
+    assert "\033[1;32mAigenGuard OK\033[0m" in out.getvalue()
 
 
 def test_guard_no_color_disables_ansi(tmp_path):
@@ -638,7 +636,9 @@ def test_guard_blocking_tty_output_uses_red(tmp_path):
     output = out.getvalue()
     assert result == 1
     assert "\033[1;31mAigenGuard blocked this commit.\033[0m" in output
-    assert "model gpt-4o: severity=medium, confidence=high" in output
+    assert "2 policy violations need review before this change can land." in output
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in output
 
 
 def test_guard_warning_tty_output_uses_yellow(tmp_path):
@@ -683,6 +683,8 @@ def test_guard_blocking_non_tty_output_has_no_ansi(tmp_path):
     assert result == 1
     assert "AigenGuard blocked this commit." in output
     assert "\033[" not in output
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in output
 
 
 def test_guard_cli_no_color_disables_tty_color(tmp_path, monkeypatch):
@@ -719,8 +721,10 @@ def test_guard_enforce_blocks_secret_leaks_with_redacted_output(tmp_path):
     output = out.getvalue()
     assert result == 1
     assert "AigenGuard blocked this commit." in output
-    assert "secret_leak: severity=critical, value redacted, path=.env:1" in output
-    assert ".env:1" in output
+    assert "1 policy violation needs review before this change can land." in output
+    assert "Secret values were redacted." in output
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in output
     assert secret_value not in output
 
 
@@ -733,7 +737,7 @@ def test_guard_critical_tty_severity_uses_red(tmp_path):
     output = out.getvalue()
     assert result == 1
     assert "\033[1;31mAigenGuard blocked this commit.\033[0m" in output
-    assert "secret_leak: severity=critical, value redacted" in output
+    assert "Secret values were redacted." in output
     assert secret_value not in output
 
 
@@ -745,9 +749,9 @@ def test_guard_blocked_shell_capability_output_explains_static_evidence(tmp_path
 
     output = out.getvalue()
     assert result == 1
-    assert "Top reasons:" in output
-    assert "shell_execution: risk=high, confidence=high, policy_status=policy_violation" in output
-    assert "agent.py" in output
+    assert "1 policy violation needs review before this change can land." in output
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in output
 
 
 def test_guard_blocked_mcp_exposure_output_explains_policy_fix(tmp_path):
@@ -758,12 +762,9 @@ def test_guard_blocked_mcp_exposure_output_explains_policy_fix(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "Top reasons:" in output
-    assert (
-        "MCP filesystem: risk=high, confidence=medium, policy_status=policy_violation"
-        in output
-    )
-    assert ".cursor/mcp.json" in output
+    assert "1 policy violation needs review before this change can land." in output
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in output
 
 
 def test_guard_secret_reference_output_does_not_call_reference_a_leak(tmp_path):
@@ -793,21 +794,19 @@ def test_guard_policy_gap_output_is_review_signal_not_vulnerability(tmp_path):
     assert "vulnerability" not in output.lower()
 
 
-def test_guard_blocked_output_truncates_to_top_five_findings(tmp_path):
+def test_guard_blocked_output_summarizes_finding_count(tmp_path):
     project, policy = _project_with_many_model_violations(tmp_path)
 
     out = io.StringIO()
     result = run_guard(project, policy, "enforce", stdout=out, stderr=io.StringIO(), environ={})
 
     output = out.getvalue()
-    finding_lines = [
-        line for line in output.splitlines() if line.startswith("- model gpt-4o:")
-    ]
     assert result == 1
-    assert "Top reasons:" in output
-    assert len(finding_lines) == 5
+    assert "7 policy violations need review before this change can land." in output
     assert "Detailed report:" in output
     assert "run with --html to create agentbom.html" in output
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in output
 
 
 def test_guard_blocked_no_color_respects_no_color(tmp_path):

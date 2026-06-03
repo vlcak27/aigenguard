@@ -364,7 +364,7 @@ def test_cli_scan_tty_output_uses_color(tmp_path, monkeypatch):
     result = main(["scan", str(project), "--output-dir", str(output_dir)])
 
     assert result == 0
-    assert "\033[32mAigenGuard scan completed.\033[0m" in out.getvalue()
+    assert "\033[1;32mAigenGuard scan completed.\033[0m" in out.getvalue()
     assert f"Wrote \033[36m{output_dir / 'agentbom.json'}\033[0m" in out.getvalue()
 
 
@@ -1365,6 +1365,33 @@ def test_cli_policy_is_advisory_by_default(tmp_path, capsys):
     assert data["policy_review"]["mode"] == "advisory"
 
 
+def test_cli_advisory_policy_findings_use_yellow_tty_status(tmp_path, monkeypatch):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("model = 'gpt-4o'\n", encoding="utf-8")
+    policy = tmp_path / "aigenguard.toml"
+    policy.write_text("[models]\ndeny = [\"gpt-4o\"]\n", encoding="utf-8")
+    out = TtyBuffer()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--policy",
+            str(policy),
+        ]
+    )
+
+    output = out.getvalue()
+    assert result == 0
+    assert "\033[33mAigenGuard scan completed with review findings.\033[0m" in output
+    assert "AigenGuard blocked this policy-enforced scan" not in output
+
+
 def test_cli_enforce_policy_failure_prints_blocked_summary_without_html(tmp_path, capsys):
     project = tmp_path / "agent"
     project.mkdir()
@@ -1387,13 +1414,12 @@ def test_cli_enforce_policy_failure_prints_blocked_summary_without_html(tmp_path
     assert result == 1
     captured = capsys.readouterr()
     assert "AigenGuard blocked this policy-enforced scan." in captured.out
-    assert "Top reasons:" in captured.out
-    assert (
-        "- model gpt-4o: severity=medium, confidence=high, "
-        "policy_status=policy_violation, path=agent.py"
-    ) in captured.out
+    assert "1 policy violation needs review." in captured.out
     assert "Detailed report:" in captured.out
     assert "run with --html to create agentbom.html" in captured.out
+    assert "\033[" not in captured.out
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in captured.out
     assert "Mode: enforced" in captured.out
     assert (
         "Policy enforcement failed. Fix policy violations before committing/merging."
@@ -1427,10 +1453,50 @@ def test_cli_enforce_policy_failure_points_to_generated_html_report(tmp_path, ca
     assert result == 1
     captured = capsys.readouterr()
     assert (output_dir / "agentbom.html").exists()
-    assert "Detailed report:" in captured.out
+    assert "Open the detailed report:" in captured.out
     assert f"open {output_dir / 'agentbom.html'}" in captured.out
+    html = (output_dir / "agentbom.html").read_text(encoding="utf-8")
+    assert "gpt-4o" in html
+    assert "Policy Review" in html
+    assert "Model denied by policy: gpt-4o." in html
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in captured.out
     assert "visit website" not in captured.out.lower()
     assert "hosted" not in captured.out.lower()
+
+
+def test_cli_enforce_policy_failure_uses_red_status_and_cyan_html_path(
+    tmp_path, monkeypatch
+):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text("model = 'gpt-4o'\n", encoding="utf-8")
+    policy = tmp_path / "aigenguard.toml"
+    policy.write_text("[models]\ndeny = [\"gpt-4o\"]\n", encoding="utf-8")
+    output_dir = tmp_path / "out"
+    out = TtyBuffer()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    result = main(
+        [
+            "scan",
+            str(project),
+            "--output-dir",
+            str(output_dir),
+            "--policy",
+            str(policy),
+            "--enforce-policy",
+            "--html",
+        ]
+    )
+
+    output = out.getvalue()
+    assert result == 1
+    assert "\033[1;31mAigenGuard blocked this policy-enforced scan.\033[0m" in output
+    assert f"open \033[36m{output_dir / 'agentbom.html'}\033[0m" in output
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in output
 
 
 def test_cli_enforce_policy_failure_open_points_to_local_html_report(
@@ -1463,7 +1529,7 @@ def test_cli_enforce_policy_failure_open_points_to_local_html_report(
     html_path = output_dir / "agentbom.html"
     assert html_path.exists()
     assert opened == [html_path.resolve().as_uri()]
-    assert "Detailed report:" in captured.out
+    assert "Open the detailed report:" in captured.out
     assert f"open {html_path}" in captured.out
     assert "visit website" not in captured.out.lower()
     assert "hosted" not in captured.out.lower()
@@ -1740,10 +1806,13 @@ def test_secret_leak_value_is_redacted_from_all_cli_reports(tmp_path, monkeypatc
 
     assert result == 1
     assert "AigenGuard blocked this policy-enforced scan." in captured.out
-    assert "secret_leak: severity=critical, value redacted, path=.env:1" in captured.out
+    assert "1 policy violation needs review." in captured.out
+    assert "Secret values were redacted." in captured.out
     assert "Secret Leak Findings" in markdown
     assert "Secret Leak Findings" in html
     assert "secret_leak_findings" in json_text
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in captured.out
     for output in (captured.out, captured.err, json_text, markdown, html, sarif, summary):
         assert secret_value not in output
     assert "[REDACTED]" in json_text
@@ -1886,7 +1955,9 @@ def test_cross_output_secret_redaction_fixture_covers_user_outputs(
     assert "agentbom.secret_provider" in sarif_serialized
 
     assert "AigenGuard blocked this policy-enforced scan." in captured.out
-    assert "secret_leak: severity=critical, value redacted" in captured.out
+    assert "Secret values were redacted." in captured.out
+    for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
+        assert field not in captured.out
     assert "Secret leak findings: 4" in summary
     assert "agentbom.json" in summary
     assert "agentbom.md" in summary

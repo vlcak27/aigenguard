@@ -12,9 +12,10 @@ Report filenames remain `agentbom.json`, `agentbom.md`, `agentbom.html`,
 `agentbom.mmd`, `agentbom.sarif`, and `agentbom.cdx.json` for compatibility
 with existing automation.
 
-When enforcement blocks a commit, terminal output is intentionally short. It
-lists the top reasons and points to the local `agentbom.html` report when HTML
-was generated, or tells you to rerun with `--html` to create it.
+Terminal output is intentionally concise. It reports status and points to the
+local `agentbom.html` report when HTML was generated, or tells you to rerun with
+`--html` to create it. Use the local HTML report for detailed descriptions,
+evidence, risk, confidence, policy status, path/line information, and caveats.
 
 Terminal color is enabled only for interactive TTY output. Set `NO_COLOR=1`, or
 pass `--no-color` to `aigenguard scan` or `aigenguard guard`, to disable ANSI
