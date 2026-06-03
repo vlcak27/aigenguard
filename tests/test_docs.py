@@ -27,6 +27,22 @@ def test_readme_links_to_troubleshooting_doc():
     assert "[Troubleshooting](docs/troubleshooting.md)" in text
 
 
+def test_precision_doc_exists_and_explains_static_scope():
+    text = (ROOT / "docs" / "precision.md").read_text(encoding="utf-8")
+
+    assert "static precision regression corpus" in text
+    assert "good cases" in text
+    assert "bad cases" in text
+    assert "false-positive" in text
+    assert "policy-documented" in text
+    assert "not comprehensive vulnerability coverage" in text
+    assert "not exploit proof" in text
+    assert "does not execute scanned code" in text
+    assert "does not execute MCP servers" in text
+    assert "does not make network calls" in text
+    assert "Confidence means the strength of static evidence, not exploitability" in text
+
+
 def test_rename_docs_explain_agentbom_backward_compatibility():
     paths = [
         ROOT / "README.md",
