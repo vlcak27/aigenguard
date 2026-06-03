@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aigenguard"
-version = "0.8.2"
+version = "0.8.3"
 description = "Local-first pre-commit policy guard for AI-agent repositories."
 readme = "README.md"
 requires-python = ">=3.11"

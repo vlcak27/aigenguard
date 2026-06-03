@@ -2,6 +2,37 @@
 
 All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
+## v0.8.3
+
+### Documentation
+
+- Documented static precision expectations and false-positive fixture coverage.
+- Documented the confidence model and added regression coverage for confidence
+  signals.
+- Clarified the MCP boundary between inventory and reachable exposure signals.
+- Kept wording explicit that AigenGuard does not prove runtime MCP
+  reachability, policy safety, exploitability, hosted web reports, full secret
+  scanner coverage, or full vulnerability scanning.
+
+### Review Quality
+
+- Added cross-output secret redaction regression coverage for JSON, Markdown,
+  HTML, SARIF, CLI, and GitHub summary output.
+- Fixed MCP URL credential redaction so credentials embedded in MCP server URLs
+  are redacted in reports.
+- Added `policy_status` review context for selected findings.
+- Added optional SARIF `policy_status` properties when the status is
+  unambiguous.
+- Improved blocked enforcement output with:
+  - `AigenGuard blocked this commit.`
+  - a short Top reasons summary
+  - a local HTML report pointer to `agentbom.html` when generated
+
+### Compatibility
+
+- AgentBOM compatibility is preserved.
+- Report filenames remain `agentbom.*`.
+
 ## v0.8.2
 
 ### Documentation
