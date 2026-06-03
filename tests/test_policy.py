@@ -6,6 +6,7 @@ import pytest
 
 from aigenguard.policy import PolicyError, load_toml_policy, parse_policy_yaml
 from aigenguard.policy_onboarding import starter_policy_toml
+from aigenguard.report import render_markdown
 from aigenguard.scanner import scan_path
 
 
@@ -139,6 +140,142 @@ def test_documented_policy_allows_high_risk_mcp_without_default_policy_gap(tmp_p
     data = scan_path(project)
 
     assert data["policy_findings"] == []
+
+
+def test_policy_status_marks_risky_capability_without_policy_undocumented(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "import subprocess\nsubprocess.run(['echo', 'hello'])\n",
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+    shell = next(item for item in data["capabilities"] if item["name"] == "shell")
+
+    assert shell["policy_status"] == "undocumented"
+    assert any(
+        item.get("policy_status") == "undocumented"
+        and item.get("message") == "shell execution detected without restrictions"
+        for item in data["policy_findings"]
+    )
+
+
+def test_policy_status_marks_repository_policy_documentation_without_safe_language(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "SECURITY.md").write_text(
+        "Shell execution requires human approval.\n",
+        encoding="utf-8",
+    )
+    (project / "agent.py").write_text(
+        "import subprocess\nsubprocess.run(['echo', 'hello'])\n",
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+    shell = next(item for item in data["capabilities"] if item["name"] == "shell")
+    markdown = render_markdown(data)
+
+    assert shell["policy_status"] == "documented_by_repository_policy"
+    assert "Policy status: documented by repository policy" in markdown
+    assert "Policy status: safe" not in markdown
+
+
+def test_policy_status_does_not_document_unrelated_reachable_capability(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "SECURITY.md").write_text(
+        "Shell execution requires human approval.\n",
+        encoding="utf-8",
+    )
+    (project / "agent.py").write_text(
+        "\n".join(
+            [
+                "import requests",
+                "model = 'gpt-4o'",
+                "requests.get('https://example.com')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+    reachable = next(
+        item
+        for item in data["reachable_capabilities"]
+        if item["capability"] == "network_access"
+    )
+
+    assert "policy_status" not in reachable
+
+
+def test_policy_status_marks_denied_reachable_capability_as_policy_violation(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "\n".join(
+            [
+                "import subprocess",
+                "model = 'gpt-4o'",
+                "subprocess.run(['echo', 'hello'])",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    policy = tmp_path / "aigenguard.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[capabilities]",
+                'deny = ["code_execution"]',
+                "[mcp]",
+                "require_policy_for_risky_servers = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    advisory = scan_path(project, policy_path=policy)
+    enforced = scan_path(project, policy_path=policy, enforce_policy=True)
+
+    assert advisory["policy_review"]["passed"] is False
+    assert enforced["policy_review"]["passed"] is False
+    assert advisory["policy_review"]["mode"] == "advisory"
+    assert enforced["policy_review"]["mode"] == "enforced"
+    assert len(advisory["policy_review"]["violations"]) == 1
+    assert advisory["policy_review"]["violations"][0]["policy_status"] == "policy_violation"
+    assert any(
+        item.get("capability") == "code_execution"
+        and item.get("policy_status") == "policy_violation"
+        for item in advisory["reachable_capabilities"]
+    )
+
+
+def test_policy_status_marks_warning_only_mcp_policy(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "mcp.json").write_text(
+        '{"mcpServers": {"custom-local": {"command": "custom-local"}}}\n',
+        encoding="utf-8",
+    )
+    policy = tmp_path / "aigenguard.toml"
+    policy.write_text(
+        "\n".join(
+            [
+                "[mcp]",
+                "warn_on_unknown_server = true",
+                "require_policy_for_risky_servers = false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data = scan_path(project, policy_path=policy)
+
+    assert data["policy_review"]["passed"] is True
+    assert data["policy_review"]["warnings"][0]["policy_status"] == "policy_warning"
+    assert data["mcp_servers"][0]["policy_status"] == "policy_warning"
 
 
 def test_policy_yaml_supports_deny_alias():

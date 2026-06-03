@@ -261,6 +261,7 @@ def test_bad_precision_cases_have_precise_evidence(case: dict[str, Any]):
             "name": "shell",
             "path": "agent.py",
             "confidence": "high",
+            "policy_status": "undocumented",
         } in collect_findings(bom, "capabilities")
 
     if case_name == "bad/code_exec_agent":
@@ -287,6 +288,7 @@ def test_bad_precision_cases_have_precise_evidence(case: dict[str, Any]):
             "name": "shell",
             "path": "AGENTS.md",
             "confidence": "low",
+            "policy_status": "undocumented",
         } in collect_findings(bom, "capabilities")
 
     if case_name == "bad/policy_gap_risky_capability":
@@ -357,11 +359,13 @@ def test_confidence_model_matches_current_precision_fixture_behavior():
         "name": "shell",
         "path": "agent.py",
         "confidence": "high",
+        "policy_status": "undocumented",
     } in collect_findings(executable, "capabilities")
     assert {
         "name": "shell",
         "path": "AGENTS.md",
         "confidence": "low",
+        "policy_status": "undocumented",
     } in collect_findings(prompt, "capabilities")
 
 

@@ -125,6 +125,16 @@
         "high"
       ]
     },
+    "policy_status": {
+      "type": "string",
+      "enum": [
+        "undocumented",
+        "documented_by_repository_policy",
+        "policy_warning",
+        "policy_violation",
+        "not_applicable"
+      ]
+    },
     "named_finding": {
       "type": "object",
       "required": [
@@ -141,6 +151,9 @@
         },
         "confidence": {
           "$ref": "#/$defs/confidence"
+        },
+        "policy_status": {
+          "$ref": "#/$defs/policy_status"
         }
       }
     },
@@ -220,6 +233,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "policy_status": {
+          "$ref": "#/$defs/policy_status"
         }
       }
     },
@@ -358,6 +374,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "policy_status": {
+          "$ref": "#/$defs/policy_status"
         }
       }
     },
@@ -423,6 +442,9 @@
         },
         "policy_id": {
           "type": "string"
+        },
+        "policy_status": {
+          "$ref": "#/$defs/policy_status"
         }
       }
     },
@@ -538,6 +560,9 @@
         },
         "suggested_remediation": {
           "type": "string"
+        },
+        "policy_status": {
+          "$ref": "#/$defs/policy_status"
         }
       }
     },

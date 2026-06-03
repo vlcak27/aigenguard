@@ -78,6 +78,7 @@ def render_sarif(bom: dict[str, Any]) -> dict[str, Any]:
             severity,
             message,
             source_file=item["source_file"],
+            properties=_policy_status_properties(item),
         )
 
     for server in bom.get("mcp_servers", []):
@@ -111,7 +112,10 @@ def render_sarif(bom: dict[str, Any]) -> dict[str, Any]:
             "high",
             message,
             source_file=str(server.get("path", "")),
-            properties={"agentbom.mcp_server": name},
+            properties={
+                "agentbom.mcp_server": name,
+                **_policy_status_properties(server),
+            },
         )
 
     for finding in bom.get("policy_findings", []):
@@ -138,6 +142,7 @@ def render_sarif(bom: dict[str, Any]) -> dict[str, Any]:
             severity,
             finding["message"],
             source_file=finding["source_file"],
+            properties=_policy_status_properties(finding),
         )
 
     for finding in bom.get("secret_leak_findings", []):
@@ -281,13 +286,39 @@ def _add_result(
         },
     )
     if properties:
-        result["properties"].update(properties)
+        _merge_result_properties(result, properties)
     locations = result.setdefault("locations", [])
     _append_unique(locations, _location(source_file, line))
 
 
+def _merge_result_properties(
+    result: dict[str, Any], properties: dict[str, str]
+) -> None:
+    target = result["properties"]
+    conflicts = result.setdefault("_aigenguard_property_conflicts", set())
+    if not isinstance(conflicts, set):
+        return
+    for key, value in properties.items():
+        if key in conflicts:
+            continue
+        existing = target.get(key)
+        if key not in target:
+            target[key] = value
+        elif existing != value:
+            target.pop(key, None)
+            conflicts.add(key)
+
+
+def _policy_status_properties(item: dict[str, Any]) -> dict[str, str]:
+    status = item.get("policy_status")
+    if not isinstance(status, str) or not status:
+        return {}
+    return {"aigenguard.policy_status": status}
+
+
 def _with_rule_index(result: dict[str, Any], rule_indexes: dict[str, int]) -> dict[str, Any]:
     copied = dict(result)
+    copied.pop("_aigenguard_property_conflicts", None)
     copied["ruleIndex"] = rule_indexes[copied["ruleId"]]
     return copied
 
