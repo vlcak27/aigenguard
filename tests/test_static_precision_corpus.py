@@ -34,6 +34,10 @@ EXPECTED_CASES = {
     "good/test_files_only",
     "good/config_names_only",
     "good/policy_documented_shell",
+    "good/python_comments_only",
+    "good/mcp_no_usable_servers",
+    "good/env_example_names_only",
+    "good/placeholder_credentials_text",
     "bad/leaked_ai_key_value",
     "bad/shell_exec_agent",
     "bad/code_exec_agent",
@@ -144,6 +148,8 @@ def test_good_precision_cases_have_false_positive_protections(case: dict[str, An
         "good/env_reference_only",
         "good/readme_example_only",
         "good/config_names_only",
+        "good/env_example_names_only",
+        "good/placeholder_credentials_text",
     }:
         assert collect_findings(bom, "secret_leak_findings") == []
 
@@ -158,6 +164,23 @@ def test_good_precision_cases_have_false_positive_protections(case: dict[str, An
         review = bom.get("policy_review")
         assert isinstance(review, dict)
         assert review["violations"] == []
+
+    if case_name == "good/python_comments_only":
+        assert not any(
+            item.get("name") in {"shell", "code_execution"}
+            for item in collect_findings(bom, "capabilities")
+        )
+
+    if case_name == "good/mcp_no_usable_servers":
+        statuses = {
+            str(item.get("parse_status"))
+            for item in collect_findings(bom, "mcp_servers")
+        }
+        assert statuses == {"invalid_json", "no_servers"}
+        assert all(
+            item.get("risk") != "high"
+            for item in collect_findings(bom, "mcp_servers")
+        )
 
 
 @pytest.mark.parametrize("case", BAD_CASES, ids=case_id)

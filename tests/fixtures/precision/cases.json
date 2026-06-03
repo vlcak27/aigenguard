@@ -38,6 +38,34 @@
     "notes": "documented shell evidence may remain a high review risk but should not produce a blocking policy gap"
   },
   {
+    "case": "good/python_comments_only",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "notes": "Python comments and docstrings that mention shell execution should not be executable evidence"
+  },
+  {
+    "case": "good/mcp_no_usable_servers",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "notes": "empty or invalid MCP configs should remain visible without becoming high severity"
+  },
+  {
+    "case": "good/env_example_names_only",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "notes": "environment example files can name credential variables without storing usable values"
+  },
+  {
+    "case": "good/placeholder_credentials_text",
+    "kind": "good",
+    "expectation": "no_high_or_critical_findings",
+    "raw_values_absent": [
+      "sk-proj-example-placeholder-not-a-real-secret-000000",
+      "github_pat_example_placeholder_not_a_real_secret_000000"
+    ],
+    "notes": "test and example placeholders should not become leaked raw credential values"
+  },
+  {
     "case": "bad/leaked_ai_key_value",
     "kind": "bad",
     "expected_any": ["openai", "api_key", "secret_leak"],

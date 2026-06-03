@@ -366,6 +366,7 @@ Useful docs:
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 - [SECURITY.md](SECURITY.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+- [Precision](docs/precision.md)
 - [Threat model](docs/threat-model.md)
 - [Comparison](docs/comparison.md)
 - [Agent risk taxonomy](docs/agent-risk-taxonomy.md)
