@@ -173,6 +173,9 @@ repository and prints concise commit-time status. Passing policy prints
 `AigenGuard OK` in green when stdout is a TTY and `NO_COLOR` is not set; otherwise
 it prints plain text.
 
+Terminal output is intentionally concise. Use the local HTML report for detailed
+descriptions, evidence, risk, confidence, and policy status.
+
 Bypass a local hook intentionally with either command:
 
 ```bash

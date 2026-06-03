@@ -143,6 +143,7 @@ def run_guard(
             html_path=None,
             html_suggestion="run with --html to create agentbom.html",
             style=style,
+            commit_context=True,
         ),
         file=out,
     )
