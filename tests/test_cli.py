@@ -341,13 +341,11 @@ def test_cli_scan_prints_report_path_and_no_policy_next_steps(tmp_path, capsys):
 
     assert result == 0
     captured = capsys.readouterr()
-    assert "AigenGuard scan completed." in captured.out
-    assert "No blocking findings found." in captured.out
-    assert f"Reports written to: {output_dir.as_posix()}/" in captured.out
-    assert "Next:" in captured.out
-    assert "Open HTML report:" in captured.out
-    assert "Start policy review:" in captured.out
-    assert "aigenguard init" in captured.out
+    assert captured.out == "AigenGuard scan completed. No blocking findings found.\n"
+    assert (output_dir / "agentbom.json").exists()
+    assert (output_dir / "agentbom.md").exists()
+    assert "Reports written to:" not in captured.out
+    assert "Next:" not in captured.out
     assert "--enforce-policy" not in captured.out
     assert "blocked" not in captured.out.lower()
     assert "\033[" not in captured.out
@@ -364,8 +362,10 @@ def test_cli_scan_tty_output_uses_color(tmp_path, monkeypatch):
     result = main(["scan", str(project), "--output-dir", str(output_dir)])
 
     assert result == 0
-    assert "\033[1;32mAigenGuard scan completed.\033[0m" in out.getvalue()
-    assert f"Wrote \033[36m{output_dir / 'agentbom.json'}\033[0m" in out.getvalue()
+    assert (
+        "\033[1;32mAigenGuard scan completed. No blocking findings found.\033[0m\n"
+        == out.getvalue()
+    )
 
 
 def test_cli_scan_tty_color_does_not_affect_report_files(tmp_path, monkeypatch):
@@ -436,10 +436,10 @@ def test_cli_scan_html_prints_html_report_path(tmp_path, capsys):
 
     assert result == 0
     captured = capsys.readouterr()
-    assert "HTML report:" in captured.out
-    assert f"{output_dir.as_posix()}/agentbom.html" in captured.out
-    assert "Open it:" in captured.out
-    assert "--html --open" in captured.out
+    assert captured.out == "AigenGuard scan completed. No blocking findings found.\n"
+    assert (output_dir / "agentbom.html").exists()
+    assert "HTML report:" not in captured.out
+    assert "Open it:" not in captured.out
 
 
 def test_cli_scan_open_success_avoids_redundant_open_instruction(
@@ -454,7 +454,7 @@ def test_cli_scan_open_success_avoids_redundant_open_instruction(
 
     assert result == 0
     captured = capsys.readouterr()
-    assert "Opened HTML report:" in captured.out
+    assert captured.out == "AigenGuard scan completed. No blocking findings found.\n"
     assert "Open it:" not in captured.out
 
 
@@ -582,8 +582,8 @@ def test_cli_suggest_policy_writes_policy_and_scan_outputs(tmp_path, capsys):
     assert '"code_execution"' in text
     assert "do-not-store" not in text
     assert "Suggested policy written to" in captured.out
-    assert f"aigenguard scan . --policy {policy.as_posix()} --pretty" in captured.out
-    assert f"aigenguard scan . --policy {policy.as_posix()} --html --open" in captured.out
+    assert "Next:" not in captured.out
+    assert "Reports written to:" not in captured.out
 
 
 def test_cli_suggest_policy_does_not_overwrite_without_force(tmp_path, capsys):
@@ -625,7 +625,9 @@ def test_cli_scan_html_open_calls_webbrowser(tmp_path, monkeypatch, capsys):
     assert result == 0
     assert (output_dir / "agentbom.html").exists()
     assert opened == [(output_dir / "agentbom.html").resolve().as_uri()]
-    assert "HTML report:" in capsys.readouterr().out
+    assert capsys.readouterr().out == (
+        "AigenGuard scan completed. No blocking findings found.\n"
+    )
 
 
 def test_cli_scan_open_without_html_generates_html(tmp_path, monkeypatch):
@@ -657,7 +659,7 @@ def test_cli_scan_open_failure_does_not_fail_scan(tmp_path, monkeypatch, capsys)
     assert result == 0
     assert (output_dir / "agentbom.html").exists()
     captured = capsys.readouterr()
-    assert "HTML report:" in captured.out
+    assert captured.out == "AigenGuard scan completed. No blocking findings found.\n"
     assert "Could not open browser automatically" in captured.err
 
 
@@ -1346,19 +1348,15 @@ def test_cli_policy_is_advisory_by_default(tmp_path, capsys):
 
     assert result == 0
     captured = capsys.readouterr()
-    assert "AigenGuard scan completed with review findings." in captured.out
-    assert "Run with --enforce-policy to block policy violations." in captured.out
-    assert "Policy review: failed" in captured.out
-    assert "Mode: advisory" in captured.out
-    assert "Model denied by policy: gpt-4o." in captured.out
-    assert (
-        "Policy violations do not fail the scan unless --enforce-policy is used."
-        in captured.out
+    assert captured.out == (
+        "AigenGuard scan completed with review findings. "
+        "No blocking enforcement enabled.\n"
     )
-    assert "Review policy findings in the report." in captured.out
-    assert "Update" in captured.out
-    assert "Enforce after review:" in captured.out
-    assert "--enforce-policy" in captured.out
+    assert "Policy review: failed" not in captured.out
+    assert "Mode: advisory" not in captured.out
+    assert "Model denied by policy: gpt-4o." not in captured.out
+    assert "Next:" not in captured.out
+    assert "--enforce-policy" not in captured.out
     assert "AigenGuard blocked this commit" not in captured.out
     assert "AigenGuard blocked this policy-enforced scan" not in captured.out
     data = json.loads((output_dir / "agentbom.json").read_text(encoding="utf-8"))
@@ -1388,7 +1386,10 @@ def test_cli_advisory_policy_findings_use_yellow_tty_status(tmp_path, monkeypatc
 
     output = out.getvalue()
     assert result == 0
-    assert "\033[33mAigenGuard scan completed with review findings.\033[0m" in output
+    assert output == (
+        "\033[33mAigenGuard scan completed with review findings. "
+        "No blocking enforcement enabled.\033[0m\n"
+    )
     assert "AigenGuard blocked this policy-enforced scan" not in output
 
 
@@ -1413,14 +1414,14 @@ def test_cli_enforce_policy_failure_prints_blocked_summary_without_html(tmp_path
 
     assert result == 1
     captured = capsys.readouterr()
-    assert "AigenGuard blocked this policy-enforced scan." in captured.out
-    assert "1 policy violation needs review." in captured.out
-    assert "Detailed report:" in captured.out
-    assert "run with --html to create agentbom.html" in captured.out
+    assert captured.out == (
+        "AigenGuard blocked this policy-enforced scan. 1 policy violation needs review.\n"
+        "Detailed report: run with --html to create agentbom.html\n"
+    )
     assert "\033[" not in captured.out
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in captured.out
-    assert "Mode: enforced" in captured.out
+    assert "Mode: enforced" not in captured.out
     assert (
         "Policy enforcement failed. Fix policy violations before committing/merging."
         not in captured.out
@@ -1453,8 +1454,10 @@ def test_cli_enforce_policy_failure_points_to_generated_html_report(tmp_path, ca
     assert result == 1
     captured = capsys.readouterr()
     assert (output_dir / "agentbom.html").exists()
-    assert "Open the detailed report:" in captured.out
-    assert f"open {output_dir / 'agentbom.html'}" in captured.out
+    assert captured.out == (
+        "AigenGuard blocked this policy-enforced scan. 1 policy violation needs review.\n"
+        f"Detailed report: open {output_dir / 'agentbom.html'}\n"
+    )
     html = (output_dir / "agentbom.html").read_text(encoding="utf-8")
     assert "gpt-4o" in html
     assert "Policy Review" in html
@@ -1493,7 +1496,10 @@ def test_cli_enforce_policy_failure_uses_red_status_and_cyan_html_path(
 
     output = out.getvalue()
     assert result == 1
-    assert "\033[1;31mAigenGuard blocked this policy-enforced scan.\033[0m" in output
+    assert (
+        "\033[1;31mAigenGuard blocked this policy-enforced scan. "
+        "1 policy violation needs review.\033[0m"
+    ) in output
     assert f"open \033[36m{output_dir / 'agentbom.html'}\033[0m" in output
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in output
@@ -1529,8 +1535,10 @@ def test_cli_enforce_policy_failure_open_points_to_local_html_report(
     html_path = output_dir / "agentbom.html"
     assert html_path.exists()
     assert opened == [html_path.resolve().as_uri()]
-    assert "Open the detailed report:" in captured.out
-    assert f"open {html_path}" in captured.out
+    assert captured.out == (
+        "AigenGuard blocked this policy-enforced scan. 1 policy violation needs review.\n"
+        f"Detailed report: open {html_path}\n"
+    )
     assert "visit website" not in captured.out.lower()
     assert "hosted" not in captured.out.lower()
 
@@ -1569,8 +1577,7 @@ def test_cli_policy_pass_exits_zero(tmp_path, capsys):
 
     assert result == 0
     captured = capsys.readouterr()
-    assert "Policy review: passed" in captured.out
-    assert "Policy enforcement passed." in captured.out
+    assert captured.out == "AigenGuard scan completed. No blocking findings found.\n"
     assert "AigenGuard blocked this commit" not in captured.out
     assert "AigenGuard blocked this policy-enforced scan" not in captured.out
 
@@ -1757,7 +1764,10 @@ def test_policy_warnings_only_pass_with_warnings_and_enforcement_exits_zero(
     assert data["policy_review"]["passed"] is True
     assert data["policy_review"]["violations"] == []
     assert data["policy_review"]["warnings"]
-    assert "Policy review: passed with warnings" in captured.out
+    assert captured.out == (
+        "AigenGuard scan completed with review findings. "
+        "No blocking findings found.\n"
+    )
     assert "Status: passed with warnings" in markdown
     assert "passed with warnings" in html
     assert "Policy enforcement passed with warnings." in html

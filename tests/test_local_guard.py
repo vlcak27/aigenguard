@@ -542,14 +542,14 @@ def test_guard_enforce_blocks_policy_violations(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "AigenGuard blocked this commit." in captured.out
-    assert "2 policy violations need review before this change can land." in captured.out
-    assert "Detailed report:" in captured.out
-    assert "run with --html to create agentbom.html" in captured.out
+    assert captured.out == (
+        "AigenGuard blocked this commit. 2 policy violations need review.\n"
+        "Detailed report: run with --html to create agentbom.html\n"
+    )
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in captured.out
-    assert "AIGENGUARD_SKIP_HOOK=1 git commit" in captured.out
-    assert "git commit --no-verify" in captured.out
+    assert "AIGENGUARD_SKIP_HOOK=1 git commit" not in captured.out
+    assert "git commit --no-verify" not in captured.out
 
 
 def test_guard_confirm_allows_on_yes(tmp_path, monkeypatch, capsys):
@@ -635,8 +635,10 @@ def test_guard_blocking_tty_output_uses_red(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "\033[1;31mAigenGuard blocked this commit.\033[0m" in output
-    assert "2 policy violations need review before this change can land." in output
+    assert (
+        "\033[1;31mAigenGuard blocked this commit. "
+        "2 policy violations need review.\033[0m"
+    ) in output
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in output
 
@@ -721,7 +723,7 @@ def test_guard_enforce_blocks_secret_leaks_with_redacted_output(tmp_path):
     output = out.getvalue()
     assert result == 1
     assert "AigenGuard blocked this commit." in output
-    assert "1 policy violation needs review before this change can land." in output
+    assert "1 policy violation needs review." in output
     assert "Secret values were redacted." in output
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in output
@@ -736,7 +738,11 @@ def test_guard_critical_tty_severity_uses_red(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "\033[1;31mAigenGuard blocked this commit.\033[0m" in output
+    assert (
+        "\033[1;31mAigenGuard blocked this commit. "
+        "1 policy violation needs review. Secret values were redacted.\033[0m"
+        in output
+    )
     assert "Secret values were redacted." in output
     assert secret_value not in output
 
@@ -749,7 +755,7 @@ def test_guard_blocked_shell_capability_output_explains_static_evidence(tmp_path
 
     output = out.getvalue()
     assert result == 1
-    assert "1 policy violation needs review before this change can land." in output
+    assert "1 policy violation needs review." in output
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in output
 
@@ -762,7 +768,7 @@ def test_guard_blocked_mcp_exposure_output_explains_policy_fix(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "1 policy violation needs review before this change can land." in output
+    assert "1 policy violation needs review." in output
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in output
 
@@ -802,9 +808,10 @@ def test_guard_blocked_output_summarizes_finding_count(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "7 policy violations need review before this change can land." in output
-    assert "Detailed report:" in output
-    assert "run with --html to create agentbom.html" in output
+    assert output == (
+        "AigenGuard blocked this commit. 7 policy violations need review.\n"
+        "Detailed report: run with --html to create agentbom.html\n"
+    )
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in output
 
