@@ -12,6 +12,7 @@ import pytest
 from aigenguard.cli import main
 from aigenguard.github_summary import render_github_step_summary, write_github_step_summary
 from aigenguard.html_report import _table, render_html
+from aigenguard.sarif import render_sarif
 from aigenguard.scanner import MAX_FILE_SIZE, scan_path
 
 
@@ -303,6 +304,7 @@ def test_cli_generates_json_and_markdown(tmp_path):
         "name": "shell",
         "path": "agent.py",
         "confidence": "high",
+        "policy_status": "undocumented",
     } in data["capabilities"]
 
     assert any(
@@ -1046,6 +1048,55 @@ def test_cli_generates_sarif_when_requested(tmp_path):
             for location in result["locations"]
         )
         for result in results
+    )
+
+
+def test_sarif_omits_grouped_policy_status_when_statuses_conflict():
+    sarif = render_sarif(
+        {
+            "risks": [],
+            "reachable_capabilities": [
+                {
+                    "capability": "network_access",
+                    "reachable_from": "gpt-4o",
+                    "source_file": "agent_a.py",
+                    "risk": "medium",
+                    "policy_status": "undocumented",
+                },
+                {
+                    "capability": "network_access",
+                    "reachable_from": "gpt-4o",
+                    "source_file": "agent_b.py",
+                    "risk": "medium",
+                    "policy_status": "documented_by_repository_policy",
+                },
+            ],
+            "mcp_servers": [],
+            "policy_findings": [
+                {
+                    "severity": "high",
+                    "message": "custom policy violation: denied capability shell",
+                    "source_file": "agent.py",
+                    "policy_status": "policy_violation",
+                }
+            ],
+            "secret_leak_findings": [],
+            "diff": {},
+        }
+    )
+
+    results = {
+        result["ruleId"]: result
+        for result in sarif["runs"][0]["results"]
+    }
+
+    assert "aigenguard.policy_status" not in results["reachable.network_access"]["properties"]
+    assert "_aigenguard_property_conflicts" not in results["reachable.network_access"]
+    assert (
+        results[
+            "policy.custom_policy_violation_denied_capability_shell"
+        ]["properties"]["aigenguard.policy_status"]
+        == "policy_violation"
     )
 
 

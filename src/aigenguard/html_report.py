@@ -271,10 +271,15 @@ def _policy_review_table(items: list[dict[str, Any]]) -> str:
             str(item.get("message", "")),
             str(item.get("source", "")),
             str(item.get("suggested_remediation", "")),
+            _policy_status_badge(item.get("policy_status")),
         ]
         for item in items
     ]
-    return _table(["Severity", "Rule", "Message", "Source", "Remediation"], rows, "None.")
+    return _table(
+        ["Severity", "Rule", "Message", "Source", "Remediation", "Policy Status"],
+        rows,
+        "None.",
+    )
 
 
 def _policy_review_status(policy_review: dict[str, Any]) -> str:
@@ -503,6 +508,7 @@ def _mcp_security(items: Any) -> str:
                 _badge(str(finding.get("risk", ""))),
                 ", ".join(str(value) for value in _list(finding.get("risk_categories"))),
                 "; ".join(str(value) for value in _list(finding.get("rationale"))),
+                _policy_status_badge(finding.get("policy_status")),
             ]
         )
     return (
@@ -533,6 +539,7 @@ def _reachable_capabilities(items: Any) -> str:
                 str(finding.get("mcp_server", "")),
                 ", ".join(str(value) for value in _list(finding.get("mitigations"))),
                 "; ".join(str(value) for value in _list(finding.get("rationale"))),
+                _policy_status_badge(finding.get("policy_status")),
             ]
         )
     return (
@@ -551,6 +558,7 @@ def _policy_findings(items: Any) -> str:
             str(_dict(item).get("message", "")),
             str(_dict(item).get("source_file", "")),
             str(_dict(item).get("policy_id", "")),
+            _policy_status_badge(_dict(item).get("policy_status")),
         ]
         for item in _list(items)
     ]
@@ -558,7 +566,7 @@ def _policy_findings(items: Any) -> str:
         '<section id="policy" class="section">'
         "<h1>Policy Findings</h1>"
         f'<p class="section-lede">{escape(SECTION_HELP["policy"])}</p>'
-        f"{_table(['Severity', 'Message', 'Source File', 'Policy ID'], rows, 'None detected.')}"
+        f"{_table(['Severity', 'Message', 'Source File', 'Policy ID', 'Policy Status'], rows, 'None detected.')}"
         "</section>"
     )
 
@@ -908,6 +916,7 @@ def _mcp_headers() -> list[str]:
         "Risk",
         "Categories",
         "Rationale",
+        "Policy Status",
     ]
 
 
@@ -923,6 +932,7 @@ def _reachable_headers() -> list[str]:
         "MCP Server",
         "Mitigations",
         "Rationale",
+        "Policy Status",
     ]
 
 
@@ -974,6 +984,24 @@ def _badge(label: str, kind: str = "severity") -> str:
     if not label:
         return ""
     return SafeHtml(f'<span class="badge {_badge_class(label, kind)}">{escape(label)}</span>')
+
+
+def _policy_status_badge(value: object) -> str:
+    label = _policy_status_label(value)
+    if not label:
+        return ""
+    return _badge(label, "policy-status")
+
+
+def _policy_status_label(value: object) -> str:
+    labels = {
+        "undocumented": "undocumented",
+        "documented_by_repository_policy": "documented by repository policy",
+        "policy_warning": "policy warning",
+        "policy_violation": "policy violation",
+        "not_applicable": "not applicable",
+    }
+    return labels.get(str(value), "")
 
 
 def _badge_class(label: str, kind: str = "severity") -> str:

@@ -31,6 +31,7 @@ def test_mcp_safe_agent_scans_with_controlled_mcp_findings():
         "args": ["-y", "@modelcontextprotocol/server-memory"],
         "transport": "stdio",
         "package": "@modelcontextprotocol/server-memory",
+        "policy_status": "documented_by_repository_policy",
     } in data["mcp_servers"]
     assert any(
         item.get("capability") == "mcp_tool_invocation"

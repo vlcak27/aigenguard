@@ -52,15 +52,26 @@ with existing automation.
   needs reviewer confirmation. Low confidence means text-only evidence,
   prompt wording, or an inferred relationship.
 - Policy finding: a missing control or custom policy violation.
+- Policy status: review context for risky capability and policy findings. It
+  can show that a finding is undocumented, documented by repository policy,
+  warning-only, or a policy violation.
 - Policy review: advisory or enforced evaluation of `aigenguard.toml`. Advisory
   review never fails the scan by itself.
 - Secret leak finding: a likely AI/API credential value detected by static
   pattern matching. Values are always redacted.
 
-Severity and confidence are reported separately. Severity is the review
-priority or policy risk; confidence is the strength of static evidence. A
+Severity, confidence, and policy status are reported separately. Severity is
+the review priority or policy risk; confidence is the strength of static
+evidence. Policy status is repository review context, not runtime proof. A
 policy can document risk without proving safety, and a low-confidence item can
 still be useful reviewer signal during pre-commit review.
+
+`documented by repository policy` means AigenGuard found policy evidence that
+would otherwise suppress a missing-policy gap. It does not mean the capability
+is safe, sandboxed, reachable, unreachable, or cleared for deployment. The field
+is also groundwork for future Agent Power Delta / Capability Diff work, where
+reviewers will need to compare capability changes with the policy context that
+existed at the time of each scan.
 
 Confidence appears in JSON, Markdown, HTML, SARIF-derived result messages where
 applicable, graph outputs, and compatibility report formats for provider,
@@ -100,9 +111,10 @@ For parsed servers, review:
 If an agent framework or prompt configuration exists with a parsed MCP server
 config, AigenGuard adds reachable `mcp_tool_invocation` entries. Those entries
 identify the MCP server, risk categories, and rationale so reviewers can decide
-whether the possible tool exposure is expected, sandboxed, or policy-approved.
-AigenGuard does not execute MCP servers, inspect deployed runtime permissions,
-or prove that a model can call a specific MCP tool at runtime.
+whether the possible tool exposure is expected, sandboxed, or documented by
+policy context. AigenGuard does not execute MCP servers, inspect deployed
+runtime permissions, or prove that a model can call a specific MCP tool at
+runtime.
 
 Keeping MCP inventory separate from reachable MCP exposure prepares future
 Agent Power Delta / Capability Diff work, where a reviewer will need to compare

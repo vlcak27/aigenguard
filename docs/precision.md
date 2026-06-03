@@ -54,6 +54,12 @@ still be acceptable if documented by policy, and policy can document risk
 without proving safety. A low-confidence finding can still be useful review
 context for a reviewer deciding what should be allowed before commit.
 
-These rules keep AigenGuard local-first and AI-agent focused. They also prepare
-future Agent Power Delta / Capability Diff work by making current static
-evidence consistent before comparing capability changes across commits.
+Policy status is separate review context. `undocumented` means the current scan
+already had missing-policy evidence for the finding. `documented by repository
+policy` means policy evidence exists, not that the capability is safe.
+`policy warning` and `policy violation` mirror current policy review results
+without changing enforcement. Keeping this context explicit prepares future
+Agent Power Delta / Capability Diff work, where capability changes need to be
+reviewed alongside the policy evidence that existed at scan time.
+
+These rules keep AigenGuard local-first and AI-agent focused.

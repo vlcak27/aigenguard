@@ -180,6 +180,10 @@ def evaluate_policy(
     _evaluate_policy_gaps(policy, bom, warnings)
     violations = _dedupe_policy_items(violations)
     warnings = _dedupe_policy_items(warnings)
+    for item in violations:
+        item["policy_status"] = "policy_violation"
+    for item in warnings:
+        item["policy_status"] = "policy_warning"
 
     return {
         "passed": not violations,

@@ -41,6 +41,11 @@ def test_output_schema_declares_draft_2020_12():
     assert schema["properties"]["dependencies"]["items"]["$ref"] == "#/$defs/dependency_finding"
     assert schema["properties"]["repository_risk"]["$ref"] == "#/$defs/repository_risk"
     assert schema["properties"]["policy_review"]["$ref"] == "#/$defs/policy_review"
+    assert "policy_status" in schema["$defs"]
+    assert (
+        schema["$defs"]["reachable_capability"]["properties"]["policy_status"]["$ref"]
+        == "#/$defs/policy_status"
+    )
 
 
 def test_policy_output_matches_output_schema(tmp_path):

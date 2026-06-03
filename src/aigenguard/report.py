@@ -147,9 +147,12 @@ def _section(title: str, items: list[dict[str, str]]) -> list[str]:
         label = item.get("name") or item.get("path") or item.get("type", "item")
         path = item.get("path")
         confidence = item.get("confidence")
+        policy_status = _policy_status_label(item.get("policy_status"))
         detail = f" ({path})" if path and path != label else ""
         if confidence:
             detail += f" [confidence: {confidence}]"
+        if policy_status:
+            detail += f" [Policy status: {policy_status}]"
         lines.append(f"- {label}{detail}")
     lines.append("")
     return lines
@@ -202,15 +205,19 @@ def _reachable_capability_section(items: list[dict[str, str]]) -> list[str]:
             rationale_detail = f"; rationale: {'; '.join(str(reason) for reason in rationale)}"
         score = item.get("confidence_score")
         score_detail = f"; score: {score}" if score is not None else ""
+        policy_status = _policy_status_label(item.get("policy_status"))
+        policy_detail = f"; Policy status: {policy_status}" if policy_status else ""
         detail = (
             "[risk: {risk}; confidence: {confidence}{score_detail}"
-            "{path_detail}{server_detail}{mitigation_detail}{rationale_detail}]"
+            "{path_detail}{server_detail}{mitigation_detail}{rationale_detail}"
+            "{policy_detail}]"
         ).format(
             score_detail=score_detail,
             path_detail=path_detail,
             server_detail=server_detail,
             mitigation_detail=mitigation_detail,
             rationale_detail=rationale_detail,
+            policy_detail=policy_detail,
             **item,
         )
         lines.append(
@@ -243,9 +250,11 @@ def _mcp_security_section(items: list[dict[str, object]]) -> list[str]:
         rationale_detail = ""
         if isinstance(rationale, list) and rationale:
             rationale_detail = f"; rationale: {'; '.join(str(reason) for reason in rationale)}"
+        policy_status = _policy_status_label(item.get("policy_status"))
+        policy_detail = f"; Policy status: {policy_status}" if policy_status else ""
         detail = (
             f"[risk: {risk}; confidence: {confidence}; status: {status}"
-            f"{category_detail}{metadata}{rationale_detail}]"
+            f"{category_detail}{metadata}{rationale_detail}{policy_detail}]"
         )
         lines.append(
             f"- {name} ({path}) {detail}"
@@ -328,7 +337,12 @@ def _policy_finding_section(items: list[dict[str, str]]) -> list[str]:
         lines.extend(["None detected.", ""])
         return lines
     for item in items:
-        lines.append(f"- {item['severity']}: {item['message']} ({item['source_file']})")
+        policy_status = _policy_status_label(item.get("policy_status"))
+        policy_detail = f" [Policy status: {policy_status}]" if policy_status else ""
+        lines.append(
+            f"- {item['severity']}: {item['message']} "
+            f"({item['source_file']}){policy_detail}"
+        )
     lines.append("")
     return lines
 
@@ -425,12 +439,22 @@ def _policy_review_section(policy_review: object) -> list[str]:
     if violations:
         lines.extend(["### Violations", ""])
         for item in violations:
-            lines.append(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
+            policy_status = _policy_status_label(item.get("policy_status"))
+            policy_detail = f" [Policy status: {policy_status}]" if policy_status else ""
+            lines.append(
+                f"- {item.get('severity', 'low')}: "
+                f"{item.get('message', '')}{policy_detail}"
+            )
         lines.append("")
     if warnings:
         lines.extend(["### Warnings", ""])
         for item in warnings:
-            lines.append(f"- {item.get('severity', 'low')}: {item.get('message', '')}")
+            policy_status = _policy_status_label(item.get("policy_status"))
+            policy_detail = f" [Policy status: {policy_status}]" if policy_status else ""
+            lines.append(
+                f"- {item.get('severity', 'low')}: "
+                f"{item.get('message', '')}{policy_detail}"
+            )
         lines.append("")
     if not violations and not warnings:
         lines.extend(["No policy violations or warnings detected.", ""])
@@ -465,3 +489,14 @@ def _policy_review_status(policy_review: dict[str, Any]) -> str:
     if _finding_list(policy_review.get("warnings")):
         return "passed with warnings"
     return "passed"
+
+
+def _policy_status_label(value: object) -> str:
+    labels = {
+        "undocumented": "undocumented",
+        "documented_by_repository_policy": "documented by repository policy",
+        "policy_warning": "policy warning",
+        "policy_violation": "policy violation",
+        "not_applicable": "not applicable",
+    }
+    return labels.get(str(value), "")

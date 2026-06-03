@@ -271,7 +271,12 @@ def test_python_ast_detection_finds_security_relevant_constructs(tmp_path):
 
     assert {"name": "openai", "path": "agent.py", "confidence": "high"} in data["providers"]
     assert {"name": "anthropic", "path": "agent.py", "confidence": "high"} in data["providers"]
-    assert {"name": "shell", "path": "agent.py", "confidence": "high"} in data["capabilities"]
+    assert {
+        "name": "shell",
+        "path": "agent.py",
+        "confidence": "high",
+        "policy_status": "undocumented",
+    } in data["capabilities"]
     assert {
         "name": "code_execution",
         "path": "agent.py",
@@ -965,21 +970,25 @@ def test_policy_findings_report_missing_policy_controls(tmp_path):
         "severity": "low",
         "message": "prompt file detected without security policy",
         "source_file": "AGENTS.md",
+        "policy_status": "undocumented",
     } in data["policy_findings"]
     assert {
         "severity": "high",
         "message": "shell execution detected without restrictions",
         "source_file": "agent.py",
+        "policy_status": "undocumented",
     } in data["policy_findings"]
     assert {
         "severity": "medium",
         "message": "cloud access detected without policy file",
         "source_file": "agent.py",
+        "policy_status": "undocumented",
     } in data["policy_findings"]
     assert {
         "severity": "medium",
         "message": "MCP config detected without policy documentation",
         "source_file": "mcp.json",
+        "policy_status": "undocumented",
     } in data["policy_findings"]
 
 
@@ -1037,6 +1046,7 @@ def test_mcp_security_analysis_extracts_safe_server_metadata(tmp_path):
             "env": ["DOCS_API_KEY"],
             "transport": "stdio",
             "package": "@modelcontextprotocol/server-memory",
+            "policy_status": "undocumented",
         }
     ]
     assert "do-not-store" not in str(data)
@@ -1112,6 +1122,7 @@ def test_invalid_mcp_json_is_reported_without_crashing(tmp_path):
             "risk": "low",
             "risk_categories": ["unknown_custom_server"],
             "rationale": ["MCP config could not be parsed as JSON"],
+            "policy_status": "undocumented",
         }
     ]
     assert not any(
@@ -1188,6 +1199,7 @@ def test_mcp_security_fixture_covers_safe_server_env_redaction_and_reachability(
             "env": ["DOCS_API_KEY"],
             "transport": "stdio",
             "package": "@modelcontextprotocol/server-memory",
+            "policy_status": "undocumented",
         },
         {
             "name": "memory-cache",
@@ -1202,6 +1214,7 @@ def test_mcp_security_fixture_covers_safe_server_env_redaction_and_reachability(
             "args": ["-y", "@modelcontextprotocol/server-memory"],
             "transport": "stdio",
             "package": "@modelcontextprotocol/server-memory",
+            "policy_status": "undocumented",
         },
     ]
     assert "sk-do-not-store" not in str(data)
@@ -1261,6 +1274,7 @@ def test_invalid_mcp_fixture_does_not_create_reachable_tool_invocation():
             "risk": "low",
             "risk_categories": ["unknown_custom_server"],
             "rationale": ["MCP config could not be parsed as JSON"],
+            "policy_status": "undocumented",
         }
     ]
     assert not any(
