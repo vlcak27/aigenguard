@@ -12,6 +12,10 @@ Report filenames remain `agentbom.json`, `agentbom.md`, `agentbom.html`,
 `agentbom.mmd`, `agentbom.sarif`, and `agentbom.cdx.json` for compatibility
 with existing automation.
 
+When enforcement blocks a commit, terminal output is intentionally short. It
+lists the top reasons and points to the local `agentbom.html` report when HTML
+was generated, or tells you to rerun with `--html` to create it.
+
 ## Read order
 
 1. Repository risk: a compact severity and score with rationale.

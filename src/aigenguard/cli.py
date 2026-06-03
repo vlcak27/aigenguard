@@ -9,6 +9,7 @@ import webbrowser
 from pathlib import Path
 
 from . import __version__
+from .blocked_output import format_blocked_details
 from .cyclonedx import write_cyclonedx_report
 from .diff import attach_diff, has_new_findings_at_or_above, load_baseline_report, valid_severities
 from .github_summary import write_github_step_summary
@@ -417,6 +418,12 @@ def cli(argv: list[str] | None = None) -> int:
         except (FileNotFoundError, NotADirectoryError, PermissionError, ValueError) as exc:
             print(f"aigenguard: {exc}", file=sys.stderr)
             return 1
+        policy_review = bom.get("policy_review")
+        policy_blocked = (
+            isinstance(policy_review, dict)
+            and args.enforce_policy
+            and bool(_policy_items(policy_review.get("violations")))
+        )
         print(f"Wrote {json_path}")
         print(f"Wrote {md_path}")
         if cyclonedx_path is not None:
@@ -446,17 +453,22 @@ def cli(argv: list[str] | None = None) -> int:
             severity = risk.get("severity", "unknown")
             score = risk.get("score", "unknown")
             print(f"Risk: {severity} ({score}/100)")
-        policy_review = bom.get("policy_review")
         if isinstance(policy_review, dict):
-            _print_policy_review(policy_review)
-        _print_scan_next_steps(
-            args=args,
-            output_dir=json_path.parent,
-            html_path=html_path,
-            browser_opened=browser_opened,
-            policy_review=policy_review if isinstance(policy_review, dict) else None,
-            suggested_policy_path=suggested_policy_path,
-        )
+            _print_policy_review(policy_review, include_items=not policy_blocked)
+        if policy_blocked:
+            print("")
+            print("AigenGuard blocked this policy-enforced scan.")
+            print("")
+            print(format_blocked_details(bom, html_path=html_path))
+        else:
+            _print_scan_next_steps(
+                args=args,
+                output_dir=json_path.parent,
+                html_path=html_path,
+                browser_opened=browser_opened,
+                policy_review=policy_review if isinstance(policy_review, dict) else None,
+                suggested_policy_path=suggested_policy_path,
+            )
         diff = bom.get("diff", {})
         if isinstance(diff, dict) and args.fail_on_new:
             if has_new_findings_at_or_above(diff, args.fail_on_new):
@@ -796,7 +808,11 @@ def _display_dir(path: Path) -> str:
     return value.rstrip("/") + "/"
 
 
-def _print_policy_review(policy_review: dict[str, object]) -> None:
+def _print_policy_review(
+    policy_review: dict[str, object],
+    *,
+    include_items: bool = True,
+) -> None:
     status = _policy_review_status(policy_review)
     print("")
     print(f"Policy review: {status}")
@@ -804,6 +820,8 @@ def _print_policy_review(policy_review: dict[str, object]) -> None:
     policy_file = policy_review.get("policy_file")
     if policy_file:
         print(f"Policy file: {policy_file}")
+    if not include_items:
+        return
     violations = _policy_items(policy_review.get("violations"))
     warnings = _policy_items(policy_review.get("warnings"))
     if violations:

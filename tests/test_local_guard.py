@@ -542,11 +542,14 @@ def test_guard_enforce_blocks_policy_violations(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "AigenGuard blocked this commit" in captured.out
-    assert "blocking finding(s)" in captured.out
-    assert "Highest severity: medium" in captured.out
-    assert "Why:" in captured.out
-    assert "Fix:" in captured.out
+    assert "AigenGuard blocked this commit." in captured.out
+    assert "Top reasons:" in captured.out
+    assert (
+        "- model gpt-4o: medium, high confidence, policy status: "
+        "policy_violation, agent.py"
+    ) in captured.out
+    assert "Detailed report:" in captured.out
+    assert "run with --html to create agentbom.html" in captured.out
     assert "AIGENGUARD_SKIP_HOOK=1 git commit" in captured.out
     assert "git commit --no-verify" in captured.out
 
@@ -634,8 +637,8 @@ def test_guard_blocking_tty_output_uses_red(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "\033[31mAigenGuard blocked this commit\033[0m" in output
-    assert "\033[33mMEDIUM\033[0m Model denied by policy: gpt-4o." in output
+    assert "\033[31mAigenGuard blocked this commit.\033[0m" in output
+    assert "model gpt-4o: medium, high confidence" in output
 
 
 def test_guard_warning_tty_output_uses_yellow(tmp_path):
@@ -678,7 +681,7 @@ def test_guard_blocking_non_tty_output_has_no_ansi(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "AigenGuard blocked this commit" in output
+    assert "AigenGuard blocked this commit." in output
     assert "\033[" not in output
 
 
@@ -702,12 +705,9 @@ def test_guard_enforce_blocks_secret_leaks_with_redacted_output(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "AigenGuard blocked this commit" in output
-    assert "CRITICAL Possible OpenAI API key value" in output
+    assert "AigenGuard blocked this commit." in output
+    assert "secret_leak: critical, value redacted, .env:1" in output
     assert ".env:1" in output
-    assert "Why: likely credential value found in a committed file." in output
-    assert "Fix: remove the key, rotate it" in output
-    assert "Secret value redacted." in output
     assert secret_value not in output
 
 
@@ -719,7 +719,8 @@ def test_guard_critical_tty_severity_uses_red(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "\033[31mCRITICAL\033[0m Possible OpenAI API key value" in output
+    assert "\033[31mAigenGuard blocked this commit.\033[0m" in output
+    assert "secret_leak: critical, value redacted" in output
     assert secret_value not in output
 
 
@@ -731,10 +732,9 @@ def test_guard_blocked_shell_capability_output_explains_static_evidence(tmp_path
 
     output = out.getvalue()
     assert result == 1
-    assert "HIGH Shell execution capability" in output
+    assert "Top reasons:" in output
+    assert "shell_execution: high risk, high confidence, policy status: policy_violation" in output
     assert "agent.py" in output
-    assert "static evidence shows the agent appears capable of executing shell commands" in output
-    assert "remove shell access or document and allow it explicitly in aigenguard.toml" in output
 
 
 def test_guard_blocked_mcp_exposure_output_explains_policy_fix(tmp_path):
@@ -745,10 +745,12 @@ def test_guard_blocked_mcp_exposure_output_explains_policy_fix(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "HIGH MCP filesystem server exposure" in output
+    assert "Top reasons:" in output
+    assert (
+        "MCP filesystem: high risk, medium confidence, policy status: policy_violation"
+        in output
+    )
     assert ".cursor/mcp.json" in output
-    assert "MCP config appears to expose filesystem access." in output
-    assert "restrict allowed MCP servers or document the exception in aigenguard.toml" in output
 
 
 def test_guard_secret_reference_output_does_not_call_reference_a_leak(tmp_path):
@@ -786,13 +788,13 @@ def test_guard_blocked_output_truncates_to_top_five_findings(tmp_path):
 
     output = out.getvalue()
     finding_lines = [
-        line for line in output.splitlines() if line.startswith("MEDIUM Model denied by policy")
+        line for line in output.splitlines() if line.startswith("- model gpt-4o:")
     ]
     assert result == 1
-    assert "7 blocking finding(s)" in output
+    assert "Top reasons:" in output
     assert len(finding_lines) == 5
-    assert "Showing top 5 blocking findings." in output
-    assert "Run: aigenguard scan . --policy aigenguard.toml --pretty" in output
+    assert "Detailed report:" in output
+    assert "run with --html to create agentbom.html" in output
 
 
 def test_guard_blocked_no_color_respects_no_color(tmp_path):
@@ -810,7 +812,7 @@ def test_guard_blocked_no_color_respects_no_color(tmp_path):
 
     output = out.getvalue()
     assert result == 1
-    assert "AigenGuard blocked this commit" in output
+    assert "AigenGuard blocked this commit." in output
     assert "\033[" not in output
 
 
