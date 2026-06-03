@@ -54,7 +54,7 @@ def test_github_action_installs_checked_out_action_code():
 def test_github_action_docs_prefer_new_repo_and_explain_old_action_compatibility():
     text = (ROOT / "docs" / "github-action.md").read_text(encoding="utf-8")
 
-    assert "uses: vlcak27/aigenguard@v0.8.1" in text
+    assert "uses: vlcak27/aigenguard@v0.8.2" in text
     assert "`vlcak27/agentbom@...`" in text
     assert "do not rely on repository redirects alone" in text
 

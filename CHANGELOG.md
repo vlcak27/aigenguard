@@ -2,6 +2,28 @@
 
 All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
+## v0.8.2
+
+### Documentation
+
+- AigenGuard identity polish across the package README and project docs.
+- README simplified around the primary workflow: install, activate, commit.
+- Public 0.9 credibility roadmap added for positioning, trust, and evaluation work.
+- New threat model, comparison, and agent-risk taxonomy docs.
+- Docs and examples now prefer `aigenguard-report` as the report output
+  directory while preserving existing report filenames.
+- Local hook docs and behavior now use AigenGuard managed hook markers while
+  preserving old AgentBOM hook marker compatibility.
+
+### Compatibility
+
+- The `agentbom` CLI alias remains available.
+- The `agentbom` Python import compatibility path remains available.
+- `agentbom.toml` remains supported as a compatibility fallback.
+- `agentbom.*` report filenames remain unchanged.
+- `.agentbom/` runtime artifacts remain unchanged.
+- `AGENTBOM_SKIP_HOOK` remains accepted as a hook bypass alias.
+
 ## v0.8.1
 
 ### Migration
