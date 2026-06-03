@@ -22,10 +22,14 @@ SECTION_HELP = {
         "Agent frameworks that may route prompts, memory, tools, callbacks, "
         "or autonomous loops."
     ),
-    "mcp": "MCP servers and config files that may expose tools to an agent runtime.",
+    "mcp": (
+        "MCP inventory from local JSON configuration. Reachable exposure is reported "
+        "separately when static agent, framework, or prompt evidence supports it."
+    ),
     "reachable": (
-        "Inferred actor-to-capability paths. These are the most important rows "
-        "for security review."
+        "Inferred actor-to-capability paths where static evidence suggests an AI "
+        "component may be able to use a sensitive action or configured MCP server. "
+        "AigenGuard does not execute MCP servers or prove runtime reachability."
     ),
     "policy": (
         "Missing controls or custom policy violations that should be resolved "

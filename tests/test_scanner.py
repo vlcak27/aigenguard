@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from aigenguard.html_report import render_html
+from aigenguard.report import render_markdown
 from aigenguard.scanner import MAX_FILE_SIZE, scan_path
 
 
@@ -1096,6 +1098,7 @@ def test_invalid_mcp_json_is_reported_without_crashing(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "claude_desktop_config.json").write_text("{not-json", encoding="utf-8")
+    (project / "AGENTS.md").write_text("Agent instructions are present.", encoding="utf-8")
 
     data = scan_path(project)
 
@@ -1111,6 +1114,33 @@ def test_invalid_mcp_json_is_reported_without_crashing(tmp_path):
             "rationale": ["MCP config could not be parsed as JSON"],
         }
     ]
+    assert not any(
+        item.get("capability") == "mcp_tool_invocation"
+        for item in data["reachable_capabilities"]
+    )
+
+
+def test_empty_mcp_config_is_inventory_only_and_non_high_with_prompt(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "AGENTS.md").write_text("Agent instructions are present.", encoding="utf-8")
+    (project / "mcp.json").write_text('{"mcpServers": {}}', encoding="utf-8")
+
+    data = scan_path(project)
+
+    assert data["mcp_servers"] == [
+        {
+            "name": "mcp.json",
+            "path": "mcp.json",
+            "confidence": "medium",
+            "kind": "config_file",
+            "parse_status": "no_servers",
+        }
+    ]
+    assert not any(
+        item.get("capability") == "mcp_tool_invocation"
+        for item in data["reachable_capabilities"]
+    )
 
 
 def test_mcp_output_order_is_deterministic(tmp_path):
@@ -1247,17 +1277,148 @@ def test_mcp_config_alone_does_not_make_unrelated_code_reachable(tmp_path):
     project = tmp_path / "agent"
     project.mkdir()
     (project / "mcp.json").write_text(
-        '{"mcpServers": {"filesystem": {"command": "npx", "args": ["@modelcontextprotocol/server-filesystem"]}}}',
+        """
+        {
+          "mcpServers": {
+            "filesystem": {
+              "command": "npx",
+              "args": ["@modelcontextprotocol/server-filesystem"]
+            },
+            "shell-runner": {"command": "bash"},
+            "browser": {"command": "npx", "args": ["@mcp/browser"]},
+            "postgres": {"command": "npx", "args": ["@mcp/postgres"]},
+            "aws": {"command": "npx", "args": ["@mcp/aws"]},
+            "vault": {"command": "npx", "env": {"VAULT_TOKEN": "do-not-store"}}
+          }
+        }
+        """,
         encoding="utf-8",
     )
-    (project / "tool.py").write_text("import subprocess\nsubprocess.run(['echo', 'hello'])\n", encoding="utf-8")
+    (project / "tool.py").write_text(
+        "import subprocess\nsubprocess.run(['echo', 'hello'])\n",
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+    servers = {server["name"]: server for server in data["mcp_servers"]}
+
+    assert {
+        "filesystem_access",
+        "shell_process_execution",
+        "browser_network_access",
+        "database_access",
+        "cloud_access",
+        "secrets_env_access",
+    } <= {
+        category
+        for server in servers.values()
+        for category in server.get("risk_categories", [])
+    }
+    assert all(server["kind"] == "server" for server in servers.values())
+    assert not any(
+        item.get("capability") == "mcp_tool_invocation"
+        for item in data["reachable_capabilities"]
+    )
+
+
+def test_mcp_config_with_framework_evidence_creates_reachable_exposure(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "from langchain.chat_models import ChatOpenAI\n",
+        encoding="utf-8",
+    )
+    (project / "mcp.json").write_text(
+        """
+        {
+          "mcpServers": {
+            "filesystem": {
+              "command": "npx",
+              "args": ["@modelcontextprotocol/server-filesystem"]
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
 
     data = scan_path(project)
 
-    assert not any(
-        item.get("reachable_from") == "filesystem"
-        for item in data["reachable_capabilities"]
+    assert any(server.get("name") == "filesystem" for server in data["mcp_servers"])
+    assert_reachable_contains(
+        data["reachable_capabilities"],
+        {
+            "capability": "mcp_tool_invocation",
+            "reachable_from": "langchain",
+            "source_file": "mcp.json",
+            "risk": "high",
+            "mcp_server": "filesystem",
+            "risk_categories": ["filesystem_access"],
+        },
     )
+
+
+def test_mcp_config_with_prompt_evidence_creates_reachable_exposure(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "AGENTS.md").write_text("Agent instructions are present.", encoding="utf-8")
+    (project / "mcp.json").write_text(
+        """
+        {
+          "mcpServers": {
+            "filesystem": {
+              "command": "npx",
+              "args": ["@modelcontextprotocol/server-filesystem"]
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+
+    assert_reachable_contains(
+        data["reachable_capabilities"],
+        {
+            "capability": "mcp_tool_invocation",
+            "reachable_from": "prompt configuration",
+            "source_file": "mcp.json",
+            "risk": "high",
+            "mcp_server": "filesystem",
+            "risk_categories": ["filesystem_access"],
+        },
+    )
+
+
+def test_report_wording_separates_mcp_inventory_from_reachable_exposure(tmp_path):
+    project = tmp_path / "agent"
+    project.mkdir()
+    (project / "mcp.json").write_text(
+        """
+        {
+          "mcpServers": {
+            "filesystem": {
+              "command": "npx",
+              "args": ["@modelcontextprotocol/server-filesystem"]
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    data = scan_path(project)
+    markdown = render_markdown(data)
+    html = render_html(data)
+
+    assert "MCP Security Analysis" in markdown
+    assert "MCP inventory" in markdown
+    assert "None detected." in markdown.split("## Reachable Capabilities", 1)[1]
+    assert "does not prove runtime reachability" in markdown
+    assert "They are not exploit claims." in markdown
+    assert "MCP inventory" in html
+    assert "static evidence suggests" in html
 
 
 def test_capability_graph_contains_nodes_and_edges(tmp_path):

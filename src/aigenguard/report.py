@@ -14,8 +14,8 @@ SECTION_DESCRIPTIONS = {
         "Agent orchestration libraries that may route prompts, tools, memory, or callbacks."
     ),
     "MCP Security Analysis": (
-        "Model Context Protocol servers and config files that may expose tools "
-        "to an agent runtime."
+        "MCP inventory from local JSON configuration. Reachable exposure is reported "
+        "separately when static agent, framework, or prompt evidence supports it."
     ),
     "Prompt Files": "Prompt and instruction files that can influence agent behavior.",
     "Capabilities": (
@@ -177,8 +177,10 @@ def _reachable_capability_section(items: list[dict[str, str]]) -> list[str]:
     lines = ["## Reachable Capabilities", ""]
     lines.extend(
         [
-            "Deterministic actor-to-capability relationships. Start here to review "
-            "where AI components appear connected to sensitive actions.",
+            "Deterministic actor-to-capability relationships where static evidence "
+            "suggests an AI component may be able to use a sensitive action or "
+            "configured MCP server. AigenGuard does not execute MCP servers and "
+            "does not prove runtime reachability.",
             "",
         ]
     )

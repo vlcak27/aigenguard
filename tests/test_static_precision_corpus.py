@@ -189,6 +189,10 @@ def test_good_precision_cases_have_false_positive_protections(case: dict[str, An
             item.get("risk") != "high"
             for item in collect_findings(bom, "mcp_servers")
         )
+        assert not any(
+            item.get("capability") == "mcp_tool_invocation"
+            for item in collect_findings(bom, "reachable_capabilities")
+        )
 
 
 @pytest.mark.parametrize("case", BAD_CASES, ids=case_id)
@@ -272,6 +276,10 @@ def test_bad_precision_cases_have_precise_evidence(case: dict[str, Any]):
             "filesystem_access" in server.get("risk_categories", [])
             and server.get("path") == "mcp.json"
             for server in servers
+        )
+        assert not any(
+            item.get("capability") == "mcp_tool_invocation"
+            for item in collect_findings(bom, "reachable_capabilities")
         )
 
     if case_name == "bad/prompt_allows_shell_agent":
