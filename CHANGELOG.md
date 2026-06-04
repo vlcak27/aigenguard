@@ -2,6 +2,31 @@
 
 All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
+## v0.8.4
+
+### Terminal Output
+
+- Compact product-style CLI scan output.
+- Blocked policy-enforced scan output is now limited to two concise lines:
+  - `AigenGuard blocked this policy-enforced scan. 1 policy violation needs review.`
+  - `Detailed report: open <output-dir>/agentbom.html`
+- Pre-commit blocked output is now limited to two concise lines:
+  - `AigenGuard blocked this commit. 1 policy violation needs review.`
+  - `Detailed report: run with --html to create agentbom.html`
+- Successful scan output now reports:
+  - `AigenGuard scan completed. No blocking findings found.`
+- Advisory scan output now reports:
+  - `AigenGuard scan completed with review findings. No blocking enforcement enabled.`
+- ANSI color is used for TTY terminal output.
+- `NO_COLOR` is supported.
+- `--no-color` is supported for `scan` and `guard`.
+
+### Reports and Compatibility
+
+- JSON, Markdown, HTML, and SARIF outputs do not include ANSI escape codes.
+- Report filenames remain `agentbom.*`.
+- AgentBOM compatibility is preserved.
+
 ## v0.8.3
 
 ### Documentation
