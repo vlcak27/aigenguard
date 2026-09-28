@@ -345,22 +345,26 @@ def find_git_root(cwd: str | Path | None = None) -> tuple[Path, Path]:
 def effective_hook_path(cwd: str | Path | None = None) -> Path:
     """Use Git's effective hook path; refuse external custom paths and symlinks."""
     root, git_dir = find_git_root(cwd)
+    # Git's absolute path format resolves symlinks. Keep the lexical path so we
+    # can reject them before touching a target (even one inside the repository).
     hook = Path(os.fsdecode(git_output(
-        root, "rev-parse", "--path-format=absolute", "--git-path", "hooks/pre-commit",
+        root, "rev-parse", "--git-path", "hooks/pre-commit",
     )).strip())
-    hook = Path(os.path.abspath(hook))
+    if not hook.is_absolute():
+        hook = root / hook
     # The default may live in a shared gitdir for a linked worktree.
     common = Path(os.fsdecode(git_output(
         root, "rev-parse", "--path-format=absolute", "--git-common-dir",
     )).strip())
-    default_hook = common / "hooks" / "pre-commit"
-    if hook != default_hook and not hook.is_relative_to(root):
-        raise ValueError("external core.hooksPath is unsupported; use a directory inside the repository")
     for path in (hook, *hook.parents):
         if path.is_symlink():
             raise ValueError("symlink hook paths are unsupported")
         if path in {root, git_dir, common}:
             break
+    hook = Path(os.path.abspath(hook))
+    default_hook = common / "hooks" / "pre-commit"
+    if hook != default_hook and not hook.is_relative_to(root):
+        raise ValueError("external core.hooksPath is unsupported; use a directory inside the repository")
     return hook
 
 

@@ -304,8 +304,9 @@ def test_status_does_not_claim_non_executable_hook_is_active(repo):
     assert not local_guard_status(cwd=repo).hook_installed
 
 
-def test_symlink_hook_path_refused_without_changing_foreign_hook(repo, make_symlink):
-    external = repo.parent / "foreign-hooks"
+@pytest.mark.parametrize("target_inside", [False, True])
+def test_symlink_hook_path_refused_without_changing_foreign_hook(repo, make_symlink, target_inside):
+    external = (repo if target_inside else repo.parent) / "foreign-hooks"
     external.mkdir()
     hook = external / "pre-commit"
     hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
