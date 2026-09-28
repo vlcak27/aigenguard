@@ -9,6 +9,7 @@ from typing import Any
 from . import SCHEMA_VERSION
 from .detectors import detect_in_file, sort_secret_leak_findings
 from .graph import build_capability_graph
+from .git_index import git_output, staged_snapshot
 from .policy import (
     evaluate_policy_file,
     has_human_approval_text,
@@ -92,16 +93,21 @@ def scan_path(
     has_policy = False
     has_human_approval = False
     reachable_capability_hits: list[dict[str, Any]] = []
+    policy_file = discover_policy_path(root, policy_path, max_file_size=MAX_FILE_SIZE)
 
     for file_path in iter_scannable_files(root):
         relpath = file_path.relative_to(root).as_posix()
         text = read_text_file(file_path)
-        result = detect_in_file(relpath, text)
+        is_policy = (
+            file_path.name in {"aigenguard.toml", "agentbom.toml"}
+            or (policy_file is not None and file_path.resolve() == policy_file.resolve())
+        )
+        result = detect_in_file(relpath, text, policy_rules=is_policy)
         has_policy = has_policy or result.has_policy
         for key, items in result.findings.items():
             for item in items:
                 _append_unique(bom[key], item)
-        if text is not None:
+        if text is not None and not is_policy:
             has_human_approval = has_human_approval or has_human_approval_text(text)
             reachable_capability_hits.extend(detect_reachable_capability_hits(text, relpath))
 
@@ -130,7 +136,6 @@ def scan_path(
     bom["policy_findings"] = validate_policies(
         bom["prompts"], bom["capabilities"], bom["mcp_servers"], has_policy  # type: ignore[arg-type]
     )
-    policy_file = discover_policy_path(root, policy_path, max_file_size=MAX_FILE_SIZE)
     if policy_file is not None and policy_file.suffix.lower() != ".toml":
         for finding in validate_custom_policy(policy_file, bom, has_human_approval):
             _append_unique(bom["policy_findings"], finding)
@@ -149,6 +154,21 @@ def scan_path(
         )
     _annotate_policy_status(bom, has_repository_policy=has_policy)
     return bom
+
+
+def scan_index(
+    path: str | Path, policy_path: str | Path, *, enforce_policy: bool = False,
+) -> dict[str, object]:
+    """Scan the complete staged tree with its staged policy and original source paths."""
+    repo_root = Path(os.fsdecode(git_output(Path(path), "rev-parse", "--show-toplevel")).strip())
+    with staged_snapshot(repo_root, policy_path) as (snapshot, policy, relative_policy):
+        try:
+            bom = scan_path(snapshot, policy_path=policy, enforce_policy=enforce_policy)
+        except (OSError, ValueError) as exc:
+            raise ValueError(str(exc).replace(str(snapshot), str(repo_root))) from exc
+        bom["repository"] = str(repo_root)
+        bom["policy_review"]["policy_file"] = relative_policy
+        return bom
 
 
 def iter_scannable_files(root: Path):

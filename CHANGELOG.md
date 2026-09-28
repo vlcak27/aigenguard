@@ -2,6 +2,26 @@
 
 All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
+## Unreleased
+
+### Security and Correctness
+
+- Installed pre-commit hooks scan the complete staged Git tree and staged policy,
+  including partial staging and deletions, without checkout filters or execution.
+  Symlinks and submodules are not followed; missing, symlinked, or oversized staged
+  policies fail closed. Manual directory scans retain working-tree behavior.
+- RunBOM omits process arguments and lifecycle commands before the first JSONL
+  write. Only recognized executable basenames are retained for risk classification.
+  Commands resolve through PATH explicitly, including active Windows virtual environments.
+- Policy rule files no longer count as model/provider/framework usage evidence;
+  secret-value checks remain enabled. Static policy review accepts the separate
+  `[runbom]` configuration written by activation.
+- Hook installation, status, and removal use Git's effective hooks path. Custom
+  paths inside the repository are supported; external or symlink paths are rejected.
+  Combining shell hooks preserves foreign content and runs the guard before it.
+- Added real Git commit and RunBOM instrumentation regressions. Pinned Ruff and
+  its original rule set for reproducible lint; refreshed contributor instructions.
+
 ## v0.8.4
 
 ### Terminal Output

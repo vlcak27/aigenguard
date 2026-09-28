@@ -109,9 +109,16 @@ the command, or enforce policy.
 
 ## What Is Never Recorded
 
-RunBOM records environment variable names, command shapes, paths, hosts, ports,
-and event metadata. It does not record secret values. Secret-looking command
-arguments are redacted before they are written.
+RunBOM records environment variable names, paths, hosts, ports, and event metadata.
+Process arguments and command strings are omitted before the first JSONL write,
+including shell commands, inline code, credentials in URLs, and switch/value pairs.
+`process.exec.argv` remains an empty list for compatibility. `executable` retains
+only recognized tool basenames for risk classification; other names become
+`<redacted>`. Lifecycle and summary `command` fields also contain `<redacted>`.
+This intentionally loses argument-level detail and groups invocations of the same
+tool together. Artifact names remain unchanged. Program output is not forwarded
+to the terminal. This is metadata minimization, not a general secret sanitizer
+for arbitrary filesystem paths, hostnames, or environment variable names.
 
 ## Limitations
 

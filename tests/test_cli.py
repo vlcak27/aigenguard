@@ -180,12 +180,12 @@ def test_scan_explicit_policy_overrides_both_discovered_names(tmp_path):
 
 
 @pytest.mark.parametrize("name", ["aigenguard.toml", "agentbom.toml"])
-def test_scan_ignores_auto_discovered_policy_symlink(tmp_path, name):
+def test_scan_ignores_auto_discovered_policy_symlink(tmp_path, name, make_symlink):
     project = tmp_path / "agent"
     project.mkdir()
     outside_policy = tmp_path / "outside.toml"
     outside_policy.write_text('[models]\ndeny = ["gpt-5.1"]\n', encoding="utf-8")
-    (project / name).symlink_to(outside_policy)
+    make_symlink(project / name, outside_policy)
 
     data = scan_path(project)
 

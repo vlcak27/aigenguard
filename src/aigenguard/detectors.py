@@ -544,9 +544,13 @@ BUILTIN_DETECTORS: tuple[Detector, ...] = (
 
 
 def detect_in_file(
-    relpath: str, text: str | None, detectors: tuple[Detector, ...] = BUILTIN_DETECTORS
+    relpath: str, text: str | None, detectors: tuple[Detector, ...] = BUILTIN_DETECTORS,
+    *, policy_rules: bool = False,
 ) -> DetectionResult:
     """Run detector plugins for one file."""
+    if policy_rules or PurePosixPath(relpath).name in {"aigenguard.toml", "agentbom.toml"}:
+        # Rules are not application evidence. Secret inspection must still run.
+        detectors = (PolicyDetector(), SecretDetector())
     combined = DetectionResult()
     context = DetectionContext(relpath=relpath, text=text, tree=_parse_python_ast(relpath, text))
     for detector in detectors:

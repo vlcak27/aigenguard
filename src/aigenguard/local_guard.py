@@ -13,9 +13,10 @@ from dataclasses import dataclass
 from typing import Callable, Mapping, TextIO
 
 from .blocked_output import format_blocked_details
+from .git_index import git_output
 from .report import write_reports
 from .policy_paths import preferred_policy_path
-from .scanner import scan_path
+from .scanner import scan_index, scan_path
 from .terminal import TerminalStyle, terminal_style
 
 
@@ -66,6 +67,7 @@ def run_guard(
     environ: Mapping[str, str] | None = None,
     confirm_reader: ConfirmReader | None = None,
     no_color: bool = False,
+    staged: bool = False,
 ) -> int:
     """Run the concise local policy guard."""
     out = sys.stdout if stdout is None else stdout
@@ -76,13 +78,14 @@ def run_guard(
 
     try:
         with tempfile.TemporaryDirectory(prefix="aigenguard-guard-") as output_dir:
-            bom = scan_path(
+            scan = scan_index if staged else scan_path
+            bom = scan(
                 path,
                 policy_path=policy_path,
                 enforce_policy=guard_mode == "enforce",
             )
             write_reports(bom, Path(output_dir))
-    except (FileNotFoundError, NotADirectoryError, PermissionError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"aigenguard: {exc}", file=err)
         return 1
 
@@ -159,10 +162,9 @@ def install_hook(
 ) -> Path:
     """Install or replace the AigenGuard managed pre-commit hook block."""
     guard_mode = normalize_guard_mode(mode)
-    _, git_dir = find_git_root(cwd)
-    hooks_dir = git_dir / "hooks"
+    hook_path = effective_hook_path(cwd)
+    hooks_dir = hook_path.parent
     hooks_dir.mkdir(parents=True, exist_ok=True)
-    hook_path = hooks_dir / "pre-commit"
     existing = hook_path.read_text(encoding="utf-8") if hook_path.exists() else ""
     block = render_hook_block(
         policy_path=policy_path,
@@ -172,6 +174,7 @@ def install_hook(
     hook_path.write_text(
         _install_managed_block(existing, block, append=append, force=force),
         encoding="utf-8",
+        newline="\n",
     )
     current_mode = hook_path.stat().st_mode
     hook_path.chmod(current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -180,8 +183,7 @@ def install_hook(
 
 def uninstall_hook(*, cwd: str | Path | None = None) -> Path | None:
     """Remove the AigenGuard managed pre-commit hook block."""
-    _, git_dir = find_git_root(cwd)
-    hook_path = git_dir / "hooks" / "pre-commit"
+    hook_path = effective_hook_path(cwd)
     if not hook_path.exists():
         return None
     existing = hook_path.read_text(encoding="utf-8")
@@ -191,7 +193,7 @@ def uninstall_hook(*, cwd: str | Path | None = None) -> Path | None:
     if updated.strip() in {"", "#!/bin/sh"}:
         hook_path.unlink()
         return hook_path
-    hook_path.write_text(updated, encoding="utf-8")
+    hook_path.write_text(updated, encoding="utf-8", newline="\n")
     return hook_path
 
 
@@ -201,7 +203,7 @@ def local_guard_status(
     cwd: str | Path | None = None,
 ) -> LocalGuardStatus:
     try:
-        repo_root, git_dir = find_git_root(cwd)
+        repo_root, _ = find_git_root(cwd)
     except (FileNotFoundError, ValueError):
         return LocalGuardStatus(
             repository_detected=False,
@@ -213,7 +215,7 @@ def local_guard_status(
             mode=None,
         )
 
-    hook_path = git_dir / "hooks" / "pre-commit"
+    hook_path = effective_hook_path(repo_root)
     hook_policy = None
     mode = None
     hook_installed = False
@@ -224,7 +226,7 @@ def local_guard_status(
             text = ""
         if text:
             metadata = parse_managed_hook(text)
-            hook_installed = metadata is not None
+            hook_installed = metadata is not None and os.access(hook_path, os.X_OK)
             if metadata is not None:
                 hook_policy = metadata.get("policy")
                 mode = metadata.get("mode")
@@ -258,8 +260,7 @@ def _display_repo_policy(policy_path: Path, repo_root: Path) -> str:
 
 def has_unmanaged_hook(*, cwd: str | Path | None = None) -> bool:
     """Return true when a non-empty pre-commit hook has no AigenGuard block."""
-    _, git_dir = find_git_root(cwd)
-    hook_path = git_dir / "hooks" / "pre-commit"
+    hook_path = effective_hook_path(cwd)
     if not hook_path.exists():
         return False
     try:
@@ -303,7 +304,6 @@ def render_hook_block(
     guard_mode = normalize_guard_mode(mode)
     policy = str(policy_path)
     policy_word = _shell_double_quote(policy)
-    policy_message = _shell_double_quote_content(policy)
     mode_word = _shell_double_quote(guard_mode)
     command_word = shlex.quote(aigenguard_command)
     return "\n".join(
@@ -314,8 +314,7 @@ def render_hook_block(
                 '|| [ "${AGENTBOM_SKIP_HOOK:-}" = "1" ]; then'
             ),
             '  echo "AigenGuard policy guard skipped by bypass environment variable"',
-            "  exit 0",
-            "fi",
+            "else",
             "",
             "repo_root=$(git rev-parse --show-toplevel 2>/dev/null)",
             'if [ -z "$repo_root" ]; then',
@@ -324,15 +323,11 @@ def render_hook_block(
             "fi",
             'cd "$repo_root" || exit 1',
             "",
-            f"if [ ! -f {policy_word} ]; then",
-            f"  echo \"AigenGuard policy guard could not find policy file: {policy_message}\" >&2",
-            "  exit 1",
-            "fi",
-            "",
-            f"{command_word} guard . --policy {policy_word} --mode {mode_word}",
+            f"{command_word} guard . --staged --policy {policy_word} --mode {mode_word}",
             "aigenguard_status=$?",
             'if [ "$aigenguard_status" -ne 0 ]; then',
             '  exit "$aigenguard_status"',
+            "fi",
             "fi",
             MANAGED_END,
         ]
@@ -340,19 +335,33 @@ def render_hook_block(
 
 
 def find_git_root(cwd: str | Path | None = None) -> tuple[Path, Path]:
-    """Find a repository root with a local .git directory."""
+    """Ask Git for the repository and metadata directories (including worktrees)."""
     current = Path.cwd() if cwd is None else Path(cwd)
-    current = current.resolve()
-    for candidate in (current, *current.parents):
-        git_path = candidate / ".git"
-        if git_path.is_dir():
-            return candidate, git_path
-        if git_path.is_file():
-            raise ValueError(
-                "repo-local hook install requires a .git directory; "
-                f"unsupported git file: {git_path}"
-            )
-    raise FileNotFoundError("could not find .git directory; run inside a Git repository")
+    root = Path(os.fsdecode(git_output(current, "rev-parse", "--show-toplevel")).strip())
+    git_dir = Path(os.fsdecode(git_output(current, "rev-parse", "--absolute-git-dir")).strip())
+    return root, git_dir
+
+
+def effective_hook_path(cwd: str | Path | None = None) -> Path:
+    """Use Git's effective hook path; refuse external custom paths and symlinks."""
+    root, git_dir = find_git_root(cwd)
+    hook = Path(os.fsdecode(git_output(
+        root, "rev-parse", "--path-format=absolute", "--git-path", "hooks/pre-commit",
+    )).strip())
+    hook = Path(os.path.abspath(hook))
+    # The default may live in a shared gitdir for a linked worktree.
+    common = Path(os.fsdecode(git_output(
+        root, "rev-parse", "--path-format=absolute", "--git-common-dir",
+    )).strip())
+    default_hook = common / "hooks" / "pre-commit"
+    if hook != default_hook and not hook.is_relative_to(root):
+        raise ValueError("external core.hooksPath is unsupported; use a directory inside the repository")
+    for path in (hook, *hook.parents):
+        if path.is_symlink():
+            raise ValueError("symlink hook paths are unsupported")
+        if path in {root, git_dir, common}:
+            break
+    return hook
 
 
 def normalize_guard_mode(mode: str) -> str:
@@ -377,12 +386,15 @@ def _install_managed_block(
             raise ExistingHookError("existing non-AigenGuard pre-commit hook found")
     if updated is None:
         updated = existing
-    updated = updated.rstrip()
-    if not updated:
+    if not updated.strip():
         return f"#!/bin/sh\n\n{block}\n"
     if not updated.startswith("#!"):
         updated = f"#!/bin/sh\n\n{updated}"
-    return f"{updated}\n\n{block}\n"
+    shebang, _, body = updated.partition("\n")
+    if shebang not in {"#!/bin/sh", "#!/bin/bash", "#!/usr/bin/env sh", "#!/usr/bin/env bash"}:
+        raise ExistingHookError("cannot safely combine AigenGuard with a non-shell hook")
+    # Run before foreign content, which may end in `exit 0`.
+    return f"{shebang}\n{block}\n{body}"
 
 
 def _remove_managed_block(existing: str) -> str | None:
@@ -397,8 +409,8 @@ def _remove_managed_block(existing: str) -> str | None:
     end += len(end_marker)
     if end < len(existing) and existing[end] == "\n":
         end += 1
-    updated = existing[:start].rstrip() + "\n\n" + existing[end:].lstrip("\n")
-    return updated.rstrip() + "\n" if updated.strip() else ""
+    updated = existing[:start] + existing[end:]
+    return updated if updated.strip() else ""
 
 
 def _managed_markers(text: str) -> tuple[str, str] | None:
