@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import subprocess
 
 import pytest
 
@@ -59,7 +60,7 @@ def test_activate_creates_policy_and_installs_confirm_hook(tmp_path, monkeypatch
     assert "git commit" in captured.out
     assert "aigenguard status" in captured.out
     assert "aigenguard scan . --policy aigenguard.toml --html --open" in captured.out
-    assert not (repo / ".git" / "config").exists()
+    assert "aigenguard" not in (repo / ".git" / "config").read_text().lower()
 
 
 def test_activate_audit_preset_creates_warn_only_policy(tmp_path, monkeypatch, capsys):
@@ -143,22 +144,24 @@ def test_activate_reuses_legacy_agentbom_policy_as_fallback(tmp_path, monkeypatc
 
 
 @pytest.mark.parametrize("name", ["aigenguard.toml", "agentbom.toml"])
-def test_preferred_policy_path_rejects_unsafe_existing_symlink(tmp_path, name):
+def test_preferred_policy_path_rejects_unsafe_existing_symlink(tmp_path, name, make_symlink):
     outside_policy = tmp_path / "outside.toml"
     outside_policy.write_text("# outside\n", encoding="utf-8")
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / name).symlink_to(outside_policy)
+    make_symlink(repo / name, outside_policy)
 
     with pytest.raises(ValueError, match="unsafe repository policy file"):
         preferred_policy_path(repo)
 
 
-def test_activate_fails_for_unsafe_aigenguard_policy_symlink(tmp_path, monkeypatch, capsys):
+def test_activate_fails_for_unsafe_aigenguard_policy_symlink(
+    tmp_path, monkeypatch, capsys, make_symlink,
+):
     repo = _git_repo(tmp_path)
     outside_policy = tmp_path / "outside.toml"
     outside_policy.write_text("# outside\n", encoding="utf-8")
-    (repo / "aigenguard.toml").symlink_to(outside_policy)
+    make_symlink(repo / "aigenguard.toml", outside_policy)
     monkeypatch.chdir(repo)
 
     result = main(["activate"])
@@ -343,10 +346,10 @@ def test_status_inside_repo_without_guard_suggests_activate(tmp_path, monkeypatc
 
 @pytest.mark.parametrize("unsafe_kind", ["symlink", "oversized"])
 def test_status_rejects_unsafe_aigenguard_policy_without_traceback(
-    tmp_path, monkeypatch, capsys, unsafe_kind
+    tmp_path, monkeypatch, capsys, unsafe_kind, make_symlink
 ):
     repo = _git_repo(tmp_path)
-    _write_unsafe_aigenguard_policy(repo, tmp_path, unsafe_kind)
+    _write_unsafe_aigenguard_policy(repo, tmp_path, unsafe_kind, make_symlink)
     monkeypatch.chdir(repo)
 
     result = main(["status"])
@@ -424,6 +427,7 @@ def test_status_detects_legacy_agentbom_hook_markers(tmp_path):
     (repo / "agentbom.toml").write_text("[risk]\n", encoding="utf-8")
     hook = repo / ".git" / "hooks" / "pre-commit"
     hook.write_text(_legacy_agentbom_hook_block(), encoding="utf-8")
+    hook.chmod(0o755)
 
     status = local_guard_status(cwd=repo)
 
@@ -476,11 +480,11 @@ def test_default_install_hook_uses_advisory_mode(tmp_path, monkeypatch):
     assert '--mode "advisory"' in text
     assert "AIGENGUARD_SKIP_HOOK" in text
     assert "AGENTBOM_SKIP_HOOK" in text
-    assert "aigenguard guard . --policy" in text
+    assert "aigenguard guard . --staged --policy" in text
     assert "--html" not in text
     assert "agentbom.json" not in text
     assert "agentbom.md" not in text
-    assert not (repo / ".git" / "config").exists()
+    assert "aigenguard" not in (repo / ".git" / "config").read_text().lower()
 
 
 @pytest.mark.parametrize(
@@ -543,7 +547,7 @@ def test_guard_enforce_blocks_policy_violations(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 1
     assert captured.out == (
-        "AigenGuard blocked this commit. 2 policy violations need review.\n"
+        "AigenGuard blocked this commit. 1 policy violation needs review.\n"
         "Detailed report: run with --html to create agentbom.html\n"
     )
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
@@ -637,7 +641,7 @@ def test_guard_blocking_tty_output_uses_red(tmp_path):
     assert result == 1
     assert (
         "\033[1;31mAigenGuard blocked this commit. "
-        "2 policy violations need review.\033[0m"
+        "1 policy violation needs review.\033[0m"
     ) in output
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
         assert field not in output
@@ -809,7 +813,7 @@ def test_guard_blocked_output_summarizes_finding_count(tmp_path):
     output = out.getvalue()
     assert result == 1
     assert output == (
-        "AigenGuard blocked this commit. 7 policy violations need review.\n"
+        "AigenGuard blocked this commit. 6 policy violations need review.\n"
         "Detailed report: run with --html to create agentbom.html\n"
     )
     for field in ("severity=", "risk=", "confidence=", "policy_status=", "path="):
@@ -837,7 +841,8 @@ def test_guard_blocked_no_color_respects_no_color(tmp_path):
 
 def _git_repo(tmp_path):
     repo = tmp_path / "repo"
-    (repo / ".git" / "hooks").mkdir(parents=True)
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
     return repo
 
 
@@ -1031,11 +1036,11 @@ def _project_with_many_model_violations(tmp_path):
     return project, policy
 
 
-def _write_unsafe_aigenguard_policy(repo, tmp_path, unsafe_kind):
+def _write_unsafe_aigenguard_policy(repo, tmp_path, unsafe_kind, make_symlink):
     policy = repo / "aigenguard.toml"
     if unsafe_kind == "symlink":
         outside_policy = tmp_path / "outside.toml"
         outside_policy.write_text("# outside\n", encoding="utf-8")
-        policy.symlink_to(outside_policy)
+        make_symlink(policy, outside_policy)
         return
     policy.write_bytes(b"#" * (MAX_POLICY_FILE_SIZE + 1))

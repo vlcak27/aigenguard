@@ -39,6 +39,13 @@ package authenticity checks.
 The scanner should work offline and produce stable output for the same input
 repository and policy.
 
+Installed hooks inspect one immutable snapshot of the full Git index with its
+staged policy. Raw blobs are materialized temporarily without Git filters or
+fsmonitor execution. Symlinks and submodule contents are not followed. The staged
+policy must be a regular file within the repository; an invalid or missing policy
+blocks the guard. A user can intentionally weaken that policy or bypass the local
+hook, so this is not a tamper-resistant enforcement boundary.
+
 ## Secret Handling
 
 AigenGuard records credential variable names and redacted leak metadata. It must

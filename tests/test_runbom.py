@@ -4,6 +4,7 @@ import json
 import os
 import shlex
 import sys
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -30,14 +31,14 @@ def test_run_help_explains_direct_commands_without_shell(capsys):
 
 @pytest.mark.parametrize("unsafe_kind", ["symlink", "oversized"])
 def test_run_rejects_unsafe_aigenguard_policy_without_traceback(
-    tmp_path, monkeypatch, capsys, unsafe_kind
+    tmp_path, monkeypatch, capsys, unsafe_kind, make_symlink
 ):
     repo = _git_repo(tmp_path)
     policy = repo / "aigenguard.toml"
     if unsafe_kind == "symlink":
         outside_policy = tmp_path / "outside.toml"
         outside_policy.write_text("# outside\n", encoding="utf-8")
-        policy.symlink_to(outside_policy)
+        make_symlink(policy, outside_policy)
     else:
         policy.write_bytes(b"#" * (MAX_POLICY_FILE_SIZE + 1))
     monkeypatch.chdir(repo)
@@ -225,7 +226,7 @@ def test_runbom_runs_configured_command_without_shell_and_writes_jsonl(
     assert events[-1]["exit_code"] == 0
     summary = _read_runbom_summary(repo)
     assert summary["schema_version"] == "runbom.summary.v1"
-    assert summary["command"] == command
+    assert summary["command"] == "<redacted>"
     assert summary["command_exit_code"] == 0
     assert summary["events_total"] >= 1
     assert summary["unique_events"] >= 1
@@ -276,7 +277,8 @@ def test_runbom_records_process_exec_event(tmp_path, monkeypatch):
     events = _read_runbom_events(repo)
     assert result == 0
     assert any(
-        event["event"] == "process.exec" and "-c" in event["argv"] for event in events
+        event["event"] == "process.exec" and event["argv"] == []
+        and event["executable"].startswith("python") for event in events
     )
 
 
@@ -522,7 +524,7 @@ def test_runbom_uses_autodetected_command_when_config_command_is_empty(
     assert result == 0
     assert "RunBOM detected command: python -m pytest tests/agent_runtime" in captured.out
     assert "AigenGuard RunBOM OK" in captured.out
-    assert summary["command"] == "python -m pytest tests/agent_runtime"
+    assert summary["command"] == "<redacted>"
 
 
 def test_activate_pre_commit_hook_stays_static_only(tmp_path, monkeypatch):
@@ -766,5 +768,6 @@ def _setup_message() -> str:
 
 def _git_repo(tmp_path):
     repo = tmp_path / "repo"
-    (repo / ".git" / "hooks").mkdir(parents=True)
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
     return repo

@@ -16,6 +16,7 @@ from .html_report import write_html_report
 from .local_guard import (
     GUARD_MODES,
     ExistingHookError,
+    effective_hook_path,
     find_git_root,
     has_unmanaged_hook,
     install_hook,
@@ -262,6 +263,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     guard_parser.add_argument("path", help="repository directory to scan")
     guard_parser.add_argument(
+        "--staged", action="store_true",
+        help="scan the complete Git index and staged policy (used by installed hooks)",
+    )
+    guard_parser.add_argument(
         "--policy",
         required=True,
         help="AigenGuard TOML policy file",
@@ -285,7 +290,7 @@ def build_parser() -> argparse.ArgumentParser:
         "install-hook",
         help="install a repo-local pre-commit policy guard",
         description=(
-            "Install an AigenGuard managed block in .git/hooks/pre-commit. "
+            "Install an AigenGuard managed block in Git's effective pre-commit hook path. "
             "Modes: advisory warns and allows, confirm asks before committing, "
             "enforce blocks policy violations."
         ),
@@ -492,7 +497,9 @@ def cli(argv: list[str] | None = None) -> int:
         return _deactivate()
 
     if args.command == "guard":
-        return run_guard(args.path, args.policy, args.mode, no_color=args.no_color)
+        return run_guard(
+            args.path, args.policy, args.mode, no_color=args.no_color, staged=args.staged,
+        )
 
     if args.command == "install-hook":
         if args.mode and args.enforce_policy:
@@ -543,7 +550,7 @@ def _activate(args: argparse.Namespace) -> int:
         if has_unmanaged_hook(cwd=repo_root) and not args.append and not args.force:
             print(
                 "aigenguard: existing non-AigenGuard pre-commit hook found: "
-                ".git/hooks/pre-commit",
+                f"{effective_hook_path(repo_root)}",
                 file=sys.stderr,
             )
             print("Use one of:", file=sys.stderr)

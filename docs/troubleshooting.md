@@ -48,7 +48,7 @@ Only change execution policy if that matches your workstation policy.
 ## Activate Says This Is Not a Git Repository
 
 `aigenguard activate` must run inside a Git repository because the guard is
-installed under `.git/hooks/pre-commit`.
+installed at Git's effective pre-commit path (normally `.git/hooks/pre-commit`).
 
 ```bash
 cd path/to/your-agent-repo
@@ -58,7 +58,8 @@ aigenguard activate
 ## Existing Hook Prevents Activation
 
 Activation fails rather than changing an unrelated pre-commit hook implicitly.
-Append the AigenGuard managed block when you want both hooks:
+Combine the AigenGuard managed block with an existing shell hook when you want
+both hooks. The guard runs first so a foreign `exit 0` cannot bypass it:
 
 ```bash
 aigenguard activate --append
@@ -71,6 +72,21 @@ aigenguard install-hook --append --policy aigenguard.toml --mode confirm
 ```
 
 ## Status Says Hook Not Installed
+
+Installation, status, and deactivation all respect `core.hooksPath`. Custom paths
+must remain inside the repository and must not be symlinks. If the Git setting
+changes, status checks the new effective location; an old block elsewhere is no
+longer active. No global Git configuration is changed.
+
+## Commit Says the Policy Is Missing from the Index
+
+The installed hook reads the staged policy, not its working-tree copy. Run
+`git add aigenguard.toml` (or your selected policy path). A staged policy deletion
+also blocks the hook. To review the same snapshot manually, run
+`aigenguard guard . --policy aigenguard.toml --mode enforce --staged`.
+Reinstall older managed hooks to receive this behavior.
+
+## Check Installation
 
 Check the current repository:
 
@@ -164,7 +180,7 @@ aigenguard install-hook --policy aigenguard.toml --aigenguard-command .venv/bin/
 ```
 
 The `--agentbom-command` option remains as an alias for compatibility. The hook
-remains local to the current repository under `.git/hooks/pre-commit`.
+uses Git's effective pre-commit path, normally `.git/hooks/pre-commit`.
 
 ## Bypass local hook
 

@@ -146,7 +146,16 @@ Modes:
 - `confirm` asks before committing when violations exist.
 - `enforce` blocks commits when violations exist.
 
-The hook is local to the current repository under `.git/hooks/pre-commit`.
+The hook scans the **complete staged snapshot**, using the staged policy, so
+partial staging and staged deletions match the commit. Stage the policy with
+`git add aigenguard.toml` (or your selected policy path) before committing.
+Manual `aigenguard scan .` still inspects the working directory.
+
+The hook uses Git's effective hook path, normally `.git/hooks/pre-commit`.
+Repository-contained `core.hooksPath` directories are supported; external paths
+and symlink hook paths are rejected. Reinstall an existing hook with
+`aigenguard install-hook --policy aigenguard.toml --mode enforce` to enable the
+staged behavior, choosing your intended mode.
 Disable it with:
 
 ```bash

@@ -17,6 +17,12 @@ AgentBOM is now AigenGuard. The `agentbom` CLI and `agentbom.toml` remain suppor
 Without `--policy`, AigenGuard prefers `aigenguard.toml` and falls back to
 `agentbom.toml`. An explicit `--policy` path always wins.
 
+Policy rules are configuration, not evidence that the application uses the listed
+models, providers, frameworks, or capabilities. This applies to both compatibility
+filenames and an explicitly selected policy. Secret-value inspection still runs
+on policy files encountered by the scan. The separate `[runbom]` configuration is
+accepted but does not contribute static usage evidence or execute a command.
+
 ## Activate AigenGuard in a Repository
 
 From a Git repository root or subdirectory:
@@ -27,7 +33,8 @@ aigenguard activate
 
 Activation creates or reuses `aigenguard.toml`, falls back to an existing
 `agentbom.toml`, and installs a repo-local
-pre-commit hook under `.git/hooks/pre-commit`. It does not modify global Git
+pre-commit hook at Git's effective hook path (normally `.git/hooks/pre-commit`).
+It does not modify global Git
 config. The default guard mode is `confirm`. A new policy uses the `safe`
 preset by default; an existing `aigenguard.toml` is not overwritten unless
 `--force` is passed.
@@ -138,8 +145,14 @@ aigenguard scan . --policy aigenguard.toml --enforce-policy
 
 ## Local Guard
 
-AigenGuard can install a repo-local pre-commit guard under
-`.git/hooks/pre-commit`:
+AigenGuard installs the guard at the path returned by Git, normally
+`.git/hooks/pre-commit`. Relative or absolute `core.hooksPath` directories inside
+the repository are supported. External custom directories and symlink hook paths
+are rejected by installation, status, and removal. A foreign hook is preserved;
+use `--append` to combine a shell hook, with AigenGuard running before the foreign
+body (including any early `exit`). Non-shell hooks cannot be combined safely.
+
+Install or upgrade the managed block:
 
 ```bash
 aigenguard install-hook --policy aigenguard.toml --mode confirm
@@ -160,13 +173,32 @@ aigenguard install-hook --policy aigenguard.toml --enforce-policy
 This installs the same behavior as `--mode enforce`. Do not pass
 `--mode` and `--enforce-policy` together.
 
-The hook calls the guard command:
+The installed hook adds `--staged` to the guard command:
 
 ```bash
-aigenguard guard . --policy aigenguard.toml --mode advisory
-aigenguard guard . --policy aigenguard.toml --mode confirm
-aigenguard guard . --policy aigenguard.toml --mode enforce
+aigenguard guard . --policy aigenguard.toml --mode advisory --staged
+aigenguard guard . --policy aigenguard.toml --mode confirm --staged
+aigenguard guard . --policy aigenguard.toml --mode enforce --staged
 ```
+
+This reads one fixed tree from the current Git index, including unchanged tracked
+files needed for context. Unstaged and untracked files do not affect the result;
+staged deletions are absent. Git's temporary index for `git commit --only` is also
+honored. Raw blobs are copied to a temporary directory without checkout, smudge,
+clean, textconv, fsmonitor, or scanned-code execution. Finding paths stay relative
+to the original repository; the temporary directory is removed after scanning.
+
+The selected TOML policy must be a regular staged file inside the repository and
+at most 1 MB. Stage it with `git add aigenguard.toml` (or the selected path).
+Missing/deleted, symlink, oversized, or invalid staged policies block the guard
+even in advisory mode. Working-tree changes to that policy are ignored.
+Symlink entries and submodule contents are not followed; ordinary scan exclusions
+and size/binary limits still apply. Unmerged indexes and paths that cannot be
+represented safely on the host filesystem fail closed. This is a local guard,
+not protection against intentional policy weakening or hook bypass.
+
+Without `--staged`, `guard` and `scan` retain directory-scan behavior. Existing
+installed blocks must be reinstalled to receive staged scanning.
 
 `aigenguard guard` runs the scan with temporary report output outside the
 repository and prints concise commit-time status. Passing policy prints

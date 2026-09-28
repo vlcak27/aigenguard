@@ -18,7 +18,14 @@ Run the local checks:
 ```bash
 ruff check .
 pytest
+python scripts/precision_corpus.py
+python -m build
 ```
+
+Git must be on PATH for hook integration tests. Install the built wheel in a
+fresh virtual environment and smoke-test `aigenguard` and `agentbom`. Ruff is
+pinned in the development extra; its explicit `E4`, `E7`, `E9`, `F` selection
+preserves the project's original lint checks across default-rule changes.
 
 You can also use the Make targets:
 

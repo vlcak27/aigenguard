@@ -5,7 +5,9 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -153,6 +155,9 @@ def run_runbom(config_path: Path | None = None) -> int:
         )
         return 1
 
+    # Resolve PATH before CreateProcess, whose Windows application-directory
+    # precedence can otherwise launch a different Python outside the active venv.
+    argv[0] = shutil.which(argv[0]) or argv[0]
     output_dir = repo_root / ".agentbom"
     output_dir.mkdir(parents=True, exist_ok=True)
     jsonl_path = repo_root / RUNBOM_LOG
@@ -188,8 +193,9 @@ def run_runbom(config_path: Path | None = None) -> int:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        except OSError as exc:
-            print(f"RunBOM command failed to start: {exc}", file=sys.stderr)
+        except OSError:
+            # OSError can include the executable/command supplied by the user.
+            print("RunBOM command failed to start; check the executable and permissions.", file=sys.stderr)
             exit_code = 1
         else:
             exit_code = completed.returncode
@@ -374,11 +380,8 @@ def normalize_runbom_event(event: dict[str, Any]) -> dict[str, Any]:
     elif event_type == "env.read":
         normalized["name"] = str(event.get("name") or "")
     elif event_type == "process.exec":
-        argv = event.get("argv")
-        normalized["argv"] = _normalize_argv(argv)
-        executable = event.get("executable")
-        if executable:
-            normalized["executable"] = _redact_secret_text(str(executable))
+        normalized["executable"] = _safe_process_name(_process_basename(event))
+        normalized["argv"] = []
     elif event_type == "network.connect":
         normalized["host"] = str(event.get("host") or "")
         if "port" in event:
@@ -737,12 +740,15 @@ def _json_safe_scalar(value: Any) -> Any:
     return str(value)
 
 
-def _normalize_argv(argv: Any) -> list[str]:
-    if isinstance(argv, (list, tuple)):
-        return [_redact_secret_text(str(arg)) for arg in argv]
-    if argv is None:
-        return []
-    return [_redact_secret_text(str(argv))]
+def _safe_process_name(value: str) -> str:
+    """Keep only recognized tool names, never arbitrary paths or command strings."""
+    name = value.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if name in {"sh", "bash", "zsh", "curl", "wget", "nc", "ncat", "socat",
+                "git", "node", "npm", "pnpm", "bun", "pytest"}:
+        return name
+    if re.fullmatch(r"python(?:\d+(?:\.\d+)*)?(?:\.exe)?", name):
+        return name
+    return "<redacted>"
 
 
 def _path_name(path: str) -> str:
@@ -883,6 +889,7 @@ import builtins
 import json
 import os
 import pathlib
+import re
 import socket
 import subprocess
 import threading
@@ -958,35 +965,24 @@ def _emit_file_events(path, mode):
         _emit({"event": event_name, "path": safe_path, "mode": str(mode)})
 
 
-def _argv_list(args):
-    if isinstance(args, (list, tuple)):
-        return [_redact_arg(item) for item in args]
-    return [_redact_arg(args)]
-
-
-def _redact_arg(arg):
-    text = os.fsdecode(arg) if isinstance(arg, bytes) else str(arg)
-    lowered = text.lower()
-    secret_names = (
-        "password",
-        "passwd",
-        "secret",
-        "token",
-        "apikey",
-        "api_key",
-        "access_key",
-        "secret_key",
-        "private_key",
-    )
-    if any(name in lowered for name in secret_names):
-        if "=" in text:
-            return text.split("=", 1)[0] + "=<redacted>"
-        return "<redacted>"
-    return text
-
-
-def _emit_process(args):
-    _emit({"event": "process.exec", "argv": _argv_list(args)})
+def _emit_process(args, executable=None, shell=False):
+    # No argv or shell command ever reaches the first JSONL write. Classify only
+    # known tool basenames; arbitrary executable names can themselves be secrets.
+    name = "<redacted>"
+    if shell:
+        name = "sh"
+    else:
+        candidate = executable
+        if candidate is None and isinstance(args, (list, tuple)) and args:
+            candidate = args[0]
+        if isinstance(candidate, (str, bytes, os.PathLike)):
+            candidate = os.fsdecode(candidate).replace("\\", "/").rsplit("/", 1)[-1].lower()
+            if candidate in {"sh", "bash", "zsh", "curl", "wget", "nc", "ncat", "socat",
+                             "git", "node", "npm", "pnpm", "bun", "pytest"} or re.fullmatch(
+                r"python(?:\d+(?:\.\d+)*)?(?:\.exe)?", candidate
+            ):
+                name = candidate
+    _emit({"event": "process.exec", "executable": name, "argv": []})
 
 
 def _network_target(address):
@@ -1040,7 +1036,7 @@ def path_write_bytes_hook(self, *args, **kwargs):
 
 
 def subprocess_run_hook(args, *popenargs, **kwargs):
-    _emit_process(args)
+    _emit_process(args, kwargs.get("executable"), kwargs.get("shell", False))
     previous = getattr(_STATE, "suppress_popen", False)
     _STATE.suppress_popen = True
     try:
@@ -1052,12 +1048,12 @@ def subprocess_run_hook(args, *popenargs, **kwargs):
 class PopenHook(_ORIGINAL_SUBPROCESS_POPEN):
     def __init__(self, args, *popenargs, **kwargs):
         if not getattr(_STATE, "suppress_popen", False):
-            _emit_process(args)
+            _emit_process(args, kwargs.get("executable"), kwargs.get("shell", False))
         super().__init__(args, *popenargs, **kwargs)
 
 
 def os_system_hook(command):
-    _emit_process([command])
+    _emit_process(None, shell=True)
     return _ORIGINAL_OS_SYSTEM(command)
 
 
@@ -1109,21 +1105,9 @@ except Exception:
 
 
 def _redact_secret_text(value: str) -> str:
-    lowered = value.lower()
-    secret_names = (
-        "password",
-        "passwd",
-        "secret",
-        "token",
-        "apikey",
-        "api_key",
-        "access_key",
-        "secret_key",
-        "private_key",
-    )
-    if any(name in lowered for name in secret_names):
-        return "<redacted>"
-    return value
+    # Commands can contain credentials with no recognizable syntax. Omit them
+    # entirely in lifecycle events and summaries, before any write occurs.
+    return "<redacted>"
 
 
 def _toml_bool(value: bool) -> str:

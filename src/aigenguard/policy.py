@@ -100,6 +100,11 @@ def normalize_toml_policy(raw: dict[str, Any]) -> dict[str, Any]:
         for section, values in DEFAULT_TOML_POLICY.items()
     }
     for section in raw:
+        # Activation stores optional runtime configuration alongside static rules.
+        if section == "runbom":
+            if not isinstance(raw[section], dict):
+                raise PolicyError("policy section [runbom] must be a table")
+            continue
         if section not in DEFAULT_TOML_POLICY:
             raise PolicyError(f"unsupported policy section: [{section}]")
         if not isinstance(raw[section], dict):
