@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 from typing import Any
 
+from .security_changes import compare_mcp_servers, pointer_part
+
 
 DIFF_CATEGORIES = (
     "providers",
@@ -57,18 +59,32 @@ def diff_reports(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str,
     baseline_ids = set(baseline_findings)
     current_ids = set(current_findings)
 
+    security_changes = compare_mcp_servers(
+        _list(baseline.get("mcp_servers")), _list(current.get("mcp_servers")),
+    )
+    changed_components = {item["component"] for item in security_changes if item["change"] != "no_effect"}
+    changed_ids = {
+        _diff_finding("mcp_servers", item)["id"] for item in _list(current.get("mcp_servers"))
+        if isinstance(item, dict) and (str(item.get("path", "")) + "#" + item.get("config_identity", item.get("config_pointer", "/mcpServers/" +
+            pointer_part(str(item.get("name", "")))))) in changed_components
+    }
+    introduced = [current_findings[item_id] for item_id in current_ids - baseline_ids]
+    introduced.extend({
+        "id": item["id"], "category": "security_changes", "title": item["explanation"],
+        "source_file": item["file"], "severity": item["severity"],
+    } for item in security_changes if item["change"] in {"expanded", "review_required", "incomplete"})
     return {
         "baseline_repository": str(baseline.get("repository", "")),
         "current_repository": str(current.get("repository", "")),
-        "introduced": _sorted_findings(
-            current_findings[item_id] for item_id in current_ids - baseline_ids
-        ),
+        "introduced": _sorted_findings(introduced),
         "resolved": _sorted_findings(
             baseline_findings[item_id] for item_id in baseline_ids - current_ids
         ),
         "unchanged": _sorted_findings(
             current_findings[item_id] for item_id in current_ids & baseline_ids
+            if item_id not in changed_ids
         ),
+        "security_changes": security_changes,
     }
 
 
