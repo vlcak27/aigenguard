@@ -2,6 +2,21 @@
 
 All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
+## Unreleased
+
+- Added explicit offline `review --base ... --staged/--head ...` for MCP and TOML
+  policy changes using immutable Git objects and the actual index. Existing
+  hook behavior and modes are unchanged.
+- MCP diffs now detect configuration changes under a stable server name, including
+  the documented filesystem server's directory expansion, pin-to-floating package
+  selection, endpoints, environment names, and opaque arguments requiring review.
+- Review exposes effective policy weakening and independently evaluates candidate
+  findings against the base policy. Missing/invalid/unsupported inputs are
+  incomplete, not a clean result. JSON/Markdown review schema is versioned.
+- Added a real-Git offline demo and an inactive CI example for future 0.9.0;
+  opaque arguments, environment values and URL credentials/query values are
+  omitted from the new review output. No runtime execution or dependencies added.
+
 ## v0.8.5
 
 ### Upgrade and Release Reliability

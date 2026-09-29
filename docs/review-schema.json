@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aigenguard.dev/schemas/review-schema.json",
+  "title": "AigenGuard configuration review 1.0",
+  "type": "object",
+  "required": ["schema_version", "tool", "status", "snapshots", "mcp_changes", "policy_changes", "baseline_policy", "coverage"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {"name": {"const": "aigenguard"}, "version": {"type": "string"}}
+    },
+    "status": {"enum": ["complete", "incomplete", "error"]},
+    "error": {"type": "string"},
+    "snapshots": {
+      "type": "object",
+      "properties": {"base": {"$ref": "#/$defs/snapshot"}, "candidate": {"$ref": "#/$defs/snapshot"}}
+    },
+    "mcp_changes": {"type": "array", "items": {"$ref": "#/$defs/change"}},
+    "policy_changes": {"type": "array", "items": {"$ref": "#/$defs/change"}},
+    "baseline_policy": {
+      "type": "object",
+      "required": ["status", "violations", "warnings"],
+      "properties": {
+        "status": {"enum": ["evaluated", "not_evaluated"]},
+        "file": {"type": "string"},
+        "violations": {"type": "array", "items": {"$ref": "#/$defs/change"}},
+        "warnings": {"type": "array", "items": {"$ref": "#/$defs/change"}}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["supported", "not_evaluated", "issues"],
+      "properties": {
+        "supported": {"type": "array", "items": {"type": "string"}},
+        "not_evaluated": {"type": "array", "items": {"type": "string"}},
+        "issues": {"type": "array", "items": {
+          "type": "object", "required": ["snapshot", "file", "reason"],
+          "properties": {"snapshot": {"enum": ["base", "candidate"]}, "file": {"type": "string"}, "reason": {"type": "string"}}
+        }}
+      }
+    }
+  },
+  "$defs": {
+    "snapshot": {
+      "oneOf": [
+        {"type": "object", "required": ["kind"], "properties": {"kind": {"const": "unavailable"}}},
+        {"type": "object", "required": ["kind", "commit", "tree"], "properties": {
+          "kind": {"const": "commit"}, "commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+          "tree": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"}
+        }},
+        {"type": "object", "required": ["kind", "manifest_sha256"], "properties": {
+          "kind": {"const": "index"}, "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }}
+      ]
+    },
+    "change": {
+      "type": "object",
+      "required": ["id", "rule_id", "component", "file", "field", "change", "before", "after", "explanation", "recommendation", "severity", "change_confidence", "impact_confidence"],
+      "properties": {
+        "id": {"type": "string"},
+        "rule_id": {"type": "string"},
+        "component": {"type": "string"},
+        "file": {"type": "string"},
+        "field": {"type": "string"},
+        "change": {"enum": ["added", "removed", "expanded", "narrowed", "review_required", "no_effect", "incomplete", "violation"]},
+        "before": {}, "after": {},
+        "explanation": {"type": "string"},
+        "recommendation": {"type": "string"},
+        "severity": {"enum": ["low", "medium", "high", "critical"]},
+        "change_confidence": {"enum": ["high", "medium", "low", "unknown"]},
+        "impact_confidence": {"enum": ["high", "medium", "low", "unknown"]}
+      }
+    }
+  }
+}

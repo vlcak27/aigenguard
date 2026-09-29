@@ -10,6 +10,7 @@ import argparse
 import ast
 import configparser
 from email.parser import BytesParser
+import json
 import os
 from pathlib import Path, PurePosixPath
 import subprocess
@@ -151,6 +152,18 @@ def smoke_wheel(wheel: Path, version: str) -> None:
         run("git", "commit", "-qm", "clean index", cwd=repo)
         require(run("git", "rev-parse", "HEAD", cwd=repo) != head, "clean commit did not advance")
         require(not (repo / "SCANNED_CODE_EXECUTED").exists(), "hook executed repository code")
+        (repo / ".mcp.json").write_text(json.dumps({"mcpServers": {"files": {
+            "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"],
+        }}}), encoding="utf-8")
+        run("git", "add", ".mcp.json", cwd=repo)
+        for alias in ("aigenguard", "agentbom"):
+            output = scratch / (alias + "-review")
+            run(alias, "review", "--base", "HEAD", "--staged", "--fail-on", "high",
+                "--output-dir", str(output), cwd=repo, success=False)
+            report = json.loads((output / "aigenguard-review.json").read_text())
+            require(report["status"] == "complete", "installed review is incomplete")
+            require(any(item["change"] == "added" for item in report["mcp_changes"]),
+                    "installed review missed new MCP configuration")
 
 
 def main() -> None:
@@ -160,7 +173,7 @@ def main() -> None:
     args = parser.parse_args()
     wheel, version = verify_archives(args.dist.resolve(), args.tag)
     smoke_wheel(wheel, version)
-    print(f"Verified {version}: metadata, archive contents, isolated wheel, both CLIs, scan, Git hook.")
+    print(f"Verified {version}: metadata, archive contents, isolated wheel, both CLIs, scan, Git hook, review.")
 
 
 if __name__ == "__main__":
