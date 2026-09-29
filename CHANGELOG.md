@@ -2,7 +2,25 @@
 
 All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
-## Unreleased
+## v0.8.5
+
+### Upgrade and Release Reliability
+
+- Status distinguishes legacy, current, damaged, inactive, and foreign hooks.
+  Legacy working-tree hooks warn with `aigenguard install-hook`; status never
+  changes the hook or index. Current managed blocks have an explicit format version.
+- Reinstalling a recognized hook preserves its mode, policy, and executable
+  unless explicitly overridden. Repeated installs do not duplicate blocks or
+  foreign shell content. Ambiguous/damaged settings require explicit review;
+  incomplete or duplicate blocks are refused rather than silently discarded.
+- Release validation checks the triggering commit with Ruff, the complete suite,
+  precision corpus, wheel/sdist metadata and contents, and an isolated installed
+  wheel smoke test of both CLI aliases, scans, and real Git commits. Tag/package
+  versions must agree. The publishing job receives only verified artifacts and
+  alone has PyPI trusted-publishing permissions; artifacts are not rebuilt there.
+- Upgrading the Python package does not update existing hook scripts. Follow
+  [the upgrade procedure](docs/policy.md#upgrading-an-existing-installation),
+  including staging the intended policy before the first guarded commit.
 
 ### Security and Correctness
 

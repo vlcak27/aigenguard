@@ -23,6 +23,8 @@ from .terminal import TerminalStyle, terminal_style
 GUARD_MODES = ("advisory", "confirm", "enforce")
 MANAGED_BEGIN = "# BEGIN AigenGuard managed block"
 MANAGED_END = "# END AigenGuard managed block"
+HOOK_VERSION = "# AigenGuard hook version: 1"
+SHELL_SHEBANGS = {"#!/bin/sh", "#!/bin/bash", "#!/usr/bin/env sh", "#!/usr/bin/env bash"}
 LEGACY_MANAGED_BEGIN = "# BEGIN AgentBOM managed block"
 LEGACY_MANAGED_END = "# END AgentBOM managed block"
 MANAGED_MARKERS = (
@@ -46,6 +48,7 @@ class LocalGuardStatus:
     hook_path: Path | None
     hook_installed: bool
     mode: str | None
+    hook_state: str = "missing"
 
 
 @dataclass(frozen=True)
@@ -152,27 +155,37 @@ def run_guard(
 
 
 def install_hook(
-    policy_path: str | Path,
-    mode: str,
+    policy_path: str | Path | None = None,
+    mode: str | None = None,
     *,
-    aigenguard_command: str = "aigenguard",
+    aigenguard_command: str | None = None,
     append: bool = False,
     force: bool = False,
     cwd: str | Path | None = None,
 ) -> Path:
     """Install or replace the AigenGuard managed pre-commit hook block."""
-    guard_mode = normalize_guard_mode(mode)
     hook_path = effective_hook_path(cwd)
     hooks_dir = hook_path.parent
-    hooks_dir.mkdir(parents=True, exist_ok=True)
-    existing = hook_path.read_text(encoding="utf-8") if hook_path.exists() else ""
+    existing = _read_hook(hook_path) if hook_path.exists() else ""
+    metadata = parse_managed_hook(existing)
+    if metadata is not None and metadata.get("state") == "damaged":
+        if policy_path is None or mode is None:
+            raise ValueError(
+                "damaged managed hook; review it and specify both --policy and --mode to repair"
+            )
+    saved = metadata or {}
+    policy_path = policy_path if policy_path is not None else saved.get("policy", "aigenguard.toml")
+    guard_mode = normalize_guard_mode(mode if mode is not None else saved.get("mode", "advisory"))
+    command = aigenguard_command if aigenguard_command is not None else saved.get("command", "aigenguard")
     block = render_hook_block(
         policy_path=policy_path,
         mode=guard_mode,
-        aigenguard_command=aigenguard_command,
+        aigenguard_command=command,
     )
+    updated = _install_managed_block(existing, block, append=append, force=force)
+    hooks_dir.mkdir(parents=True, exist_ok=True)
     hook_path.write_text(
-        _install_managed_block(existing, block, append=append, force=force),
+        updated,
         encoding="utf-8",
         newline="\n",
     )
@@ -186,7 +199,7 @@ def uninstall_hook(*, cwd: str | Path | None = None) -> Path | None:
     hook_path = effective_hook_path(cwd)
     if not hook_path.exists():
         return None
-    existing = hook_path.read_text(encoding="utf-8")
+    existing = _read_hook(hook_path)
     updated = _remove_managed_block(existing)
     if updated is None:
         return None
@@ -219,15 +232,21 @@ def local_guard_status(
     hook_policy = None
     mode = None
     hook_installed = False
+    hook_state = "missing"
     if hook_path.exists():
+        hook_state = "foreign"
         try:
-            text = hook_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            text = _read_hook(hook_path)
+        except (OSError, ValueError):
             text = ""
+            hook_state = "damaged"
         if text:
             metadata = parse_managed_hook(text)
-            hook_installed = metadata is not None and os.access(hook_path, os.X_OK)
             if metadata is not None:
+                hook_state = metadata["state"]
+                hook_installed = hook_state != "damaged" and os.access(hook_path, os.X_OK)
+                if not hook_installed and hook_state != "damaged":
+                    hook_state = "inactive"
                 hook_policy = metadata.get("policy")
                 mode = metadata.get("mode")
 
@@ -248,6 +267,7 @@ def local_guard_status(
         hook_path=hook_path,
         hook_installed=hook_installed,
         mode=mode,
+        hook_state=hook_state,
     )
 
 
@@ -264,34 +284,60 @@ def has_unmanaged_hook(*, cwd: str | Path | None = None) -> bool:
     if not hook_path.exists():
         return False
     try:
-        text = hook_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        text = _read_hook(hook_path)
+    except (OSError, ValueError):
         return True
     return bool(text.strip()) and _managed_markers(text) is None
 
 
 def parse_managed_hook(text: str) -> dict[str, str] | None:
-    markers = _managed_markers(text)
-    if markers is None:
+    """Inspect only a single delimited block, without evaluating shell code.
+
+    A current hook must match our entire template, not merely contain --staged.
+    Legacy commands are recognized for migration, never reported as current.
+    """
+    try:
+        span = _managed_span(text)
+    except ValueError:
+        return {"state": "damaged"}
+    if span is None:
         return None
-    begin, end = markers
-    if begin not in text or end not in text:
-        return None
-    for line in text.splitlines():
-        if " guard " not in line or " --policy " not in line or " --mode " not in line:
+    block = text[span[0]:span[1]].rstrip("\n")
+    commands = []
+    for line in block.splitlines():
+        match = re.fullmatch(
+            r'(.+?) guard \. (?:--staged )?--policy "((?:\\.|[^"\\])*)" '
+            r'--mode "(advisory|confirm|enforce)"', line,
+        )
+        if match is None:
             continue
         try:
-            parts = shlex.split(line)
+            executable = shlex.split(match[1])
         except ValueError:
             continue
-        if "guard" not in parts:
+        if len(executable) != 1 or shlex.quote(executable[0]) != match[1]:
             continue
-        guard_index = parts.index("guard")
-        command = parts[guard_index:]
-        metadata = _hook_command_metadata(command)
-        if metadata is not None:
-            return metadata
-    return {}
+        policy = re.sub(r'\\([$`"\\])', r'\1', match[2])
+        # Reject substitutions and noncanonical quoting rather than guessing settings.
+        if _shell_double_quote(policy) != f'"{match[2]}"':
+            continue
+        commands.append({"policy": policy, "mode": match[3], "command": executable[0]})
+    if len(commands) != 1:
+        return {"state": "damaged"}
+    metadata = commands[0]
+    expected = render_hook_block(
+        policy_path=metadata["policy"], mode=metadata["mode"],
+        aigenguard_command=metadata["command"],
+    )
+    if block in {expected, expected.replace(HOOK_VERSION + "\n", "")}:
+        # A valid block behind foreign code (e.g. exit 0) might never run.
+        prefix = text[:span[0]].strip()
+        metadata["state"] = "current" if prefix in SHELL_SHEBANGS | {""} else "damaged"
+    elif "# AigenGuard hook version:" in block or " --staged " in block:
+        metadata["state"] = "damaged"
+    else:
+        metadata["state"] = "legacy"
+    return metadata
 
 
 def render_hook_block(
@@ -303,12 +349,15 @@ def render_hook_block(
     """Render the repo-local managed hook block."""
     guard_mode = normalize_guard_mode(mode)
     policy = str(policy_path)
+    if any(char in policy + aigenguard_command for char in "\r\n\0"):
+        raise ValueError("hook policy and executable must be single-line paths")
     policy_word = _shell_double_quote(policy)
     mode_word = _shell_double_quote(guard_mode)
     command_word = shlex.quote(aigenguard_command)
     return "\n".join(
         [
             MANAGED_BEGIN,
+            HOOK_VERSION,
             (
                 'if [ "${AIGENGUARD_SKIP_HOOK:-}" = "1" ] '
                 '|| [ "${AGENTBOM_SKIP_HOOK:-}" = "1" ]; then'
@@ -395,33 +444,47 @@ def _install_managed_block(
     if not updated.startswith("#!"):
         updated = f"#!/bin/sh\n\n{updated}"
     shebang, _, body = updated.partition("\n")
-    if shebang not in {"#!/bin/sh", "#!/bin/bash", "#!/usr/bin/env sh", "#!/usr/bin/env bash"}:
+    if shebang not in SHELL_SHEBANGS:
         raise ExistingHookError("cannot safely combine AigenGuard with a non-shell hook")
     # Run before foreign content, which may end in `exit 0`.
     return f"{shebang}\n{block}\n{body}"
 
 
 def _remove_managed_block(existing: str) -> str | None:
-    markers = _managed_markers(existing)
-    if markers is None:
+    span = _managed_span(existing)
+    if span is None:
         return None
-    begin, end_marker = markers
-    start = existing.find(begin)
-    end = existing.find(end_marker)
-    if start == -1 or end == -1 or end < start:
-        raise ValueError("found an incomplete AigenGuard managed hook block")
-    end += len(end_marker)
-    if end < len(existing) and existing[end] == "\n":
-        end += 1
+    start, end = span
     updated = existing[:start] + existing[end:]
     return updated if updated.strip() else ""
 
 
 def _managed_markers(text: str) -> tuple[str, str] | None:
     for begin, end in MANAGED_MARKERS:
-        if begin in text or end in text:
+        if begin in text.splitlines() or end in text.splitlines():
             return begin, end
     return None
+
+
+def _managed_span(text: str) -> tuple[int, int] | None:
+    markers = {marker for pair in MANAGED_MARKERS for marker in pair}
+    found = []
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        if line.rstrip("\r\n") in markers:
+            found.append((line.rstrip("\r\n"), offset, offset + len(line)))
+        offset += len(line)
+    if not found:
+        return None
+    if len(found) != 2 or (found[0][0], found[1][0]) not in MANAGED_MARKERS:
+        raise ValueError("incomplete or duplicate AigenGuard managed hook blocks; repair manually")
+    return found[0][1], found[1][2]
+
+
+def _read_hook(path: Path) -> str:
+    if path.stat().st_size > 1_000_000:
+        raise ValueError("hook exceeds 1 MB; review it manually")
+    return path.read_text(encoding="utf-8")
 
 
 def _read_confirmation_from_tty(prompt: str) -> bool | None:
@@ -433,19 +496,6 @@ def _read_confirmation_from_tty(prompt: str) -> bool | None:
     except OSError:
         return None
     return answer.strip().lower() in {"y", "yes"}
-
-
-def _hook_command_metadata(command: list[str]) -> dict[str, str] | None:
-    if len(command) < 2 or command[0] != "guard":
-        return None
-    metadata = {}
-    for name, key in (("--policy", "policy"), ("--mode", "mode")):
-        if name not in command:
-            continue
-        index = command.index(name)
-        if index + 1 < len(command):
-            metadata[key] = command[index + 1]
-    return metadata
 
 
 def _policy_items(value: object) -> list[dict[str, object]]:
