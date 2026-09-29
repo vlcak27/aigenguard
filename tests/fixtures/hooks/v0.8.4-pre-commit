@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# BEGIN AigenGuard managed block
+if [ "${AIGENGUARD_SKIP_HOOK:-}" = "1" ] || [ "${AGENTBOM_SKIP_HOOK:-}" = "1" ]; then
+  echo "AigenGuard policy guard skipped by bypass environment variable"
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$repo_root" ]; then
+  echo "AigenGuard policy guard could not find repository root." >&2
+  exit 1
+fi
+cd "$repo_root" || exit 1
+
+if [ ! -f "aigenguard.toml" ]; then
+  echo "AigenGuard policy guard could not find policy file: aigenguard.toml" >&2
+  exit 1
+fi
+
+aigenguard guard . --policy "aigenguard.toml" --mode "enforce"
+aigenguard_status=$?
+if [ "$aigenguard_status" -ne 0 ]; then
+  exit "$aigenguard_status"
+fi
+# END AigenGuard managed block

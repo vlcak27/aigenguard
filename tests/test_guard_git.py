@@ -302,6 +302,9 @@ def test_status_does_not_claim_non_executable_hook_is_active(repo):
     hook = install(repo)
     hook.chmod(0o644)
     assert not local_guard_status(cwd=repo).hook_installed
+    install_hook(cwd=repo)
+    assert local_guard_status(cwd=repo).hook_state == "current"
+    commit(repo, allowed=True)
 
 
 @pytest.mark.parametrize("target_inside", [False, True])
@@ -315,3 +318,151 @@ def test_symlink_hook_path_refused_without_changing_foreign_hook(repo, make_syml
     with pytest.raises(ValueError, match="symlink hook"):
         install(repo)
     assert hook.read_text(encoding="utf-8") == "#!/bin/sh\nexit 0\n"
+
+
+def legacy_hook():
+    return (Path(__file__).parent / "fixtures/hooks/v0.8.4-pre-commit").read_text()
+
+
+@pytest.mark.parametrize("brand", ["AigenGuard", "AgentBOM"])
+@pytest.mark.parametrize("mode", ["advisory", "confirm", "enforce"])
+def test_migrate_legacy_hook_preserves_settings_and_foreign_content(
+    repo, monkeypatch, capsys, brand, mode,
+):
+    policy = 'security/custom $policy `name` "quoted".toml'
+    policy_file = repo / policy
+    policy_file.parent.mkdir()
+    git(repo, "mv", "aigenguard.toml", policy)
+    git(repo, "config", "core.hooksPath", "custom hooks")
+    hook = repo / "custom hooks/pre-commit"
+    hook.parent.mkdir()
+    from aigenguard.local_guard import _shell_double_quote, parse_managed_hook
+    import shlex
+
+    command = Path(shutil.which("aigenguard")).as_posix()
+    old = legacy_hook().replace('"aigenguard.toml"', _shell_double_quote(policy))
+    old = old.replace('"enforce"', f'"{mode}"').replace("AigenGuard managed", f"{brand} managed")
+    old = old.replace("aigenguard guard", shlex.quote(command) + " guard")
+    # A staged flag and unrelated command outside the block cannot supply metadata.
+    foreign = '\n# --staged\n# aigenguard guard . --policy "wrong" --mode "advisory"\n'
+    foreign += "echo foreign-hook-ran\nexit 0\n"
+    hook.write_text(old + foreign)
+    hook.chmod(0o755)
+    monkeypatch.chdir(repo)
+    before = hook.read_bytes(), hook.stat().st_mtime_ns, git(repo, "write-tree").stdout
+    assert main(["status"]) == 0
+    output = capsys.readouterr().out
+    assert "legacy (update required)" in output
+    assert "does not verify the staged snapshot" in output
+    assert "  aigenguard install-hook\n" in output
+    assert "Local guard: active" not in output
+    assert before == (hook.read_bytes(), hook.stat().st_mtime_ns, git(repo, "write-tree").stdout)
+    assert main(["install-hook"]) == 0
+    first = hook.read_bytes()
+    assert main(["install-hook"]) == 0
+    assert hook.read_bytes() == first
+    text = hook.read_text()
+    assert text.count("# BEGIN AigenGuard managed block") == 1
+    assert foreign in text
+    metadata = parse_managed_hook(text)
+    assert metadata == {"policy": policy, "mode": mode, "command": command, "state": "current"}
+    assert f"Guard mode: {mode}" in capsys.readouterr().out
+    assert "foreign-hook-ran" in commit(repo, allowed=True)
+    if mode == "enforce":
+        (repo / "agent.py").write_text(f'key = "{SECRET}"\n')
+        git(repo, "add", "agent.py")
+        (repo / "agent.py").write_text("print('clean working copy')\n")
+        commit(repo, allowed=False)
+        (repo / "agent.py").write_text("print('clean index')\n")
+        git(repo, "add", "agent.py")
+        (repo / "agent.py").write_text(f'key = "{SECRET}"\n')
+        commit(repo, allowed=True)
+
+
+@pytest.mark.parametrize("damage", [
+    "missing-end", "duplicate", "missing-command", "ignored-exit", "early-exit",
+])
+def test_damaged_hook_is_not_active_or_silently_reset(repo, monkeypatch, capsys, damage):
+    hook = install(repo)
+    text = hook.read_text()
+    if damage == "missing-end":
+        text = text.replace("# END AigenGuard managed block", "")
+    elif damage == "duplicate":
+        text += legacy_hook()
+    elif damage == "missing-command":
+        text = "\n".join(line for line in text.splitlines() if " guard . " not in line)
+    elif damage == "early-exit":
+        text = text.replace("#!/bin/sh\n", "#!/bin/sh\nexit 0\n")
+    else:
+        text = text.replace('  exit "$aigenguard_status"', "  true")
+    hook.write_text(text)
+    before = hook.read_bytes()
+    monkeypatch.chdir(repo)
+    assert local_guard_status().hook_state == "damaged"
+    assert not local_guard_status().hook_installed
+    assert main(["status"]) == 0
+    assert "damaged (manual review required)" in capsys.readouterr().out
+    assert main(["install-hook"]) == 1
+    assert "specify both --policy and --mode" in capsys.readouterr().err
+    assert hook.read_bytes() == before
+    if damage in {"missing-end", "duplicate"}:
+        assert main(["install-hook", "--policy", "aigenguard.toml", "--mode", "enforce"]) == 1
+        assert hook.read_bytes() == before
+    else:
+        assert main(["install-hook", "--policy", "aigenguard.toml", "--mode", "enforce"]) == 0
+        assert local_guard_status().hook_state == "current"
+        commit(repo, allowed=True)
+        (repo / "agent.py").write_text(f'key = "{SECRET}"\n')
+        git(repo, "add", "agent.py")
+        commit(repo, allowed=False)
+
+
+def test_status_does_not_take_settings_from_foreign_command(repo, monkeypatch, capsys):
+    hook = repo / ".git/hooks/pre-commit"
+    hook.write_text(
+        '#!/bin/sh\n# BEGIN AigenGuard managed block\n# no command\n'
+        '# END AigenGuard managed block\n'
+        'aigenguard guard . --staged --policy "foreign.toml" --mode "advisory"\n'
+    )
+    hook.chmod(0o755)
+    monkeypatch.chdir(repo)
+    before = hook.read_bytes()
+    status = local_guard_status()
+    assert status.hook_state == "damaged"
+    assert status.mode is None
+    assert main(["install-hook"]) == 1
+    assert hook.read_bytes() == before
+    assert "specify both" in capsys.readouterr().err
+
+
+def test_foreign_staged_command_does_not_masquerade_as_managed_hook(repo):
+    hook = repo / ".git/hooks/pre-commit"
+    hook.write_text('#!/bin/sh\n# --staged\necho foreign-hook-ran\nexit 0\n')
+    hook.chmod(0o755)
+    status = local_guard_status(cwd=repo)
+    assert status.hook_state == "foreign"
+    assert not status.hook_installed
+    with pytest.raises(ValueError, match="non-AigenGuard"):
+        install_hook(cwd=repo)
+    result = git(repo, "commit", "--allow-empty", "-m", "foreign")
+    assert "foreign-hook-ran" in result.stdout + result.stderr
+
+
+def test_unversioned_staged_hook_is_already_current(repo):
+    from aigenguard.local_guard import HOOK_VERSION
+    hook = install(repo)
+    hook.write_text(hook.read_text().replace(HOOK_VERSION + "\n", ""))
+    assert local_guard_status(cwd=repo).hook_state == "current"
+    commit(repo, allowed=True)
+
+
+def test_upgrade_overrides_only_explicit_settings(repo, monkeypatch):
+    hook = install(repo)
+    monkeypatch.chdir(repo)
+    assert main(["install-hook", "--policy", "security/new.toml"]) == 0
+    status = local_guard_status()
+    assert status.mode == "enforce"
+    assert status.policy == "security/new.toml"
+    assert main(["install-hook", "--mode", "confirm"]) == 0
+    assert local_guard_status().policy == "security/new.toml"
+    assert '--mode "confirm"' in hook.read_text()

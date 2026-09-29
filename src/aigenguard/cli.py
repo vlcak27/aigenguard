@@ -297,15 +297,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     install_parser.add_argument(
         "--policy",
-        default=DEFAULT_POLICY_NAME,
-        help=f"policy file relative to the repository root (default: {DEFAULT_POLICY_NAME})",
+        help=f"preserve installed policy; new hooks default to {DEFAULT_POLICY_NAME}",
     )
     install_parser.add_argument(
         "--mode",
         choices=GUARD_MODES,
         help=(
             "local guard mode: advisory warns and allows, confirm asks, "
-            "enforce blocks (default: advisory)"
+            "enforce blocks (preserve installed mode; new hooks default to advisory)"
         ),
     )
     install_parser.add_argument(
@@ -327,8 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--aigenguard-command",
         "--agentbom-command",
         dest="aigenguard_command",
-        default="aigenguard",
-        help="AigenGuard executable path for the hook to call (default: aigenguard)",
+        help="preserve installed executable; new hooks default to aigenguard",
     )
 
     subparsers.add_parser(
@@ -504,13 +502,13 @@ def cli(argv: list[str] | None = None) -> int:
     if args.command == "install-hook":
         if args.mode and args.enforce_policy:
             parser.error("install-hook: --mode and --enforce-policy cannot be used together")
-        mode = "enforce" if args.enforce_policy else (args.mode or "advisory")
+        mode = "enforce" if args.enforce_policy else args.mode
         try:
             hook_path = install_hook(
                 args.policy,
                 mode,
                 aigenguard_command=args.aigenguard_command,
-                append=True,
+                append=args.append,
                 force=args.force,
             )
         except ExistingHookError as exc:
@@ -524,7 +522,7 @@ def cli(argv: list[str] | None = None) -> int:
             print(f"aigenguard: {exc}", file=sys.stderr)
             return 1
         print(f"Installed AigenGuard pre-commit hook at {hook_path}")
-        print(f"Guard mode: {mode}")
+        print(f"Guard mode: {local_guard_status().mode}")
         return 0
 
     if args.command == "uninstall-hook":
@@ -640,12 +638,28 @@ def _print_status() -> int:
         print(f"Policy: missing ({status.policy})")
     else:
         print("Policy: missing")
-    if status.hook_installed:
+    if status.hook_state == "current" and status.hook_installed:
         print("Local guard: active")
         if status.mode:
             print(f"Mode: {status.mode}")
         if status.hook_path is not None and status.repo_root is not None:
             print(f"Hook: {_display_path(status.hook_path, status.repo_root)}")
+    elif status.hook_state in {"legacy", "inactive"}:
+        print(f"Local guard: {status.hook_state} (update required)")
+        if status.mode:
+            print(f"Mode: {status.mode}")
+        if status.hook_state == "legacy":
+            print("Warning: this hook does not verify the staged snapshot.")
+        print("Update preserving installed mode, policy, and executable:")
+        print("  aigenguard install-hook")
+    elif status.hook_state == "damaged":
+        print("Local guard: damaged (manual review required)")
+        print("Review the hook, then repair with explicit --policy and --mode:")
+        print("  aigenguard install-hook --policy <intended-policy> --mode <intended-mode>")
+        print("Incomplete or duplicate managed blocks must be repaired manually first.")
+    elif status.hook_state == "foreign":
+        print("Local guard: not installed (foreign hook present)")
+        print("Use install-hook --append with your intended --policy and --mode.")
     else:
         print("Local guard: not installed")
         print("")

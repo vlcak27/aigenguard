@@ -152,11 +152,58 @@ are rejected by installation, status, and removal. A foreign hook is preserved;
 use `--append` to combine a shell hook, with AigenGuard running before the foreign
 body (including any early `exit`). Non-shell hooks cannot be combined safely.
 
-Install or upgrade the managed block:
+For a new installation, choose your intended mode and policy, for example:
 
 ```bash
 aigenguard install-hook --policy aigenguard.toml --mode confirm
 ```
+
+### Upgrading an existing installation
+
+After 0.8.5 is published, upgrade in the Python environment used by your hook:
+
+```bash
+python -m pip install --upgrade 'aigenguard==0.8.5'
+aigenguard --version
+cd /path/to/your/repository
+aigenguard status
+aigenguard install-hook
+aigenguard status
+```
+
+The package upgrade alone does not rewrite existing hook scripts. Run this in
+each repository with an installed hook. `install-hook` with no settings preserves
+the recognized hook's mode, policy path, and executable, including older AgentBOM
+blocks. An explicit option changes only that setting. New installations still
+default to advisory mode and `aigenguard.toml`. If the stored executable points
+to a different environment, upgrade that environment or deliberately pass
+`--aigenguard-command /path/to/the/upgraded/aigenguard`.
+
+Status must report `Local guard: active`, with the intended mode and policy.
+A legacy hook warns that it does not verify the staged snapshot. Inactive hooks
+can be reinstalled to restore their executable permission. Damaged hooks require
+review and explicit `--policy` and `--mode` values; incomplete or duplicate blocks
+must be repaired manually first. Status is read-only. A foreign hook requires
+`--append` to combine it; only supported shell shebangs can be combined. Updates
+retain foreign shell content and place the guard before it.
+
+Before committing, review and stage the exact policy reported by status. For
+example, **only when that is your selected path**:
+
+```bash
+git add -- aigenguard.toml
+git diff --cached -- aigenguard.toml
+```
+
+Use your actual policy path in both commands. The staged policy, not an unstaged
+edit, controls the commit. A missing staged policy blocks even advisory mode.
+Do not run `activate` as an upgrade shortcut: it is a setup command with its own
+mode/preset choices. Hook updates respect Git's effective `core.hooksPath`,
+including repository-contained relative/absolute paths and default shared Git
+hooks in linked worktrees. External custom directories and symlinks remain
+unsupported. No command here changes your Git hooks-path setting.
+
+### Modes and staged checks
 
 Modes:
 

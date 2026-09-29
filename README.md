@@ -154,8 +154,10 @@ Manual `aigenguard scan .` still inspects the working directory.
 The hook uses Git's effective hook path, normally `.git/hooks/pre-commit`.
 Repository-contained `core.hooksPath` directories are supported; external paths
 and symlink hook paths are rejected. Reinstall an existing hook with
-`aigenguard install-hook --policy aigenguard.toml --mode enforce` to enable the
-staged behavior, choosing your intended mode.
+`aigenguard install-hook` to enable staged behavior while preserving the installed
+mode, policy, and executable. Upgrading the Python package alone does not update
+existing hooks. Run `aigenguard status` before and after reinstalling; see the
+[upgrade procedure](docs/policy.md#upgrading-an-existing-installation).
 Disable it with:
 
 ```bash
