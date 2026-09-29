@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 import webbrowser
 from pathlib import Path
 
@@ -56,6 +57,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"aigenguard {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="command", required=True)
+
+    review_parser = subparsers.add_parser(
+        "review", help="review MCP and policy changes between Git snapshots (offline)",
+        description="Static configuration review. Exit 0: complete; 1: --fail-on threshold; "
+                    "2: incomplete analysis or operational error. Does not change hooks or Git state.",
+    )
+    review_parser.add_argument("--base", required=True, help="locally available base commit/revision")
+    candidate = review_parser.add_mutually_exclusive_group(required=True)
+    candidate.add_argument("--staged", action="store_true", help="compare the full actual Git index")
+    candidate.add_argument("--head", help="locally available candidate commit/revision")
+    review_parser.add_argument("--path", default=".", help="repository directory")
+    review_parser.add_argument("--policy", help="repository-relative TOML path in both snapshots")
+    review_parser.add_argument("--fail-on", choices=valid_severities(), help="fail on review risks at this severity or above")
+    review_parser.add_argument("--output-dir", help="JSON/Markdown directory (default: temporary directory outside checkout)")
 
     init_parser = subparsers.add_parser(
         "init",
@@ -360,6 +375,22 @@ def cli(argv: list[str] | None = None) -> int:
             print("Strict starter policy written. Run advisory mode before enforcement.")
         _print_next_steps(path)
         return 0
+
+    if args.command == "review":
+        from .review import review_repository, review_exit_code, terminal_review, write_review
+        from .security_changes import safe_text
+
+        report = review_repository(args.path, base=args.base, head=args.head,
+                                   staged=args.staged, policy=args.policy)
+        print(terminal_review(report))
+        try:
+            output = Path(args.output_dir) if args.output_dir else Path(tempfile.mkdtemp(prefix="aigenguard-review-report-"))
+            write_review(report, output)
+        except OSError:
+            print("aigenguard: cannot write review reports; check output directory permissions", file=sys.stderr)
+            return 2
+        print("Reports: " + safe_text(str(output)))
+        return review_exit_code(report, args.fail_on)
 
     if args.command == "scan":
         style = terminal_style(no_color=args.no_color)

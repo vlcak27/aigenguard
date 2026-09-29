@@ -1031,6 +1031,14 @@ def test_mcp_security_analysis_extracts_safe_server_metadata(tmp_path):
 
     data = scan_path(project)
 
+    server = data["mcp_servers"][0]
+    assert server.pop("config_pointer") == "/mcpServers/safe-docs"
+    assert server.pop("config_identity") == "/mcpServers/safe-docs"
+    metadata = server.pop("security_config")
+    assert metadata["schema_version"] == "1"
+    assert metadata["env_names"] == ["DOCS_API_KEY"]
+    assert "do-not-store" not in str(metadata)
+
     assert data["mcp_servers"] == [
         {
             "name": "safe-docs",
@@ -1180,6 +1188,11 @@ def test_mcp_security_fixture_covers_safe_server_env_redaction_and_reachability(
     project = Path(__file__).parent / "fixtures" / "mcp_safe_agent"
 
     data = scan_path(project)
+
+    for server in data["mcp_servers"]:
+        assert server.pop("config_pointer") == "/mcpServers/" + server["name"]
+        assert server.pop("config_identity") == "/mcpServers/" + server["name"]
+        assert server.pop("security_config")["schema_version"] == "1"
 
     assert data["mcp_servers"] == [
         {

@@ -51,6 +51,27 @@ Static findings are review signals, not exploit proof.
 - Static scans do not execute MCP servers or contact networks.
 - Secret values are redacted and must not be printed or stored.
 
+## Review configuration changes (planned for 0.9.0)
+
+From this source checkout, review what an MCP or policy change newly permits:
+
+```bash
+aigenguard review --base HEAD --staged --fail-on high
+```
+
+The offline demo changing a configured filesystem root from `/workspace/project`
+to `/` produces:
+
+```text
+AigenGuard review: complete; 1 change/review finding(s).
+HIGH mcp.filesystem_scope [expanded] .mcp.json /mcpServers/files/args
+```
+
+JSON/Markdown reports explain safe before/after values, policy weakening, and
+candidate violations of the original policy. This is configured access, not proof
+of runtime reachability. Existing hooks are unchanged. See
+[coverage, exit codes, offline demo, and the future-version CI example](docs/config-review.md).
+
 ## Optional RunBOM Evidence
 
 ```bash

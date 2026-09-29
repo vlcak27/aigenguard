@@ -64,6 +64,7 @@ def scan_path(
     policy_path: str | Path | None = None,
     *,
     enforce_policy: bool = False,
+    evaluate_rules: bool = True,
 ) -> dict[str, object]:
     root = Path(path)
     if not root.exists():
@@ -136,7 +137,7 @@ def scan_path(
     bom["policy_findings"] = validate_policies(
         bom["prompts"], bom["capabilities"], bom["mcp_servers"], has_policy  # type: ignore[arg-type]
     )
-    if policy_file is not None and policy_file.suffix.lower() != ".toml":
+    if evaluate_rules and policy_file is not None and policy_file.suffix.lower() != ".toml":
         for finding in validate_custom_policy(policy_file, bom, has_human_approval):
             _append_unique(bom["policy_findings"], finding)
     bom["repository_risk"] = score_repository_risk(
@@ -145,7 +146,7 @@ def scan_path(
         bom["secret_references"],
         bom["policy_findings"],
     )  # type: ignore[arg-type]
-    if policy_file is not None and policy_file.suffix.lower() == ".toml":
+    if evaluate_rules and policy_file is not None and policy_file.suffix.lower() == ".toml":
         bom["policy_review"] = evaluate_policy_file(
             policy_file,
             bom,

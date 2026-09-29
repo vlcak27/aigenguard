@@ -184,6 +184,23 @@
         "parse_status": {
           "type": "string"
         },
+        "config_pointer": {
+          "type": "string",
+          "description": "JSON Pointer to this server definition."
+        },
+        "config_identity": {
+          "type": "string",
+          "description": "Stable container/name identity, independent of named-list ordering."
+        },
+        "security_config": {
+          "type": "object",
+          "required": ["schema_version", "complete"],
+          "properties": {
+            "schema_version": {"const": "1"},
+            "complete": {"type": "boolean"}
+          },
+          "description": "Safe configuration projection and opaque comparison digests; never environment values."
+        },
         "command": {
           "type": "string"
         },
@@ -654,6 +671,10 @@
       "properties": {
         "baseline_repository": {
           "type": "string"
+        },
+        "security_changes": {
+          "type": "array",
+          "items": {"$ref": "review-schema.json#/$defs/change"}
         },
         "current_repository": {
           "type": "string"

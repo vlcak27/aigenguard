@@ -16,6 +16,11 @@ MCP_POLICY = ROOT / "examples" / "policies" / "mcp-policy.yaml"
 def test_mcp_safe_agent_scans_with_controlled_mcp_findings():
     data = scan_path(SAFE_DEMO)
 
+    for server in data["mcp_servers"]:
+        assert server.pop("config_pointer") == "/mcpServers/" + server["name"]
+        assert server.pop("config_identity") == "/mcpServers/" + server["name"]
+        assert server.pop("security_config")["schema_version"] == "1"
+
     assert data["repository_risk"]["severity"] in {"low", "medium"}
     assert data["policy_findings"] == []
     assert {

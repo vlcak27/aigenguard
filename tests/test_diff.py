@@ -3,6 +3,26 @@ from __future__ import annotations
 from aigenguard.diff import diff_reports, has_new_findings_at_or_above
 
 
+def test_same_mcp_server_filesystem_root_expansion_is_new_high_finding(tmp_path):
+    import json
+    from aigenguard.scanner import scan_path
+
+    reports = []
+    for directory, allowed in (("before", "/workspace/project"), ("after", "/")):
+        root = tmp_path / directory
+        root.mkdir()
+        (root / ".mcp.json").write_text(json.dumps({"mcpServers": {"files": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", allowed],
+        }}}))
+        reports.append(scan_path(root))
+    diff = diff_reports(*reports)
+    assert has_new_findings_at_or_above(diff, "high")
+    assert any(item["rule_id"] == "mcp.filesystem_scope" and item["change"] == "expanded"
+               for item in diff["security_changes"])
+    assert not any(item["category"] == "mcp_servers" for item in diff["unchanged"])
+
+
 def test_diff_reports_introduced_resolved_and_unchanged_findings():
     baseline = {
         "repository": "baseline",

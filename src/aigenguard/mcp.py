@@ -6,6 +6,8 @@ import json
 from pathlib import PurePosixPath
 import re
 
+from .security_changes import mcp_security_config, pointer_part
+
 
 MCP_CONFIG_FILENAMES = {"mcp.json", ".mcp.json", "claude_desktop_config.json"}
 RISK_CATEGORY_ORDER = (
@@ -132,8 +134,11 @@ def analyze_mcp_config(
         return [_config_finding(relpath, confidence, "no_servers")]
 
     findings = []
-    for name, definition in servers:
-        findings.append(_server_finding(name, definition, relpath, confidence))
+    for name, definition, pointer in servers:
+        finding = _server_finding(name, definition, relpath, confidence)
+        finding["config_pointer"] = pointer
+        finding["config_identity"] = pointer.rsplit("/", 1)[0] + "/" + pointer_part(name)
+        findings.append(finding)
     return findings
 
 
@@ -152,29 +157,29 @@ def _config_finding(relpath: str, confidence: str, status: str) -> dict[str, obj
     return finding
 
 
-def _extract_server_definitions(data: object) -> list[tuple[str, object]]:
-    candidates: list[object] = []
+def _extract_server_definitions(data: object) -> list[tuple[str, object, str]]:
+    candidates: list[tuple[object, str]] = []
     if isinstance(data, dict):
         for key in ("mcpServers", "mcp_servers", "servers"):
-            candidates.append(data.get(key))
+            candidates.append((data.get(key), "/" + key))
         for key in ("mcp", "modelContextProtocol", "model_context_protocol"):
             nested = data.get(key)
             if isinstance(nested, dict):
                 for server_key in ("mcpServers", "mcp_servers", "servers"):
-                    candidates.append(nested.get(server_key))
+                    candidates.append((nested.get(server_key), f"/{key}/{server_key}"))
 
-    servers: list[tuple[str, object]] = []
-    for candidate in candidates:
+    servers: list[tuple[str, object, str]] = []
+    for candidate, pointer in candidates:
         if isinstance(candidate, dict):
             for name, definition in sorted(candidate.items(), key=lambda item: str(item[0])):
-                servers.append((str(name), definition))
+                servers.append((str(name), definition, pointer + "/" + pointer_part(str(name))))
         elif isinstance(candidate, list):
             for index, definition in enumerate(candidate):
                 if isinstance(definition, dict):
                     name = str(definition.get("name") or definition.get("id") or f"server-{index + 1}")
                 else:
                     name = f"server-{index + 1}"
-                servers.append((name, definition))
+                servers.append((name, definition, pointer + "/" + str(index)))
     return servers
 
 
@@ -202,6 +207,7 @@ def _server_finding(
         "risk": risk,
         "risk_categories": categories,
         "rationale": rationale,
+        "security_config": mcp_security_config(definition),
     }
     if command:
         finding["command"] = command
