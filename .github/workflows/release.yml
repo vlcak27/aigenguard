@@ -43,6 +43,9 @@ jobs:
       - name: Precision corpus
         run: python scripts/precision_corpus.py
 
+      - name: Required offline review corpus and schema validation
+        run: python scripts/review_corpus.py --output-dir "${{ runner.temp }}/release-review-evaluation"
+
       - name: Build wheel and sdist once
         run: python -m build
 
