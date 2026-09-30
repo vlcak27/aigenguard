@@ -35,6 +35,7 @@ dev = [
     "build>=1",
     "pre-commit>=4",
     "pytest>=8",
+    "jsonschema>=4.18",
     "ruff==0.16.9",
 ]
 

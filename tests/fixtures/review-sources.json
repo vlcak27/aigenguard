@@ -1,0 +1,33 @@
+{
+  "verified_date": "2026-09-29",
+  "method": "Read pinned official documentation and licenses only. Fixtures are independently written minimal structures; all mutations are synthetic. No server or dependencies downloaded or executed.",
+  "sources": [
+    {
+      "id": "mcp-filesystem",
+      "url": "https://github.com/modelcontextprotocol/servers/blob/f46d9578190b476b3501923ea8977d899e8db2cb/src/filesystem/README.md",
+      "commit": "f46d9578190b476b3501923ea8977d899e8db2cb",
+      "license_url": "https://github.com/modelcontextprotocol/servers/blob/f46d9578190b476b3501923ea8977d899e8db2cb/LICENSE",
+      "license": "Documentation CC-BY-4.0; root license describes MIT-to-Apache-2.0 code transition, not a blanket MIT license.",
+      "attribution": "Model Context Protocol contributors, Filesystem MCP Server documentation",
+      "structure": "Own JSON wrapper for documented direct mcp-server-filesystem positional directory arguments. Synthetic /srv/team -> /srv paths; client Roots are not evaluated."
+    },
+    {
+      "id": "microsoft-playwright",
+      "url": "https://github.com/microsoft/playwright-mcp/blob/f183dad4a52965583e3cc1d59b88cdc279e2e57d/README.md",
+      "commit": "f183dad4a52965583e3cc1d59b88cdc279e2e57d",
+      "license_url": "https://github.com/microsoft/playwright-mcp/blob/f183dad4a52965583e3cc1d59b88cdc279e2e57d/LICENSE",
+      "license": "Apache-2.0",
+      "attribution": "Microsoft, Playwright MCP standard configuration documentation",
+      "structure": "Own minimal mcpServers/npx/@playwright/mcp@latest configuration. --synthetic-option is our mutation, not an upstream supported option; only opaque argument review is expected."
+    },
+    {
+      "id": "github-mcp",
+      "url": "https://github.com/github/github-mcp-server/blob/85598ba6e1256f7ebf4867b95d63b833c4549264/README.md",
+      "commit": "85598ba6e1256f7ebf4867b95d63b833c4549264",
+      "license_url": "https://github.com/github/github-mcp-server/blob/85598ba6e1256f7ebf4867b95d63b833c4549264/LICENSE",
+      "license": "MIT",
+      "attribution": "GitHub, Remote GitHub MCP Server configuration documentation",
+      "structure": "Own minimal .vscode/mcp.json servers/type/http/url structure. Public official endpoint replaced by example.invalid synthetically. OAuth, headers, and endpoint trust are not evaluated."
+    }
+  ]
+}

@@ -71,6 +71,8 @@ JSON/Markdown reports explain safe before/after values, policy weakening, and
 candidate violations of the original policy. This is configured access, not proof
 of runtime reachability. Existing hooks are unchanged. See
 [coverage, exit codes, offline demo, and the future-version CI example](docs/config-review.md).
+For a first local run, interpreting risk versus incomplete input, and the
+independent labelled corpus, see [review evaluation and pilot guide](docs/review-evaluation.md).
 
 ## Optional RunBOM Evidence
 

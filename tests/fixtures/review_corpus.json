@@ -1,0 +1,1308 @@
+{
+  "contract": "Expected labels specified from documented semantics before running this corpus. Own minimal fixtures; no upstream code or credentials.",
+  "cases": [
+    {
+      "id": "unrelated-large",
+      "group": "coverage",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [],
+      "exit": 2,
+      "status": "incomplete",
+      "special": "oversized",
+      "coverage": "omissions",
+      "limitation": "Original-policy evaluation cannot cover the omitted >1 MB file."
+    },
+    {
+      "id": "unrelated-symlink",
+      "group": "coverage",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [],
+      "exit": 2,
+      "status": "incomplete",
+      "special": "symlink",
+      "coverage": "omissions",
+      "limitation": "Symlink target is never followed; original-policy coverage is incomplete."
+    },
+    {
+      "id": "excluded-source",
+      "group": "coverage",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [],
+      "exit": 0,
+      "status": "complete",
+      "special": "excluded",
+      "coverage": "omissions",
+      "limitation": "node_modules source is outside declared scanner scope, not proven safe."
+    },
+    {
+      "id": "excluded-mcp",
+      "group": "coverage",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [],
+      "exit": 2,
+      "status": "incomplete",
+      "special": "excluded-config",
+      "coverage": "omissions",
+      "limitation": "Recognized MCP file is excluded from scanner traversal; explicitly incomplete."
+    },
+    {
+      "id": "identical",
+      "group": "invariants",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/data"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/data"
+            ]
+          }
+        }
+      },
+      "expected": [],
+      "exit": 0,
+      "status": "complete",
+      "coverage": "invariants",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "formatting",
+      "group": "invariants",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/data"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/data"
+            ]
+          }
+        }
+      },
+      "expected": [],
+      "exit": 0,
+      "status": "complete",
+      "coverage": "invariants",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "format": true
+    },
+    {
+      "id": "posix-expand",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/data"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "posix-narrow",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/data"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:narrowed"
+      ],
+      "exit": 0,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "multiple-expand",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/data",
+              "/opt/project"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv",
+              "/opt/project"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "mixed-incomparable",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/data",
+              "/opt/project"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv",
+              "/home/new"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "prefix-is-not-parent",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/project"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/project2"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "windows-expand",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "C:\\Projects\\app"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "C:\\Projects"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "windows-drive-change",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "C:\\Projects"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "D:\\Projects"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "relative-expand",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "work/project"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "cross-platform",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "C:\\work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "empty-root",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": []
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "variable-opaque",
+      "group": "paths",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "$PROJECT"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.arguments:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "paths",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "set-reorder",
+      "group": "invariants",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/a",
+              "/b"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/b",
+              "/a",
+              "/a"
+            ]
+          }
+        }
+      },
+      "expected": [],
+      "exit": 0,
+      "status": "complete",
+      "coverage": "invariants",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "command-change",
+      "group": "execution",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "python",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.execution:review_required",
+        "mcp.arguments:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "execution",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "package-change",
+      "group": "execution",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "@modelcontextprotocol/server-filesystem@1.2.3",
+              "/data"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "some-package@1.2.3",
+              "/data"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.execution:review_required",
+        "mcp.arguments:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "execution",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "pin-to-floating",
+      "group": "execution",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "@modelcontextprotocol/server-filesystem@1.2.3",
+              "/data"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "@modelcontextprotocol/server-filesystem@latest",
+              "/data"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.package_version:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "execution",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "version-change",
+      "group": "execution",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "@modelcontextprotocol/server-filesystem@1.2.3",
+              "/data"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "@modelcontextprotocol/server-filesystem@1.2.4",
+              "/data"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.package_version:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "execution",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "env-add",
+      "group": "identifiers",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ],
+            "env": {
+              "OPENAI_API_KEY": "placeholder"
+            }
+          }
+        }
+      },
+      "expected": [
+        "mcp.environment:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "identifiers",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "env-sensitive-swap",
+      "group": "identifiers",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ],
+            "env": {
+              "ghp_SYNTHETICCANARYSYNTHETICCANARYSYNTHETICCANARY": "placeholder"
+            }
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ],
+            "env": {
+              "ghp_DIFFERENTCANARYDIFFERENTCANARYDIFFERENTCANARY": "placeholder"
+            }
+          }
+        }
+      },
+      "expected": [
+        "mcp.environment:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "identifiers",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "canaries": [
+        "ghp_SYNTHETICCANARYSYNTHETICCANARYSYNTHETICCANARY",
+        "ghp_DIFFERENTCANARYDIFFERENTCANARYDIFFERENTCANARY"
+      ]
+    },
+    {
+      "id": "server-rename",
+      "group": "identifiers",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "renamed": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.server:added",
+        "mcp.server:removed"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "identifiers",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "two-same-type",
+      "group": "identifiers",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          },
+          "second": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/other"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          },
+          "second": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "identifiers",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "policy-weaken",
+      "group": "policy",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "policy.models.deny:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "policy",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "base_policy": "[models]\ndeny=[\"gpt-4\"]\n",
+      "head_policy": "[models]\ndeny=[]\n"
+    },
+    {
+      "id": "policy-strengthen",
+      "group": "policy",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "policy.models.deny:narrowed"
+      ],
+      "exit": 0,
+      "status": "complete",
+      "coverage": "policy",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "base_policy": "[models]\ndeny=[]\n",
+      "head_policy": "[models]\ndeny=[\"gpt-4\"]\n"
+    },
+    {
+      "id": "empty-allow-unrestricted",
+      "group": "policy",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "policy.models.allow:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "policy",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "base_policy": "[models]\nallow=[\"gpt-4\"]\n",
+      "head_policy": "[models]\nallow=[]\n"
+    },
+    {
+      "id": "disable-leak-block",
+      "group": "policy",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "policy.secrets.block_leaks:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "policy",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "base_policy": "[secrets]\nblock_leaks=true\n",
+      "head_policy": "[secrets]\nblock_leaks=false\n"
+    },
+    {
+      "id": "combined-original-violation",
+      "group": "policy",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:expanded",
+        "policy.models.deny:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "policy",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "base_policy": "[models]\ndeny=[\"gpt-4\"]\n",
+      "head_policy": "[models]\ndeny=[]\n",
+      "files": {
+        "model.py": "model=\"gpt-4\"\n"
+      },
+      "baseline": [
+        "baseline.models.deny"
+      ]
+    },
+    {
+      "id": "baseline-violation-no-change",
+      "group": "policy",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "policy",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "base_policy": "[models]\ndeny=[\"gpt-4\"]\n",
+      "head_policy": "[models]\ndeny=[\"gpt-4\"]\n",
+      "base_files": {
+        "model.py": "model=\"gpt-4\"\n"
+      },
+      "files": {
+        "model.py": "model=\"gpt-4\"\n"
+      },
+      "baseline": [
+        "baseline.models.deny"
+      ]
+    },
+    {
+      "id": "invalid-json",
+      "group": "incomplete",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": "{",
+      "expected": [
+        "mcp.server:removed"
+      ],
+      "exit": 2,
+      "status": "incomplete",
+      "coverage": "incomplete",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "unsupported-container",
+      "group": "incomplete",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "unrecognized": []
+      },
+      "expected": [
+        "mcp.server:removed"
+      ],
+      "exit": 2,
+      "status": "incomplete",
+      "coverage": "incomplete",
+      "limitation": "Static configuration only; no runtime permission proof."
+    },
+    {
+      "id": "missing-policy",
+      "group": "incomplete",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "policy.availability:removed"
+      ],
+      "exit": 2,
+      "status": "incomplete",
+      "coverage": "incomplete",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "head_policy": null
+    },
+    {
+      "id": "staged-not-worktree",
+      "group": "git",
+      "origin": "synthetic",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "git",
+      "limitation": "Static configuration only; no runtime permission proof.",
+      "worktree": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/work"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "official-filesystem",
+      "group": "public",
+      "origin": "mcp-filesystem",
+      "before": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv/team"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "files": {
+            "command": "mcp-server-filesystem",
+            "args": [
+              "/srv"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.filesystem_scope:expanded"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "public",
+      "limitation": "Own minimal structure; synthetic path expansion; client Roots not evaluated."
+    },
+    {
+      "id": "official-playwright",
+      "group": "public",
+      "origin": "microsoft-playwright",
+      "before": {
+        "mcpServers": {
+          "playwright": {
+            "command": "npx",
+            "args": [
+              "@playwright/mcp@latest"
+            ]
+          }
+        }
+      },
+      "after": {
+        "mcpServers": {
+          "playwright": {
+            "command": "npx",
+            "args": [
+              "@playwright/mcp@latest",
+              "--synthetic-option"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "mcp.arguments:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "public",
+      "limitation": "Synthetic opaque option; no inferred browser permissions."
+    },
+    {
+      "id": "official-github",
+      "group": "public",
+      "origin": "github-mcp",
+      "before": {
+        "servers": {
+          "github": {
+            "type": "http",
+            "url": "https://api.githubcopilot.com/mcp/"
+          }
+        }
+      },
+      "after": {
+        "servers": {
+          "github": {
+            "type": "http",
+            "url": "https://example.invalid/mcp/"
+          }
+        }
+      },
+      "expected": [
+        "mcp.endpoint:review_required"
+      ],
+      "exit": 1,
+      "status": "complete",
+      "coverage": "public",
+      "limitation": "Synthetic destination; endpoint ownership/runtime not verified.",
+      "file": ".vscode/mcp.json"
+    }
+  ]
+}

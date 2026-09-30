@@ -126,12 +126,23 @@ cryptographic approval system.
 
 ## Results, completeness, and exit codes
 
-Review JSON schema `1.0` is documented in [review-schema.json](review-schema.json).
+Review JSON schema `1.1` is documented in [review-schema.json](review-schema.json).
 Findings carry a stable rule ID, deterministic event ID, component, file, field
 pointer, safe before/after values, explanation, severity, recommendation, and
 separate change/impact confidence. Classifications are `added`, `removed`,
 `expanded`, `narrowed`, `review_required`, `no_effect`, `incomplete`, and `violation`.
 Configuration change confidence does not establish impact confidence.
+
+Schema 1.1 corrects occurrence IDs: the digest includes the relative file,
+available evaluator evidence/location, and pre-display comparison identity.
+`rule_id` remains the rule category; `id` distinguishes occurrences, including
+different models in one file and secret findings on different known lines.
+IDs are deterministic within this contract, not compatible with the defective
+1.0 IDs. Consumers should rebaseline event IDs when upgrading. Model inventory
+aggregates repeated instances of the same model in one file and provides no
+line; review does not fabricate finer locations. Baseline findings now retain
+the evaluator's concrete safe explanation and remediation instead of generic
+"base rule / candidate finding" text.
 
 | Exit | Meaning |
 |---|---|
@@ -159,6 +170,18 @@ they are not encryption or evidence that arbitrary data can be safely shared.
 Selected directory paths and valid environment variable **names** remain review
 evidence, with recognizable credential patterns and terminal controls redacted.
 Parser errors do not echo raw input. Markdown escapes untrusted identifiers.
+
+Recognizable credentials embedded in env names, server/file identifiers, policy
+values and endpoint hosts use the shared static-guard redactor. Ordinary names
+such as `OPENAI_API_KEY` remain visible. Internal raw snapshot evidence is used
+only for policy evaluation; public scan results are redacted before exporters
+receive them. Separate environment/server identity digests keep two redacted
+values from collapsing into an unchanged item. Hashes are not anonymization and
+regexes cannot recognize arbitrary secrets. Old metadata without these identity
+fields has explicitly limited comparison coverage; rescan both sides.
+
+See [first-use instructions and reproducible evaluation](review-evaluation.md)
+for corpus provenance, measurements, omissions, and pilot readiness.
 
 ## Reproduce the offline demo
 
