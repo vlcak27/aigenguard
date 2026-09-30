@@ -8,7 +8,8 @@ from pathlib import Path
 import re
 from typing import Any
 
-from .security_changes import compare_mcp_servers, pointer_part
+from .security_changes import compare_mcp_servers, fingerprint, pointer_part
+from .redaction import redact_data, redact_text
 
 
 DIFF_CATEGORIES = (
@@ -73,7 +74,7 @@ def diff_reports(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str,
         "id": item["id"], "category": "security_changes", "title": item["explanation"],
         "source_file": item["file"], "severity": item["severity"],
     } for item in security_changes if item["change"] in {"expanded", "review_required", "incomplete"})
-    return {
+    return redact_data({
         "baseline_repository": str(baseline.get("repository", "")),
         "current_repository": str(current.get("repository", "")),
         "introduced": _sorted_findings(introduced),
@@ -85,7 +86,7 @@ def diff_reports(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str,
             if item_id not in changed_ids
         ),
         "security_changes": security_changes,
-    }
+    })
 
 
 def has_new_findings_at_or_above(diff: dict[str, Any], severity: str) -> bool:
@@ -132,6 +133,13 @@ def _diff_finding(category: str, item: dict[str, Any]) -> dict[str, str]:
 
 
 def _identity(category: str, item: dict[str, Any]) -> dict[str, str]:
+    if category == "mcp_servers" and item.get("kind") == "server":
+        name, path = str(item.get("name", "")), str(item.get("path", ""))
+        if "[REDACTED]" in name + path or redact_text(name + path) != name + path:
+            pointer = item.get("config_identity", item.get("config_pointer", "/mcpServers/" + pointer_part(name)))
+            digest = item.get("security_config", {}).get("identity_digest",
+                         fingerprint([path, pointer.rsplit("/", 1)[0], name]))
+            return {"category": category, "component_digest": digest}
     if category == "policy_findings":
         return {
             "category": category,

@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aigenguard.dev/schemas/review-schema.json",
-  "title": "AigenGuard configuration review 1.0",
+  "title": "AigenGuard configuration review 1.1",
   "type": "object",
   "required": ["schema_version", "tool", "status", "snapshots", "mcp_changes", "policy_changes", "baseline_policy", "coverage"],
   "properties": {
-    "schema_version": {"const": "1.0"},
+    "schema_version": {"const": "1.1"},
     "tool": {
       "type": "object",
       "required": ["name", "version"],
@@ -59,7 +59,7 @@
       "type": "object",
       "required": ["id", "rule_id", "component", "file", "field", "change", "before", "after", "explanation", "recommendation", "severity", "change_confidence", "impact_confidence"],
       "properties": {
-        "id": {"type": "string"},
+        "id": {"type": "string", "description": "Opaque deterministic occurrence ID, distinct from rule_id. Version 1.1 includes relative source, available evidence and comparison identities. Not compatible with 1.0 event IDs; contains no raw credentials."},
         "rule_id": {"type": "string"},
         "component": {"type": "string"},
         "file": {"type": "string"},

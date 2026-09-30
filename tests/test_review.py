@@ -12,6 +12,7 @@ from aigenguard.security_changes import configured_path, path_scope_change
 
 
 PACKAGE = "@modelcontextprotocol/server-filesystem"
+CANARY = "ghp_" + "SYNTHETICCANARY" * 3
 POLICY = '[mcp]\nallow_servers = ["files"]\n[secrets]\nblock_leaks = true\n[models]\ndeny = ["gpt-4o"]\n'
 
 
@@ -367,7 +368,7 @@ def test_git_replace_does_not_change_base_contents(repo):
 def test_review_schema_required_fields(repo):
     stage(repo, config("/"))
     report = review(repo)
-    assert report["schema_version"] == "1.0"
+    assert report["schema_version"] == "1.1"
     for item in report["mcp_changes"]:
         assert {"id", "rule_id", "component", "file", "field", "change", "before", "after",
                 "explanation", "recommendation", "severity", "change_confidence", "impact_confidence"} <= item.keys()
@@ -376,6 +377,27 @@ def test_review_schema_required_fields(repo):
 def test_invalid_environment_list_is_incomplete(repo):
     stage(repo, config(env=[42]))
     assert review_exit_code(review(repo)) == 2
+
+
+def test_recognizable_credential_in_environment_name_never_leaks(repo):
+    stage(repo, config(env={CANARY: "placeholder", "OPENAI_API_KEY": "placeholder"}))
+    report = review(repo)
+    for output in (json.dumps(report), terminal_review(report), markdown_review(report)):
+        assert CANARY not in output
+        assert "OPENAI_API_KEY" in output
+
+
+def test_baseline_occurrences_have_unique_stable_useful_evidence(repo):
+    stage(repo, '[models]\ndeny=["gpt-4o", "gpt-4"]\n', "aigenguard.toml")
+    git(repo, "commit", "-qm", "two denials")
+    stage(repo, 'model="gpt-4o"\n', "one.py")
+    stage(repo, 'model="gpt-4"\nother_model="gpt-4o"\n', "two.py")
+    report = review(repo)
+    findings = [item for item in report["baseline_policy"]["violations"] if item["rule_id"] == "baseline.models.deny"]
+    assert len(findings) == 3
+    assert len({item["id"] for item in findings}) == 3
+    assert findings == [item for item in review(repo)["baseline_policy"]["violations"] if item["rule_id"] == "baseline.models.deny"]
+    assert all("gpt-4" in item["explanation"] for item in findings)
 
 
 def test_filesystem_url_argument_is_opaque_and_redacted(repo):

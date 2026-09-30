@@ -20,6 +20,7 @@ from .policy import (
 from .policy_paths import MAX_POLICY_FILE_SIZE, discover_policy_path
 from .reachability import detect_reachable_capability_hits, infer_reachable_capabilities
 from .risk import score_repository_risk, score_risks
+from .redaction import redact_data, redact_text
 
 
 MAX_FILE_SIZE = MAX_POLICY_FILE_SIZE
@@ -60,6 +61,24 @@ TEXT_NAMES = {
 
 
 def scan_path(
+    path: str | Path,
+    policy_path: str | Path | None = None,
+    *,
+    enforce_policy: bool = False,
+    evaluate_rules: bool = True,
+) -> dict[str, object]:
+    try:
+        return redact_data(_scan_path(path, policy_path, enforce_policy=enforce_policy,
+                                     evaluate_rules=evaluate_rules))
+    except (OSError, ValueError) as exc:
+        message = redact_text(str(exc))
+        if message != str(exc):
+            # Public errors are also display data; do not expose the raw cause.
+            raise ValueError(message) from None
+        raise
+
+
+def _scan_path(
     path: str | Path,
     policy_path: str | Path | None = None,
     *,
@@ -169,7 +188,7 @@ def scan_index(
             raise ValueError(str(exc).replace(str(snapshot), str(repo_root))) from exc
         bom["repository"] = str(repo_root)
         bom["policy_review"]["policy_file"] = relative_policy
-        return bom
+        return redact_data(bom)
 
 
 def iter_scannable_files(root: Path):

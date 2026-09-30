@@ -14,11 +14,11 @@ from .diff import diff_reports, SEVERITY_ORDER
 from .git_index import git_output, review_snapshot
 from .mcp import _extract_server_definitions, is_mcp_config_path
 from .policy import DEFAULT_TOML_POLICY, _normalize_reachable_capability, evaluate_policy, normalize_toml_policy
-from .scanner import IGNORE_DIRS, iter_scannable_files, scan_path
+from .scanner import IGNORE_DIRS, iter_scannable_files, _scan_path
 from .security_changes import change, safe_text
 
 
-REVIEW_SCHEMA_VERSION = "1.0"
+REVIEW_SCHEMA_VERSION = "1.1"
 
 
 def empty_review() -> dict:
@@ -31,7 +31,8 @@ def empty_review() -> dict:
             "supported": ["JSON MCP configurations", "AigenGuard TOML policy", "base-policy evaluation"],
             "not_evaluated": ["runtime access or exploitability", "MCP client Roots", "filesystem symlinks",
                               "environment values", "arbitrary server argument semantics",
-                              "runtime sandboxing", "non-JSON MCP configuration"],
+                              "runtime sandboxing", "non-JSON MCP configuration",
+                              "source files in scanner-excluded directories or unsupported file types"],
             "issues": [],
         },
     }
@@ -124,6 +125,7 @@ def compare_policy(before: dict, after: dict, file: str) -> list[dict]:
                 "high" if kind == "expanded" and section != "policy_gaps" and field not in {"warn_on_detected", "warn_on_unknown_server"}
                 else "medium" if kind in {"expanded", "review_required"} else "low",
                 "high" if kind != "review_required" else "unknown",
+                identity=[a, b],
             ))
     return findings
 
@@ -202,9 +204,9 @@ def review_repository(repo: str | Path, *, base: str, head: str | None = None,
                 for item in skipped:
                     # Any non-binary skipped data may affect original-policy evaluation.
                     if item["reason"] != "binary file" or is_mcp_config_path(item["file"]) or item["file"] == name:
-                        _issue(report, label, item["file"], item["reason"])
+                        _issue(report, label, item["file"], item["reason"] + "; original-policy coverage excludes this entry")
                 _mcp_issues(report, directory, label)
-                bom = scan_path(directory, policy_path=directory / name, evaluate_rules=False)
+                bom = _scan_path(directory, policy_path=directory / name, evaluate_rules=False)
                 for server in bom["mcp_servers"]:
                     if server.get("kind") == "server" and not server.get("security_config", {}).get("complete"):
                         _issue(report, label, str(server["path"]), "unsupported MCP server definition")
@@ -233,9 +235,11 @@ def review_repository(repo: str | Path, *, base: str, head: str | None = None,
                     result[kind] = [change(
                         "baseline." + item["rule"], "baseline-policy", str(item.get("source", "")),
                         "/" + item["rule"].replace(".", "/"), "violation" if kind == "violations" else "review_required",
-                        "base rule", "candidate finding", "Candidate matches a finding under the original policy.",
-                        "Inspect the candidate against the base rule; a weaker candidate policy does not waive it.",
-                        item["severity"], "high",
+                        {"rule": item["rule"]},
+                        {"evidence": safe_text(item["message"]),
+                         **({"line": int(item["line"])} if str(item.get("line", "")).isdigit() else {})},
+                        item["message"], item["suggested_remediation"],
+                        item["severity"], "high", identity=item,
                     ) for item in original[kind]]
             report["status"] = "incomplete" if report["coverage"]["issues"] else "complete"
     except (OSError, ValueError, RecursionError) as exc:
@@ -299,7 +303,7 @@ def markdown_review(report) -> str:
                           f"  - Component: {escaped(item['component'])}; file: {escaped(item['file'])}; field: {escaped(item['field'])}",
                           f"  - Before: {escaped(json.dumps(item['before'], ensure_ascii=True))}",
                           f"  - After: {escaped(json.dumps(item['after'], ensure_ascii=True))}",
-                          f"  - {item['explanation']}", f"  - Review: {item['recommendation']}",
+                          f"  - {escaped(item['explanation'])}", f"  - Review: {escaped(item['recommendation'])}",
                           f"  - Change confidence: {item['change_confidence']}; impact confidence: {item['impact_confidence']}"])
     lines.extend(["", "## Coverage", "", f"Original policy evaluation: {report['baseline_policy']['status']}",
                   "Supported: " + "; ".join(report["coverage"]["supported"]),
