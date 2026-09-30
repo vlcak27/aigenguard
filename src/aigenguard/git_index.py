@@ -11,18 +11,53 @@ import tempfile
 from .policy_paths import MAX_POLICY_FILE_SIZE
 
 
-def git_output(root: Path, *args: str, environ: dict[str, str] | None = None,
-               input_data: bytes | None = None) -> bytes:
+def _git_invocation(root: Path, args, environ=None):
     # An index refresh must not launch a repository-configured fsmonitor program.
     env = dict(os.environ if environ is None else environ)
     env.update(GIT_NO_LAZY_FETCH="1", GIT_NO_REPLACE_OBJECTS="1")
+    return ["git", "-c", "core.fsmonitor=false", "-c", "protocol.allow=never", "-C", str(root), *args], env
+
+
+def git_output(root: Path, *args: str, environ: dict[str, str] | None = None,
+               input_data: bytes | None = None) -> bytes:
+    command, env = _git_invocation(root, args, environ)
     result = subprocess.run(
-        ["git", "-c", "core.fsmonitor=false", "-c", "protocol.allow=never", "-C", str(root), *args],
+        command,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, env=env, input=input_data,
     )
     if result.returncode:
         raise ValueError(f"Git {args[0]} failed; cannot verify repository/index state")
     return result.stdout
+
+
+@contextmanager
+def raw_blob_reader(repo_root: Path):
+    """One bounded raw-object stream; no filters, lazy fetch, or persistent cache."""
+    command, env = _git_invocation(repo_root, ["cat-file", "--batch"])
+    process = subprocess.Popen(command, env=env, stdin=subprocess.PIPE,
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        def read(oid: bytes, expected_size: int) -> bytes:
+            if not 0 <= expected_size <= MAX_POLICY_FILE_SIZE:
+                raise ValueError("snapshot blob exceeds the read limit")
+            process.stdin.write(oid + b"\n")
+            process.stdin.flush()
+            header = process.stdout.readline(256).split()
+            if header != [oid, b"blob", str(expected_size).encode("ascii")]:
+                raise ValueError("snapshot blob unavailable or metadata changed")
+            data = process.stdout.read(expected_size)
+            if len(data) != expected_size or process.stdout.read(1) != b"\n":
+                raise ValueError("snapshot blob unavailable or truncated")
+            return data
+        yield read
+    finally:
+        process.stdin.close()
+        process.stdout.close()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
 
 
 @contextmanager
@@ -150,7 +185,7 @@ def review_snapshot(repo_root: Path, *, ref: str | None, label: str):
             if len(parts) != 3 or parts[1] != b"blob" or not parts[2].isdigit():
                 raise ValueError("snapshot blob unavailable locally; review is incomplete")
             sizes[parts[0]] = int(parts[2])
-    with tempfile.TemporaryDirectory(prefix="aigenguard-review-") as directory:
+    with tempfile.TemporaryDirectory(prefix="aigenguard-review-") as directory, raw_blob_reader(repo_root) as read_blob:
         root = Path(directory)
         skipped, destinations = [], {}
         for mode, kind, oid, name in entries:
@@ -175,7 +210,7 @@ def review_snapshot(repo_root: Path, *, ref: str | None, label: str):
                 destinations[key] = prefix
             destination = root.joinpath(*parts)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            data = git_output(repo_root, "cat-file", "blob", oid.decode("ascii"))
+            data = read_blob(oid, sizes[oid])
             if b"\0" in data:
                 skipped.append({"file": name, "reason": "binary file"})
                 continue

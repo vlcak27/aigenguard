@@ -4,6 +4,22 @@ All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Redact recognizable credentials in review environment names and all public
+  scan display fields using the shared static-guard logic; preserve separate
+  environment/server comparison identities so masked values do not hide changes.
+- Distinguish baseline-policy occurrences by source and evidence, retain known
+  secret-finding lines, and show concrete evaluator explanations/remediation.
+  Review schema is now 1.1; consumers must rebaseline the corrected event IDs.
+- Stream bounded raw Git blobs per snapshot after measured per-blob process
+  overhead; preserve read-only snapshots, no filters/fetch, and size checks.
+
+### Evaluation
+
+- Add offline labelled review corpus, pinned provenance for three official
+  structures, export/schema invariants, reproducible timing, and required CI.
+
 - Added explicit offline `review --base ... --staged/--head ...` for MCP and TOML
   policy changes using immutable Git objects and the actual index. Existing
   hook behavior and modes are unchanged.

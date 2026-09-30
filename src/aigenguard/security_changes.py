@@ -9,15 +9,16 @@ import posixpath
 import re
 from urllib.parse import urlsplit
 
+from .redaction import redact_data, redact_text
+
 
 FILESYSTEM_PACKAGE = "@modelcontextprotocol/server-filesystem"
 REDACTED = "[redacted]"
-SECRET = re.compile(r"(?:sk-(?:proj-|ant-)?|gh[pousr]_|github_pat_|AIza|hf_)[A-Za-z0-9_-]{16,}")
 
 
 def safe_text(value: str) -> str:
     """Escape terminal controls and redact recognizable tokens in identifiers/paths."""
-    value = SECRET.sub(REDACTED, value)
+    value = redact_text(value)
     return "".join(char if char.isprintable() else f"\\u{ord(char):04x}" for char in value)
 
 
@@ -32,12 +33,12 @@ def pointer_part(value: str) -> str:
 
 def change(rule: str, component: str, file: str, field: str, kind: str,
            before: object, after: object, explanation: str, recommendation: str,
-           severity: str = "medium", impact: str = "medium") -> dict:
+           severity: str = "medium", impact: str = "medium", identity: object = None) -> dict:
     return {
-        "id": rule + "." + fingerprint([component, field, kind, before, after])[:16],
+        "id": rule + "." + fingerprint([component, file, field, kind, before, after, identity])[:24],
         "rule_id": rule, "component": safe_text(component), "file": safe_text(file),
-        "field": safe_text(field), "change": kind, "before": before, "after": after,
-        "explanation": explanation, "severity": severity, "recommendation": recommendation,
+        "field": safe_text(field), "change": kind, "before": redact_data(before), "after": redact_data(after),
+        "explanation": safe_text(explanation), "severity": severity, "recommendation": safe_text(recommendation),
         "change_confidence": "high", "impact_confidence": impact,
     }
 
@@ -162,16 +163,21 @@ def mcp_security_config(definition: object) -> dict:
         "endpoint": endpoint_label(endpoint) if endpoint else "",
         "endpoint_field": "url" if "url" in definition else "endpoint",
         "endpoint_digest": fingerprint({key: definition[key] for key in ("url", "endpoint") if key in definition}),
-        "env_names": names,
+        "env_names": [safe_text(name) for name in names],
+        "env_identity": sorted(fingerprint(name) for name in names),
         "other_digest": fingerprint({key: value for key, value in definition.items() if key not in known}),
         "transport_digest": fingerprint(definition.get("transport", definition.get("type", ""))),
     }
 
 
 def compare_mcp_servers(before: list[dict], after: list[dict]) -> list[dict]:
+    use_identity = all("identity_digest" in item.get("security_config", {})
+                       for item in before + after if isinstance(item, dict) and item.get("kind") == "server")
+
     def indexed(items):
-        return {(item.get("path", ""), item.get("config_identity", item.get("config_pointer", "/mcpServers/" +
-                    pointer_part(str(item.get("name", "")))))): item
+        return {(item.get("path", ""), (item.get("security_config", {}) if use_identity else {}).get("identity_digest",
+                    item.get("config_identity", item.get("config_pointer", "/mcpServers/" +
+                    pointer_part(str(item.get("name", ""))))))): item
                 for item in items if isinstance(item, dict) and item.get("kind") == "server"}
 
     def summary(item):
@@ -182,9 +188,10 @@ def compare_mcp_servers(before: list[dict], after: list[dict]) -> list[dict]:
     old, new = indexed(before), indexed(after)
     changes = []
     for identity in sorted(old.keys() | new.keys()):
-        file, pointer = identity
-        component = f"{file}#{pointer}"
+        file, identity_key = identity
         left, right = old.get(identity), new.get(identity)
+        pointer = (right or left).get("config_identity", (right or left).get("config_pointer", identity_key))
+        component = f"{file}#{pointer}"
         field_pointer = (right or left).get("config_pointer", pointer)
         if left is None or right is None:
             item = right if left is None else left
@@ -193,7 +200,7 @@ def compare_mcp_servers(before: list[dict], after: list[dict]) -> list[dict]:
                 summary(left) if left else None, summary(right) if right else None,
                 f"MCP server {kind}; configuration alone does not prove runtime reachability.",
                 "Review the server implementation, intended users, and minimum required access.",
-                str(item.get("risk", "medium")) if right else "low"))
+                str(item.get("risk", "medium")) if right else "low", identity=identity_key))
             continue
         a = left.get("security_config") or mcp_security_config(left)
         b = right.get("security_config") or mcp_security_config(right)
@@ -205,12 +212,12 @@ def compare_mcp_servers(before: list[dict], after: list[dict]) -> list[dict]:
 
         def emit(rule, field, kind, prior, current, why, fix, severity="medium", impact="medium"):
             changes.append(change(rule, component, file, field_pointer + ("/" + field if field else ""), kind,
-                                  prior, current, why, fix, severity, impact))
+                                  prior, current, why, fix, severity, impact, identity=[identity_key, a, b]))
 
         full_metadata = "security_config" in left and "security_config" in right
-        if not full_metadata:
+        if not full_metadata or "env_identity" not in a or "env_identity" not in b:
             emit("mcp.baseline_coverage", "", "incomplete", "legacy report", "limited metadata",
-                 "A legacy report lacks endpoint and opaque configuration metadata.",
+                 "A legacy report lacks complete configuration or redaction-safe identity metadata.",
                  "Rescan both snapshots with the same current scanner for complete comparison.", impact="unknown")
 
         if a["command_digest"] != b["command_digest"] or a["package_digest"] != b["package_digest"]:
@@ -250,8 +257,9 @@ def compare_mcp_servers(before: list[dict], after: list[dict]) -> list[dict]:
                  "Remote endpoint changed; credentials, path, query, and fragment are omitted.",
                  "Verify the endpoint owner, transport security, and destination of agent data.",
                  impact="unknown")
-        if a["env_names"] != b["env_names"]:
-            prior, current = set(a["env_names"]), set(b["env_names"])
+        env_key = "env_identity" if "env_identity" in a and "env_identity" in b else "env_names"
+        if a[env_key] != b[env_key]:
+            prior, current = set(a[env_key]), set(b[env_key])
             kind = "expanded" if current > prior else "narrowed" if prior > current else "review_required"
             emit("mcp.environment", "env", kind, a["env_names"], b["env_names"],
                  "Declared environment variable names changed; values are never recorded.",

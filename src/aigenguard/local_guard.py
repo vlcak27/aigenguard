@@ -785,22 +785,9 @@ def _mcp_name_from_message(message: str) -> str:
     return _redact_static_text(name)
 
 
-_STATIC_SECRET_VALUE_RE = re.compile(
-    "|".join(
-        [
-            r"sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}",
-            r"sk-ant-[A-Za-z0-9_-]{20,}",
-            r"github_pat_[A-Za-z0-9_]{20,}",
-            r"gh[pousr]_[A-Za-z0-9]{20,}",
-            r"AIza[0-9A-Za-z_-]{20,}",
-            r"hf_[A-Za-z0-9]{20,}",
-        ]
-    )
-)
-
-
 def _redact_static_text(text: str) -> str:
-    return _STATIC_SECRET_VALUE_RE.sub("[REDACTED]", text)
+    from .redaction import redact_text
+    return redact_text(text)
 
 
 def _guard_scan_policy_arg(policy_path: str | Path) -> str:

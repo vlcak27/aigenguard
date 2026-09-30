@@ -764,6 +764,7 @@ def _dedupe_policy_items(items: list[dict[str, str]]) -> list[dict[str, str]]:
             item.get("severity", ""),
             item.get("message", ""),
             item.get("source", ""),
+            item.get("line", ""),
         )
         if key in seen:
             continue

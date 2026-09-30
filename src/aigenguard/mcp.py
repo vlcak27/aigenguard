@@ -6,7 +6,7 @@ import json
 from pathlib import PurePosixPath
 import re
 
-from .security_changes import mcp_security_config, pointer_part
+from .security_changes import fingerprint, mcp_security_config, pointer_part
 
 
 MCP_CONFIG_FILENAMES = {"mcp.json", ".mcp.json", "claude_desktop_config.json"}
@@ -138,6 +138,7 @@ def analyze_mcp_config(
         finding = _server_finding(name, definition, relpath, confidence)
         finding["config_pointer"] = pointer
         finding["config_identity"] = pointer.rsplit("/", 1)[0] + "/" + pointer_part(name)
+        finding["security_config"]["identity_digest"] = fingerprint([relpath, pointer.rsplit("/", 1)[0], name])
         findings.append(finding)
     return findings
 

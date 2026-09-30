@@ -197,9 +197,12 @@
           "required": ["schema_version", "complete"],
           "properties": {
             "schema_version": {"const": "1"},
-            "complete": {"type": "boolean"}
+            "complete": {"type": "boolean"},
+            "env_names": {"type": "array", "items": {"type": "string"}},
+            "env_identity": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+            "identity_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
           },
-          "description": "Safe configuration projection and opaque comparison digests; never environment values."
+          "description": "Redacted display projection and opaque comparison digests (not anonymization); never environment values. Identity and environment digests distinguish inputs with identical redacted displays."
         },
         "command": {
           "type": "string"

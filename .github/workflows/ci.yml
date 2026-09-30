@@ -36,3 +36,12 @@ jobs:
 
       - name: Build package
         run: python -m build
+
+      - name: Offline configuration review corpus and schemas
+        run: python scripts/review_corpus.py --output-dir "${{ runner.temp }}/review-evaluation"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: review-evaluation-${{ matrix.python-version }}
+          path: ${{ runner.temp }}/review-evaluation/
