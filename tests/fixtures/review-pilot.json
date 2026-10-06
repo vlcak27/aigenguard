@@ -1,0 +1,59 @@
+{
+  "date": "2026-09-30",
+  "selection": "Purposive, not random. Actual checked-in supported JSON configurations in three independently maintained repositories; no upstream code execution. Expectations established by raw Git object inspection before scanner runs.",
+  "repositories": [
+    {
+      "id": "sentry",
+      "url": "https://github.com/getsentry/sentry-mcp",
+      "base": "d20bc1a51caee75f5196e1d3e925742ae22b6343",
+      "head": "94e20f3046d85e99e7ef560cd7bc2d8531e55b0c",
+      "reason": "Mixed local npx and remote HTTP servers across Cursor, Claude and VS Code configurations; whole-tree omission pressure.",
+      "file": ".mcp.json",
+      "server": "sentry-dev",
+      "pointer": ["mcpServers", "sentry-dev", "url"],
+      "historical_expected": [
+        ".cursor/mcp.json:mcp.other_configuration:review_required",
+        ".cursor/mcp.json:mcp.other_configuration:review_required",
+        ".mcp.json:mcp.endpoint:review_required",
+        ".mcp.json:mcp.server:removed"
+      ],
+      "historical_reason": "Two Cursor transport type fields removed; local endpoint query changes; spotlight npx server removed. Query change requires review, not a claim of expanded access.",
+      "overlay_status": "incomplete",
+      "overlay_exit": 2,
+      "known_coverage": "Three symlinks, seven oversized entries, unrelated MCP-named schema JSON and unsupported flat plugin JSON shapes remain unverified. No upstream AigenGuard policy.",
+      "synthetic_expected": [".mcp.json:mcp.endpoint:review_required"]
+    },
+    {
+      "id": "context7",
+      "url": "https://github.com/upstash/context7",
+      "base": "1d8b25a9e7234bddcc7131411cd788830922ee88",
+      "head": "d812afe2f85aa39257bc31cd2fe2904f13bd9b63",
+      "reason": "Remote HTTP documentation service; historical authentication-helper removal and multiple plugin configuration shapes.",
+      "file": "plugins/claude/context7/.mcp.json",
+      "server": "context7",
+      "pointer": ["mcpServers", "context7", "url"],
+      "historical_expected": ["plugins/claude/context7/.mcp.json:mcp.other_configuration:review_required"],
+      "historical_reason": "headersHelper executable string removed. Opaque configuration review expected; no invented OAuth/credential permission semantics.",
+      "overlay_status": "incomplete",
+      "overlay_exit": 2,
+      "known_coverage": "Cursor plugin uses an unsupported flat map in mcp.json. No upstream AigenGuard policy.",
+      "synthetic_expected": ["plugins/claude/context7/.mcp.json:mcp.endpoint:review_required"]
+    },
+    {
+      "id": "github",
+      "url": "https://github.com/github/github-mcp-server",
+      "base": "a014a187c125d883968baf88b4ba1fb1c70052b1",
+      "head": "59847fb6204b276dcdbe10eaf14ebe3a73176948",
+      "reason": "New Agent Plugins 1.0 package with a real schema-annotated mcpServers configuration; historical addition rather than modification.",
+      "file": "agent-plugin/mcp.json",
+      "server": "github",
+      "pointer": ["mcpServers", "github", "url"],
+      "historical_expected": ["agent-plugin/mcp.json:mcp.server:added"],
+      "historical_reason": "One remote server added. Its authority and runtime privileges are not inferred from the URL.",
+      "overlay_status": "complete",
+      "overlay_exit": 1,
+      "known_coverage": "No oversized/symlink/unsupported MCP entries observed in the selected head. No upstream AigenGuard policy. Static source exclusions still apply.",
+      "synthetic_expected": ["agent-plugin/mcp.json:mcp.endpoint:review_required"]
+    }
+  ]
+}
