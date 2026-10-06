@@ -7,11 +7,11 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
+import sysconfig
 
 
 def run_demo(output: Path) -> list[dict]:
-    scanner = shutil.which("aigenguard", path=str(Path(sys.executable).parent))
+    scanner = shutil.which("aigenguard", path=sysconfig.get_path("scripts"))
     if scanner is None:
         raise RuntimeError("Install this checkout into the Python environment running the demo first")
     output = output.resolve()
