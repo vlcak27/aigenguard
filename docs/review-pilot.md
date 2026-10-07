@@ -82,7 +82,7 @@ Build from a reviewed AigenGuard checkout, then use a separate environment:
 python -m build
 python -m venv /tmp/aigenguard-pilot-env
 /tmp/aigenguard-pilot-env/bin/python -m pip install --no-index --no-deps \
-  "$PWD/dist/aigenguard-0.8.5-py3-none-any.whl"
+  "$PWD/dist/aigenguard-0.9.0-py3-none-any.whl"
 /tmp/aigenguard-pilot-env/bin/aigenguard --version
 ```
 
@@ -118,7 +118,7 @@ for case in manifest['repositories']:
                     case['url'] + '.git', case['base'], case['head']], check=True)
 PY
 python scripts/pilot_review.py --repos "$pilot_sources" \
-  --wheel dist/aigenguard-0.8.5-py3-none-any.whl \
+  --wheel dist/aigenguard-0.9.0-py3-none-any.whl \
   --output-dir "$(mktemp -d)/pilot-results"
 ```
 
@@ -140,18 +140,55 @@ not blanket security skips. Its final status is recorded in the PR.
 before build/artifact upload; publication depends on that job. It is not merely
 an unrelated optional CI check.
 
-## Remaining 0.9.0 conditions
+## Release follow-through and remaining limits
 
-1. Approve the schema 1.1 ID contract and explicit whole-tree incomplete behavior.
-2. Decide and document operational baseline-policy onboarding; default-policy
-   noise and unsupported plugin shapes currently limit comfortable use.
-3. Require green native Windows review/corpus/wheel checks for this exact PR;
-   keep any still failing platform behavior an explicit release blocker.
-4. Obtain feedback from actual pilot users; this automation is not that feedback.
-5. Perform the separately authorized version bump and release validation/publish
-   workflow. This PR creates no tag, publication or merge.
+0.9.0 retains the schema 1.1 identities and explicit whole-tree incomplete
+behavior. Baseline onboarding and grouped warnings are documented and exercised
+by the maintained PR workflow tests. Release requires native Windows and
+installed-wheel integration checks on the exact commit, followed by the existing
+validated-artifact publishing pipeline. See [release evidence](release-0.9.0.md).
+Actual pilot-user feedback remains future work under the protocol below.
+Supported configuration explanations are demonstrated; frictionless onboarding
+and broad runtime/security accuracy are not established.
 
-Conclusion: useful supported configuration explanations were demonstrated outside
-the demo, but frictionless general onboarding and broad runtime/security accuracy
-are not established. Suitable for a supervised, scope-aware pilot, not a claim
-that every tested repository is safe.
+## Short case study: Context7 configuration review
+
+Historical input: [base 1d8b25a9](https://github.com/upstash/context7/commit/1d8b25a9e7234bddcc7131411cd788830922ee88)
+to [head d812afe2](https://github.com/upstash/context7/commit/d812afe2f85aa39257bc31cd2fe2904f13bd9b63),
+with complete SHAs and changed paths retained in the pilot manifest above.
+The historical change removed `headersHelper`. Review reported one opaque
+configuration change requiring review; it did not infer an OAuth permission grant.
+The native result was incomplete (exit 2): no baseline AigenGuard policy and an
+unsupported flat Cursor plugin map. Adding the explicitly synthetic policy
+still left unsupported coverage and produced 130 credential-reference warnings,
+not 130 confirmed leaks. The separate synthetic endpoint mutation was detected
+but is not an upstream historical event. These are the recorded pre-release
+pilot results, not newly collected user feedback or independent validation.
+
+For 0.9.0, grouped warnings make the change visible while complete JSON evidence
+and incomplete status remain. The next action is to inspect the helper removal,
+agree and commit a real baseline policy, and resolve unsupported coverage before
+relying on a complete result. No upstream endorsement is implied.
+
+## Protocol for 3–5 real pilot participants
+
+Recruitment and contact are outside this task; no participants have been contacted
+and no responses are claimed. Ask each consenting developer to use one real PR
+with a maintainer-approved baseline policy and a pinned scanner release.
+
+1. Record platform, scanner version, base/head SHAs and any install/permission
+   blockers. Start the timer at the documented install step.
+2. Ask the developer to explain their first result and proposed next action in
+   their own words. Record time to that first **understood** result, including
+   incomplete results, rather than just time to report generation.
+3. For each change, rate usefulness (useful / unclear / irrelevant) and record
+   why. Distinguish configured access from verified runtime behavior.
+4. Record warning counts, which examples distracted from new changes, and how
+   many needed investigation. Credential references are not automatically leaks.
+5. Record every incomplete reason and whether its remediation was understandable.
+   Do not relax policy or omit files merely to obtain exit 0.
+
+Keep an anonymized table: participant, version/platform, elapsed minutes,
+understood result, useful/unclear/irrelevant counts, warning noise, incomplete
+reasons, proposed documentation fix. Review 3–5 records qualitatively; do not
+turn this small sample into adoption or population-accuracy claims.

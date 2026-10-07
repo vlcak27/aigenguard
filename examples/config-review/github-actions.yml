@@ -1,4 +1,4 @@
-# Example only: requires the FUTURE published AigenGuard 0.9.0 wheel.
+# Maintained PR workflow: requires the published AigenGuard 0.9.0 wheel.
 # Do not enable until that version is released and approved by your maintainers.
 name: Configuration review
 on:

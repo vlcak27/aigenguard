@@ -38,7 +38,7 @@ Useful reports include:
 
 ## Security Boundaries
 
-For the 0.8 series, AigenGuard is static analysis only:
+The `scan`, `review` and local guard operations are static only:
 
 - AigenGuard does not execute scanned code.
 - AigenGuard does not import scanned modules.
@@ -53,3 +53,18 @@ For the 0.8 series, AigenGuard is static analysis only:
 
 Findings are review signals and should not be treated as proof of exploitability
 without human review.
+
+RunBOM is separate and intentionally executes a configured/autodetected command;
+it is experimental instrumentation, not a sandbox or runtime enforcement.
+
+In 0.9.0, Action inputs pass through environment variables and quoted arguments;
+unknown enum/boolean values are rejected. Earlier direct shell interpolation
+could execute commands **if an untrusted party could influence an Action input**.
+Static policy sections now reject unknown keys rather than silently ignoring
+misspelled restrictions. Error messages identify the known section without
+printing unknown names or values. `[runbom]` remains a separate runtime table.
+
+PR review trusts the selected base policy, not a candidate's relaxed policy.
+Protect the workflow and select the target branch base SHA. Install an approved
+scanner wheel before checkout; never install the scanner or dependencies from
+PR data. Configured permissions are not evidence of runtime access or an exploit.

@@ -2,7 +2,24 @@
 
 All notable changes to AigenGuard, previously AgentBOM, are documented here.
 
-## Unreleased
+## v0.9.0
+
+### Configuration review release
+
+- Complete the existing PR review workflow with executable integration tests,
+  separate Git preparation, grouped warning presentation and baseline onboarding.
+  JSON retains complete evidence and identities; exits remain 0/1/2.
+- Treat Action inputs as data and reject invalid enums/booleans. This fixes shell
+  injection when an untrusted party can influence an input, and quoted-path errors.
+- Reject unknown keys in static policy sections without echoing unknown names or
+  values; `[runbom]` remains separate. Correct misspellings such as `deny_models`
+  to `deny`. Static severity and threshold semantics are unchanged.
+- Reuse the bounded raw-object reader in staged guard. See measured before/after
+  results in `docs/release-0.9.0.md`.
+- Upgrade existing hooks with `aigenguard install-hook`; package upgrades alone
+  do not update hooks. All AgentBOM aliases and artifact names remain supported.
+- No new runtime dependencies, detectors, services or runtime enforcement.
+
 
 ### Fixed
 
@@ -29,11 +46,11 @@ All notable changes to AigenGuard, previously AgentBOM, are documented here.
 - Review exposes effective policy weakening and independently evaluates candidate
   findings against the base policy. Missing/invalid/unsupported inputs are
   incomplete, not a clean result. JSON/Markdown review schema is versioned.
-- Added a real-Git offline demo and an inactive CI example for future 0.9.0;
+- Added a real-Git offline demo and a maintained CI workflow for 0.9.0;
   opaque arguments, environment values and URL credentials/query values are
   omitted from the new review output. No runtime execution or dependencies added.
 
-## v0.8.5
+## 0.8.5 development changes (included in 0.9.0; not separately published)
 
 ### Upgrade and Release Reliability
 

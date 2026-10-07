@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run AigenGuard
-        uses: vlcak27/aigenguard@v0.8.4
+        uses: vlcak27/aigenguard@v0.9.0
         with:
           path: .
           # Informational mode:
@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run AigenGuard
-        uses: vlcak27/aigenguard@v0.8.4
+        uses: vlcak27/aigenguard@v0.9.0
         with:
           path: .
           fail-on: none
@@ -124,7 +124,7 @@ Advisory workflow:
 
 ```yaml
 - name: Run AigenGuard
-  uses: vlcak27/aigenguard@v0.8.4
+  uses: vlcak27/aigenguard@v0.9.0
   with:
     path: .
     fail-on: none
@@ -138,7 +138,7 @@ Enforced policy workflow:
 
 ```yaml
 - name: Run AigenGuard
-  uses: vlcak27/aigenguard@v0.8.4
+  uses: vlcak27/aigenguard@v0.9.0
   with:
     path: .
     fail-on: none
@@ -151,3 +151,21 @@ Enforced policy workflow:
 
 AigenGuard remains static and offline in both modes. It does not execute scanned
 code, start MCP servers, call networks, or print secret values.
+
+## Configuration changes in PRs (0.9.0)
+
+Copy the [maintained review workflow](../examples/config-review/github-actions.yml)
+after approving the pinned published scanner version. It reads base/head SHAs
+from the PR event, installs the trusted wheel before checkout, prepares Git objects
+in an explicit step, and compares the candidate under the original base policy.
+It needs only `contents: read`. No bot comments or `pull_request_target` are used.
+Risk (exit 1) and incomplete (exit 2) keep the job failed; summary and JSON/Markdown
+artifacts remain available through `always()` steps. Do not use `continue-on-error`
+to make these failures green. Grouped warnings can predate the PR; credential
+references are not confirmed leaks. See [review coverage](config-review.md).
+
+The scan Action retains its inputs and risk outputs. All input values are data,
+passed through environment variables and quoted arguments; booleans require
+`true`/`false` and `fail-on` requires a documented severity or `none`. Report paths
+may contain spaces and quotes. Existing policy enforcement still fails the job
+even when `fail-on: none` is selected.
