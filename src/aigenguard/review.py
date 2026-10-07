@@ -271,6 +271,8 @@ def review_exit_code(report, fail_on: str | None = None) -> int:
 def terminal_review(report) -> str:
     findings = review_findings(report)
     lines = [f"AigenGuard review: {report['status']}; {len(findings)} change/review finding(s)."]
+    priority = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    findings = sorted(findings, key=lambda item: priority[item["severity"]])
     for item in findings[:8]:
         lines.append(f"{item['severity'].upper()} {item['rule_id']} [{item['change']}] {item['file']} {item['field']}")
         lines.append("  " + item["explanation"])
@@ -290,6 +292,7 @@ def markdown_review(report) -> str:
 
     lines = ["# AigenGuard configuration review", "", f"Status: **{report['status']}**",
              f"Tool: aigenguard {report['tool']['version']}; review schema {report['schema_version']}", "",
+             "Configured access is not proof of runtime access or an exploit.", "",
              "## Snapshots", "", "```json", json.dumps(report["snapshots"], sort_keys=True, indent=2), "```"]
     for title, items in (("MCP configuration", report["mcp_changes"]),
                          ("Policy changes", report["policy_changes"]),
@@ -298,6 +301,21 @@ def markdown_review(report) -> str:
         lines.extend(["", "## " + title, ""])
         if not items:
             lines.append("No findings in this section; see completeness and coverage below.")
+        if title == "Original policy warnings" and items:
+            lines.append("Candidate warnings under the original policy; these may predate this PR. "
+                         "Credential references are not confirmed leaks. Full evidence and IDs remain "
+                         "in aigenguard-review.json; grouping does not change exit decisions.")
+            groups = {}
+            for item in items:
+                groups.setdefault((item["severity"], item["rule_id"]), []).append(item)
+            for (severity, rule), group in sorted(groups.items()):
+                lines.append(f"- **{severity.upper()} {escaped(rule)}: {len(group)} warning(s)**")
+                for item in group[:3]:
+                    lines.append(f"  - {escaped(item['file'])}: {escaped(item['explanation'])}")
+                if len(group) > 3:
+                    lines.append(f"  - {len(group) - 3} further warning(s) in JSON.")
+                lines.append("  - Review: " + escaped(group[0]["recommendation"]))
+            continue
         for item in items:
             lines.extend([f"- **{item['severity'].upper()} {item['rule_id']} — {item['change']}**",
                           f"  - Component: {escaped(item['component'])}; file: {escaped(item['file'])}; field: {escaped(item['field'])}",
@@ -310,6 +328,15 @@ def markdown_review(report) -> str:
                   "Not evaluated: " + "; ".join(report["coverage"]["not_evaluated"])])
     lines.extend(f"- INCOMPLETE {issue['snapshot']}: {escaped(issue['file'])}: {issue['reason']}"
                  for issue in report["coverage"]["issues"])
+    if any(issue["snapshot"] == "base" and issue["reason"] == "policy is missing"
+           for issue in report["coverage"]["issues"]):
+        lines.extend(["", "### Establish a trusted baseline", "",
+                      "On the protected base branch, run `aigenguard init` to draft a policy. "
+                      "Review and set the allowed/denied providers, models, capabilities and MCP servers "
+                      "with the maintainers; an empty allowlist is unrestricted. Commit the approved "
+                      "policy through normal review before comparing subsequent PRs. Select that "
+                      "commit as the baseline. Adding policy only in the candidate does not fix a "
+                      "missing baseline. No policy was automatically trusted or generated here."])
     if "error" in report:
         lines.append(escaped(report["error"]))
     return "\n".join(lines) + "\n"
