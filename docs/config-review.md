@@ -1,9 +1,8 @@
-# Configuration security review (planned for 0.9.0)
+# Configuration security review (0.9.0)
 
-Available from this source checkout; not present in the published 0.8.4 package.
-This is an explicit offline command. It does not install, update, or change hooks.
-Package versioning is unchanged in this development PR; the CI example below
-requires the future published 0.9.0 release and is not enabled automatically.
+The explicit offline command in 0.9.0 does not install, update, or change hooks.
+For development snapshots use a built wheel; the pinned CI example requires the
+0.9.0 package to be published and approved by your maintainers.
 
 ```bash
 aigenguard review --base HEAD --staged
@@ -110,7 +109,7 @@ example, removing a denial of `b` while an allowlist still permits only `a` has
 the existing evaluator. Disabling `secrets.block_leaks` or
 `mcp.require_policy_for_risky_servers` is visible as weakening. Raising a risk
 threshold or disabling warning controls is distinguished from strengthening.
-Unsupported policy sections and invalid types are incomplete, not successful.
+Unknown static section keys, unsupported policy sections and invalid types are incomplete, not successful.
 `[runbom]` settings are not static enforcement rules and are outside this review.
 
 Base-policy evaluation uses the existing scanner's candidate findings and
@@ -214,12 +213,16 @@ This is a regression/demo corpus, not a claim of precision across real projects.
 
 ## CI integration and limits
 
-[The example workflow](../examples/config-review/github-actions.yml) is inactive
-and requires **future published 0.9.0**. It installs the trusted wheel before
+[The maintained workflow](../examples/config-review/github-actions.yml) can be copied
+to `.github/workflows/config-review.yml` after the pinned **0.9.0** wheel is published. It installs the trusted wheel before
 checking out PR data, compares explicit base/head SHAs outside the PR directory,
 and publishes summary/artifacts without commenting on the PR. It never installs
 PR dependencies, imports PR code, or runs PR scripts. Adapt the protected base
-branch and exact approved scanner version after that version exists.
+branch and exact approved scanner version. CI executes the same shell blocks
+against seven real-Git scenarios using an installed wheel. The review step keeps
+its failure status while `always()` uploads reports and appends the summary.
+Warnings are grouped by rule/severity with three examples; full evidence and
+identities remain in JSON, and threshold decisions are unchanged.
 
 A local hook is not protection against a computer owner who intentionally
 bypasses it. Static review does not replace a runtime sandbox. This iteration

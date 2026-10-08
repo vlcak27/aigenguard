@@ -1,6 +1,14 @@
 # AigenGuard 0.9 Roadmap
 
-AigenGuard 0.9 is a positioning and credibility release.
+AigenGuard 0.9 completes configuration-change review in PRs: configured access,
+policy weakening, and candidate violations of the trusted base policy, with
+safe evidence, recommendations and explicit incomplete coverage.
+
+Delivered for this release: Action input hardening, strict static policy keys,
+maintained wheel-based PR workflow, grouped warnings, bounded staged blob reads,
+offline demo/corpora, migration docs and release validation. Real pilot-user
+feedback and broad accuracy evidence remain future work; see the pilot protocol
+in `docs/review-pilot.md`. Publication status is recorded by GitHub/PyPI releases.
 
 ## 0.9 Goal
 

@@ -106,9 +106,11 @@ def normalize_toml_policy(raw: dict[str, Any]) -> dict[str, Any]:
                 raise PolicyError("policy section [runbom] must be a table")
             continue
         if section not in DEFAULT_TOML_POLICY:
-            raise PolicyError(f"unsupported policy section: [{section}]")
+            raise PolicyError("unsupported policy section; check documented sections")
         if not isinstance(raw[section], dict):
             raise PolicyError(f"policy section [{section}] must be a table")
+        if raw[section].keys() - DEFAULT_TOML_POLICY[section].keys():
+            raise PolicyError(f"unsupported key in policy section [{section}]; check documented keys")
         policy[section].update(raw[section])
 
     _validate_severity(policy["risk"].get("warn_on"), "risk.warn_on", allow_none=True)

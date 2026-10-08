@@ -160,10 +160,10 @@ aigenguard install-hook --policy aigenguard.toml --mode confirm
 
 ### Upgrading an existing installation
 
-After 0.8.5 is published, upgrade in the Python environment used by your hook:
+For the 0.9.0 release, upgrade in the Python environment used by your hook:
 
 ```bash
-python -m pip install --upgrade 'aigenguard==0.8.5'
+python -m pip install --upgrade 'aigenguard==0.9.0'
 aigenguard --version
 cd /path/to/your/repository
 aigenguard status
@@ -330,7 +330,7 @@ Use advisory mode first:
 
 ```yaml
 - name: Run AigenGuard
-  uses: vlcak27/aigenguard@v0.8.4
+  uses: vlcak27/aigenguard@v0.9.0
   with:
     path: .
     fail-on: none
@@ -344,7 +344,7 @@ Then opt into policy enforcement:
 
 ```yaml
 - name: Run AigenGuard
-  uses: vlcak27/aigenguard@v0.8.4
+  uses: vlcak27/aigenguard@v0.9.0
   with:
     path: .
     fail-on: none
@@ -357,3 +357,17 @@ Then opt into policy enforcement:
 
 `fail-on` still controls repository risk threshold enforcement. `enforce-policy`
 controls only `aigenguard.toml` policy violations.
+
+## 0.9.0 strict-key upgrade
+
+Unknown keys inside static sections are errors. For example, `[models]`
+`deny_models = ["gpt-4"]` must become `deny = ["gpt-4"]`. Check every policy against
+the documented section keys before rollout; unknown names/values are not echoed
+in diagnostics. Unknown sections are also rejected. `[runbom]` stays separate.
+Invalid policy fails scan and the real staged guard; review marks it incomplete
+(exit 2), including when only the candidate has a typo. Severity and threshold
+semantics, empty-allowlist behavior, and `agentbom.toml` fallback are unchanged.
+
+Upgrade the package, run `aigenguard status`, then `aigenguard install-hook` and
+check status again. Package installation alone does not replace old hooks.
+Stage the reviewed policy; the guard uses the index, not an unstaged correction.

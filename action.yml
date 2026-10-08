@@ -62,53 +62,71 @@ runs:
       id: scan
       shell: bash
       env:
-        AIGENGUARD_INPUT_POLICY: ${{ inputs.policy }}
-        AIGENGUARD_INPUT_ENFORCE_POLICY: ${{ inputs.enforce-policy }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_SARIF: ${{ inputs.sarif-upload }}
+        INPUT_HTML: ${{ inputs.html }}
+        INPUT_CYCLONEDX: ${{ inputs.cyclonedx }}
+        INPUT_POLICY: ${{ inputs.policy }}
+        INPUT_ENFORCE: ${{ inputs.enforce-policy }}
       run: |
+        case "$INPUT_FAIL_ON" in
+          critical|high|medium|low|none) ;;
+          *) echo "Invalid fail-on input" >&2; exit 2 ;;
+        esac
+        for VALUE in "$INPUT_SARIF" "$INPUT_HTML" "$INPUT_CYCLONEDX" "$INPUT_ENFORCE"; do
+          case "$VALUE" in
+            true|false) ;;
+            *) echo "Boolean inputs must be true or false" >&2; exit 2 ;;
+          esac
+        done
         FLAGS=()
+        if [ "$INPUT_SARIF" = true ]; then FLAGS+=(--sarif); fi
+        if [ "$INPUT_HTML" = true ]; then FLAGS+=(--html); fi
+        if [ "$INPUT_CYCLONEDX" = true ]; then FLAGS+=(--cyclonedx); fi
+        if [ -n "$INPUT_POLICY" ]; then FLAGS+=(--policy "$INPUT_POLICY"); fi
+        if [ "$INPUT_ENFORCE" = true ]; then FLAGS+=(--enforce-policy); fi
 
-        if [ "${{ inputs.sarif-upload }}" = "true" ]; then
-          FLAGS+=(--sarif)
-        fi
+        STATUS=0
+        aigenguard scan "$INPUT_PATH" --output-dir "$INPUT_OUTPUT_DIR" --pretty "${FLAGS[@]}" || STATUS=$?
+        echo "exit-code=$STATUS" >> "$GITHUB_OUTPUT"
+        # Arguments are data, including quotes and shell metacharacters.
+        python - "$INPUT_OUTPUT_DIR/agentbom.json" <<'PYTHON'
+        import json
+        import os
+        from pathlib import Path
+        import sys
 
-        if [ "${{ inputs.html }}" = "true" ]; then
-          FLAGS+=(--html)
-        fi
-
-        if [ "${{ inputs.cyclonedx }}" = "true" ]; then
-          FLAGS+=(--cyclonedx)
-        fi
-
-        if [ -n "$AIGENGUARD_INPUT_POLICY" ]; then
-          FLAGS+=(--policy "$AIGENGUARD_INPUT_POLICY")
-        fi
-
-        if [ "$AIGENGUARD_INPUT_ENFORCE_POLICY" = "true" ]; then
-          FLAGS+=(--enforce-policy)
-        fi
-
-        aigenguard scan "${{ inputs.path }}" \
-          --output-dir "${{ inputs.output-dir }}" \
-          --pretty \
-          "${FLAGS[@]}"
-
-        REPORT="${{ inputs.output-dir }}/agentbom.json"
-
-        SCORE=$(python -c "import json; d=json.load(open('$REPORT')); print(d['repository_risk']['score'])")
-        SEVERITY=$(python -c "import json; d=json.load(open('$REPORT')); print(d['repository_risk']['severity'])")
-
-        echo "risk-score=$SCORE" >> "$GITHUB_OUTPUT"
-        echo "risk-severity=$SEVERITY" >> "$GITHUB_OUTPUT"
+        report = Path(sys.argv[1])
+        if report.is_file():
+            risk = json.loads(report.read_text(encoding="utf-8"))["repository_risk"]
+            score, severity = risk["score"], risk["severity"]
+            if not isinstance(score, (int, float)) or severity not in {"low", "medium", "high", "critical"}:
+                raise SystemExit(2)
+            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                output.write(f"risk-score={score}\nrisk-severity={severity}\n")
+        PYTHON
 
     - name: Upload SARIF
-      if: inputs.sarif-upload == 'true'
+      if: inputs.sarif-upload == 'true' && steps.scan.outputs.risk-severity != ''
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: ${{ inputs.output-dir }}/agentbom.sarif
 
     - name: Enforce fail-on threshold
+      if: always()
       shell: bash
+      env:
+        SCAN_STATUS: ${{ steps.scan.outputs.exit-code }}
+        SEVERITY: ${{ steps.scan.outputs.risk-severity }}
+        FAIL_ON: ${{ inputs.fail-on }}
       run: |
+        case "$SCAN_STATUS" in
+          0) ;;
+          1) exit 1 ;;
+          *) exit 2 ;;
+        esac
         severity_rank() {
           case "$1" in
             low) echo 1 ;;
@@ -116,22 +134,16 @@ runs:
             high) echo 3 ;;
             critical) echo 4 ;;
             none) echo 99 ;;
-            *) echo "invalid" ;;
+            *) echo invalid ;;
           esac
         }
-
-        REPORT="${{ inputs.output-dir }}/agentbom.json"
-        SEVERITY=$(python -c "import json; d=json.load(open('$REPORT')); print(d['repository_risk']['severity'])")
-        FAIL_ON="${{ inputs.fail-on }}"
         ACTUAL_RANK=$(severity_rank "$SEVERITY")
         THRESHOLD_RANK=$(severity_rank "$FAIL_ON")
-
-        if [ "$ACTUAL_RANK" = "invalid" ] || [ "$THRESHOLD_RANK" = "invalid" ]; then
-          echo "Invalid fail-on value: $FAIL_ON" >&2
+        if [ "$ACTUAL_RANK" = invalid ] || [ "$THRESHOLD_RANK" = invalid ]; then
+          echo "Invalid severity or fail-on value" >&2
           exit 2
         fi
-
-        if [ "$FAIL_ON" != "none" ] && [ "$ACTUAL_RANK" -ge "$THRESHOLD_RANK" ]; then
+        if [ "$FAIL_ON" != none ] && [ "$ACTUAL_RANK" -ge "$THRESHOLD_RANK" ]; then
           echo "AigenGuard risk severity $SEVERITY meets fail-on threshold $FAIL_ON" >&2
           exit 1
         fi

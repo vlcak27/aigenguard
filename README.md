@@ -17,10 +17,13 @@ AI-agent repos often spread important behavior across prompt files, tool
 permissions, MCP servers, and credential references. AigenGuard makes those
 changes visible in the normal commit workflow.
 
+The commands below target release 0.9.0. On a development branch, use a built
+wheel until that version appears on [PyPI](https://pypi.org/project/aigenguard/0.9.0/).
+
 ## Primary Workflow
 
 ```bash
-pip install aigenguard
+pip install aigenguard==0.9.0
 cd my-agent-repo
 aigenguard activate
 git commit
@@ -51,9 +54,9 @@ Static findings are review signals, not exploit proof.
 - Static scans do not execute MCP servers or contact networks.
 - Secret values are redacted and must not be printed or stored.
 
-## Review configuration changes (planned for 0.9.0)
+## Review configuration changes in 0.9.0
 
-From this source checkout, review what an MCP or policy change newly permits:
+Review what an MCP or policy change newly permits:
 
 ```bash
 aigenguard review --base HEAD --staged --fail-on high
@@ -70,20 +73,10 @@ HIGH mcp.filesystem_scope [expanded] .mcp.json /mcpServers/files/args
 JSON/Markdown reports explain safe before/after values, policy weakening, and
 candidate violations of the original policy. This is configured access, not proof
 of runtime reachability. Existing hooks are unchanged. See
-[coverage, exit codes, offline demo, and the future-version CI example](docs/config-review.md).
-For a first local run, interpreting risk versus incomplete input, and the
+[coverage, exit codes, offline demo, and the maintained PR workflow](docs/config-review.md).
+Try the [offline demo and fix](docs/demo-workflow.md#configuration-review-in-five-minutes)
+(designed for five minutes; not measured with users). For risk versus incomplete input and the
 independent labelled corpus, see [review evaluation and pilot guide](docs/review-evaluation.md).
-
-## Optional RunBOM Evidence
-
-```bash
-aigenguard run
-```
-
-RunBOM is optional supporting runtime evidence. It intentionally executes the
-configured or autodetected command under experimental Python-focused
-instrumentation. It is not the main product, not a sandbox, and not policy
-enforcement.
 
 ## AgentBOM Compatibility
 
@@ -103,13 +96,6 @@ Compatibility remains for existing automation:
 - `agentbom.*` report filenames
 - `.agentbom/` runtime artifacts
 - `AGENTBOM_SKIP_HOOK` hook bypass alias
-
-## What It Reviews
-
-- likely AI/API key leaks, with values redacted
-- risky shell or code execution capabilities
-- MCP server exposure
-- AI provider or model usage outside policy
 
 ## Recommended Workflow
 
@@ -189,65 +175,12 @@ aigenguard deactivate
 
 Troubleshooting prompt or PATH issues: [troubleshooting](docs/troubleshooting.md).
 
-## RunBOM
+## Optional runtime evidence
 
-RunBOM is an experimental, optional runtime evidence mode:
-
-```bash
-aigenguard activate
-aigenguard run
-```
-
-`aigenguard activate` installs the static local guard. It can also configure
-`[runbom]` in `aigenguard.toml` when a safe test or runtime command is detected.
-`aigenguard run` intentionally executes the configured command, or an
-autodetected command, under best-effort Python runtime instrumentation.
-
-Autodetection prefers simple commands such as:
-
-- `python -m pytest tests/agent_runtime`
-- `python -m pytest tests/runbom`
-- `python -m pytest`
-- npm, pnpm, or bun test scripts when detected
-
-RunBOM prints a human-readable terminal summary and writes machine-readable
-artifacts:
-
-```text
-AigenGuard RunBOM OK
-
-Runtime summary:
-  153 events observed
-  57 unique events
-  Highest risk: high
-
-Top runtime signals:
-  HIGH env.read OPENAI_API_KEY
-       Why: agent read an AI provider credential variable name.
-       Note: secret value was not recorded.
-
-  HIGH filesystem.read .env
-       Why: agent read a common local secrets file.
-       Fix: avoid reading local secrets files during agent runtime checks unless expected.
-
-Artifacts:
-  .agentbom/runbom-summary.json
-  .agentbom/runbom.jsonl
-```
-
-The terminal output shows the developer summary and at most the top runtime
-signals. JSON artifacts are for machines and CI:
-
-- `.agentbom/runbom.jsonl`
-- `.agentbom/runbom-summary.json`
-
-`.agentbom/runbom-summary.json` is the machine-readable summary.
-`.agentbom/runbom.jsonl` is the raw event log. Events are classified with risk
-and tags, but secret values are never recorded. High-risk runtime evidence does
-not fail the command by itself.
-
-RunBOM is Python-focused and best-effort. It is not a sandbox, does not enforce
-policy yet, and is not part of pre-commit by default.
+`aigenguard run` intentionally executes a configured or autodetected command.
+This experimental, Python-focused RunBOM workflow is separate from static scan,
+review and pre-commit. It is neither a sandbox nor runtime policy enforcement.
+See [RunBOM](docs/runbom.md) for instrumentation and `.agentbom/` artifacts.
 
 ## What It Finds
 
@@ -292,7 +225,8 @@ with existing automation. RunBOM artifacts also remain under `.agentbom/`.
 
 ## GitHub Action
 
-Use the action in pull requests to publish reports and a workflow job summary.
+For MCP/policy deltas use the [maintained PR review workflow](examples/config-review/github-actions.yml).
+For full working-tree inventory use the existing scan Action:
 
 ```yaml
 name: AigenGuard
@@ -312,7 +246,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run AigenGuard
-        uses: vlcak27/aigenguard@v0.8.4
+        uses: vlcak27/aigenguard@v0.9.0
         with:
           path: .
           fail-on: none

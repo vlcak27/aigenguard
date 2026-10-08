@@ -92,46 +92,47 @@ def staged_snapshot(repo_root: Path, policy_path: str | Path):
         entries = git_output(repo_root, "ls-tree", "-r", "-z", "-l", "--full-tree", tree)
         policy_found = False
         destinations: dict[str, str] = {}
-        for entry in entries.split(b"\0"):
-            if not entry:
-                continue
-            metadata, raw_name = entry.split(b"\t", 1)
-            mode, kind, oid, size = metadata.split()
-            name = os.fsdecode(raw_name)
-            parts = PurePosixPath(name).parts
-            if (
-                not parts or "/".join(parts) != name
-                or any(part in {".", "..", ".git"} for part in parts)
-                or PurePosixPath(name).is_absolute()
-                or (os.name == "nt" and any(
-                    "\\" in part or ":" in part or part.endswith((".", " "))
-                    or Path(part).is_reserved() for part in parts
-                ))
-            ):
-                raise ValueError("index contains a path that cannot be safely scanned")
-            is_policy = name == policy_relative
-            # Neither symlinks nor submodules are materialized or followed.
-            if kind != b"blob" or mode not in {b"100644", b"100755"}:
-                if is_policy:
-                    raise ValueError("staged policy must be a regular file, not a symlink")
-                continue
-            if int(size) > MAX_POLICY_FILE_SIZE:
-                if is_policy:
-                    raise ValueError("staged policy exceeds the 1 MB limit")
-                continue
-            for length in range(1, len(parts) + 1):
-                prefix = "/".join(parts[:length])
-                key = os.path.normcase(prefix)
-                if key in destinations and destinations[key] != prefix:
-                    raise ValueError("index paths collide on this filesystem")
-                destinations[key] = prefix
-            destination = root.joinpath(*parts)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            # cat-file reads the raw blob. No smudge/clean filters or textconv.
-            data = git_output(repo_root, "cat-file", "blob", oid.decode("ascii"))
-            with destination.open("xb") as handle:
-                handle.write(data)
-            policy_found = policy_found or is_policy
+        with raw_blob_reader(repo_root) as read_blob:
+            for entry in entries.split(b"\0"):
+                if not entry:
+                    continue
+                metadata, raw_name = entry.split(b"\t", 1)
+                mode, kind, oid, size = metadata.split()
+                name = os.fsdecode(raw_name)
+                parts = PurePosixPath(name).parts
+                if (
+                    not parts or "/".join(parts) != name
+                    or any(part in {".", "..", ".git"} for part in parts)
+                    or PurePosixPath(name).is_absolute()
+                    or (os.name == "nt" and any(
+                        "\\" in part or ":" in part or part.endswith((".", " "))
+                        or Path(part).is_reserved() for part in parts
+                    ))
+                ):
+                    raise ValueError("index contains a path that cannot be safely scanned")
+                is_policy = name == policy_relative
+                # Neither symlinks nor submodules are materialized or followed.
+                if kind != b"blob" or mode not in {b"100644", b"100755"}:
+                    if is_policy:
+                        raise ValueError("staged policy must be a regular file, not a symlink")
+                    continue
+                if int(size) > MAX_POLICY_FILE_SIZE:
+                    if is_policy:
+                        raise ValueError("staged policy exceeds the 1 MB limit")
+                    continue
+                for length in range(1, len(parts) + 1):
+                    prefix = "/".join(parts[:length])
+                    key = os.path.normcase(prefix)
+                    if key in destinations and destinations[key] != prefix:
+                        raise ValueError("index paths collide on this filesystem")
+                    destinations[key] = prefix
+                destination = root.joinpath(*parts)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                # cat-file reads the raw blob. No smudge/clean filters or textconv.
+                data = read_blob(oid, int(size))
+                with destination.open("xb") as handle:
+                    handle.write(data)
+                policy_found = policy_found or is_policy
         if not policy_found:
             raise ValueError("policy is missing from the index; stage it with git add")
         yield root, root.joinpath(*PurePosixPath(policy_relative).parts), policy_relative

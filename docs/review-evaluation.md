@@ -1,7 +1,7 @@
 # Review stabilization and first-use guide
 
-This is source-checkout functionality for a future 0.9.0 pilot, not a command to
-install an already published 0.9.0. Package version remains 0.8.5 in this PR.
+This guide targets 0.9.0. Development snapshots use a built wheel; published
+installation requires the matching PyPI release.
 
 ## First run
 
@@ -139,11 +139,10 @@ under `node_modules` is outside the existing scanner scope, explicitly listed in
 coverage, and does not itself trigger incomplete. That directory is not proven
 safe. No omission check was removed to improve the success rate.
 
-The explicit command is suitable for a supervised local pilot after code review.
-Before publishing 0.9.0: obtain maintainer approval for the 1.1 ID contract and
-coverage/exit behavior, exercise representative user repositories, then perform
-the versioned release workflow. Runtime enforcement, client Roots, symlinks,
-arbitrary secret recognition, native Windows execution, and broad real-world
-accuracy remain unverified. The future-version CI integration cannot run against
-a published 0.9.0 wheel until that release exists. No tag, publish or merge is
-part of this stabilization.
+The explicit command is suitable for supervised pilots. The native Windows CI
+job runs review security tests, both corpora, offline demo and isolated-wheel
+validation; release 0.9.0 also includes native staged-guard regressions. Check the
+exact release SHA's workflow results rather than inferring support from POSIX
+path simulations. Runtime enforcement, client Roots, arbitrary secret recognition
+and broad real-world accuracy remain outside verified claims. See
+[release evidence](release-0.9.0.md) and the [pilot protocol](review-pilot.md).

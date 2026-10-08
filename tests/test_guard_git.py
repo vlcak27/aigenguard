@@ -329,7 +329,10 @@ def legacy_hook():
 def test_migrate_legacy_hook_preserves_settings_and_foreign_content(
     repo, monkeypatch, capsys, brand, mode,
 ):
-    policy = 'security/custom $policy `name` "quoted".toml'
+    # Windows forbids double quotes in filenames. Keep metacharacter coverage
+    # there with an apostrophe; POSIX still exercises literal double quotes.
+    quote = "'" if os.name == "nt" else '"'
+    policy = f"security/custom $policy `name` {quote}quoted{quote}.toml"
     policy_file = repo / policy
     policy_file.parent.mkdir()
     git(repo, "mv", "aigenguard.toml", policy)

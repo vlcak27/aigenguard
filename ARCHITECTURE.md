@@ -98,14 +98,21 @@ The distinction matters because an AI agent review often needs evidence such as:
 AigenGuard should stay complementary to SAST rather than becoming a general
 language vulnerability scanner.
 
-## Roadmap Ideas
+## Configuration review and guard snapshots
 
-Capability graphing: represent providers, models, frameworks, tools, capabilities, source files, and risks as an explicit graph that can be queried or visualized.
+`review.py` reuses scanner evidence, normalized static policy, and configuration
+deltas. The candidate is evaluated against the selected base policy. Missing or
+invalid baseline, omitted unsafe entries, and unsupported configurations remain
+incomplete (exit 2). Configured scope is not runtime reachability.
 
-Reachability analysis: improve actor-to-capability inference using simple static structure, configuration references, tool registration patterns, and MCP metadata while preserving deterministic output.
+`git_index.py` supplies immutable object snapshots. Review and staged guard share
+the bounded raw `cat-file --batch` reader, verifying blob identity/type/size before
+reading at most 1 MB. Guard retains its existing isolated-worktree index handling,
+path collision checks, alternate-index support and staged-policy selection.
+No filters, textconv, fsmonitor, lazy fetch or scanned programs run.
 
-Trust scoring: derive transparent trust signals from policies, pinned dependencies, capability exposure, secret handling, and reviewed configuration. Scores should explain their inputs.
-
-MCP analysis: parse MCP configuration more deeply, classify server transports, identify command-backed servers, and connect MCP tools to reachable capabilities.
-
-Policy validation: compare detected capabilities against repository policy files or explicit allowlists, then report missing, stale, or violated controls.
+Markdown groups candidate warnings under the original policy; JSON keeps all
+occurrences and IDs. Presentation never changes threshold evaluation. The
+maintained PR workflow installs a trusted wheel, prepares Git objects explicitly,
+runs offline review, and always preserves summary/artifacts on exit 1 or 2.
+RunBOM remains a separate optional runtime execution path.
