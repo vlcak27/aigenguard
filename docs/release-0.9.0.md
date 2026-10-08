@@ -55,3 +55,12 @@ The [Context7 case study and 3–5-person pilot protocol](review-pilot.md) disti
 historical changes, synthetic overlays, credential references and incomplete
 coverage. No users were contacted, no feedback was invented, and no independent
 validation, adoption or uniqueness is claimed.
+
+## Native Windows fixture correction
+
+The first expanded Windows job passed 127 cases but six legacy-hook migration
+cases could not construct filenames containing `"` (forbidden by Windows).
+The fixture uses an apostrophe on Windows and retains double quotes on POSIX;
+both keep spaces, dollar signs and backticks and require the same actual commit
+outcomes. No detector rule or enforcement expectation changed. The existing
+POSIX executable-bit test is inapplicable on Windows; it remains tested on POSIX.
