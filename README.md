@@ -17,8 +17,10 @@ AI-agent repos often spread important behavior across prompt files, tool
 permissions, MCP servers, and credential references. AigenGuard makes those
 changes visible in the normal commit workflow.
 
-The commands below target release 0.9.0. On a development branch, use a built
-wheel until that version appears on [PyPI](https://pypi.org/project/aigenguard/0.9.0/).
+Version [0.9.0 is published on PyPI](https://pypi.org/project/aigenguard/0.9.0/).
+New here? Follow the [install → finding → fix walkthrough](docs/demo-workflow.md#configuration-review-in-five-minutes)
+using the published package and a disposable demo. It is intended for developers
+reviewing supported MCP configuration in Git; it does not verify runtime access.
 
 ## Primary Workflow
 
@@ -26,11 +28,14 @@ wheel until that version appears on [PyPI](https://pypi.org/project/aigenguard/0
 pip install aigenguard==0.9.0
 cd my-agent-repo
 aigenguard activate
+# Inspect the generated/reused policy before staging it.
+git add aigenguard.toml
 git commit
 ```
 
 `aigenguard activate` creates or reuses `aigenguard.toml` and installs the local
-pre-commit guard. After that, commits run the static guard locally.
+pre-commit guard. If activation reuses `agentbom.toml`, stage that file instead.
+After that, commits run the static guard locally.
 
 ## Example Blocked Change
 
