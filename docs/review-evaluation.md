@@ -5,38 +5,18 @@ installation requires the matching PyPI release.
 
 ## First run
 
-From the repository root, install the checkout in your development virtualenv:
+Use the [published-package walkthrough](demo-workflow.md#configuration-review-in-five-minutes)
+for installation, a committed demo baseline, a scope expansion, the actual high
+finding, and a staged fix. No local build or editable installation is required.
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
-review_demo=$(mktemp -d)/demo
-.venv/bin/python scripts/demo_config_review.py --output-dir "$review_demo"
-.venv/bin/aigenguard review --path "$review_demo/repository" \
-  --base HEAD~3 --head HEAD~2 --fail-on high
-```
-
-The last command deliberately exits **1**: the demo's configured filesystem scope
-expanded. Read the rule, field, safe before/after, recommendation, and confidence,
-not just the exit status. Run the fixed state:
-
-```bash
-.venv/bin/aigenguard review --path "$review_demo/repository" \
-  --base HEAD~2 --head HEAD --fail-on high
-```
-
-This exits 0 and describes narrowing. For your actual repository, select the
-intended protected baseline, edit the reported configuration to the minimum
-necessary scope, stage the fix with `git add`, and rerun:
-
-```bash
-.venv/bin/aigenguard review --base HEAD --staged --fail-on high
-```
-
-Exit **2** means incomplete input or an operational error, not a clean review.
-Read `coverage.issues`: stage a valid missing policy, repair malformed JSON, or
-explicitly account for omitted data. Do not silence the result by weakening the
-candidate policy. Candidate violations of the original policy remain visible.
+Exit **1** is an expected threshold finding. Exit **2** is incomplete input or an
+operational error, not a clean review. Read `coverage.issues` in the JSON report.
+If only the candidate policy is missing, stage a reviewed policy. If the **base**
+policy is missing, staging a candidate policy is insufficient: draft with
+`aigenguard init`, review its restrictions, commit it on the intended base branch
+through normal review, and compare subsequent changes against that commit.
+Repair malformed JSON and inspect omitted data; do not silence incomplete results
+by weakening policy. Candidate findings still use the original base policy.
 
 Example of the improved evidence (the model scanner supplies no line):
 
@@ -52,6 +32,10 @@ numbers are retained; repeated identical model mentions in one file remain
 aggregated by the existing scanner. No invented locations are attached.
 
 ## Independent labelled evaluation
+
+Contributor-only evaluation: use a trusted source checkout and a separate
+development environment (`python3 -m venv .venv`, then
+`.venv/bin/python -m pip install -e ".[dev]"`). This is not required for first use.
 
 ```bash
 review_eval=$(mktemp -d)/evaluation
